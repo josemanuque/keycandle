@@ -38,8 +38,8 @@ static volatile uint8_t  rx_len;
 
 static void fifo_reset(void) {
     SN_SPI0->CTRL0 |= CTRL0_FRESET;
-    while ((SN_SPI0->CTRL0 & CTRL0_FRESET) == CTRL0_FRESET) {
-        /* cleared by hardware within a few cycles */
+    /* Cleared by hardware within a few cycles; bounded so a fault can never hang the keyboard. */
+    for (uint16_t n = 0; n < 1000 && (SN_SPI0->CTRL0 & CTRL0_FRESET) == CTRL0_FRESET; n++) {
     }
 }
 
@@ -87,7 +87,7 @@ OSAL_IRQ_HANDLER(SN32_SPI0_HANDLER) {
  * milliseconds; nothing is dropped unless the module stops responding for STUCK_TIMEOUT_MS. */
 
 #define QUEUE_LEN 16
-#define PACKET_MAX 10
+#define PACKET_MAX 9 /* the largest packet: A1 + 8-byte boot keyboard report */
 
 typedef struct {
     uint8_t len;
@@ -143,6 +143,10 @@ static void pump(void) {
     start_packet(&queue[q_head]);
     q_head   = (q_head + 1) % QUEUE_LEN;
     was_busy = true;
+}
+
+bool rk71_bt_idle(void) {
+    return q_head == q_tail && !tx_busy && rx_len == 0 && !gpio_read_pin(RK71_BT_DIR_PIN);
 }
 
 bool rk71_bt_send(const uint8_t *data, uint8_t len) {

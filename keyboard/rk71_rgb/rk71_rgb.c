@@ -7,7 +7,7 @@
 //   - the device slot (1-5) and the stock Fn+Q/W/E/R/T, Fn+P, Fn+Backspace controls (tap / 3 s hold)
 //   - side lights: follow the keyboard colour, a fixed colour, or off (set in VIA), plus status:
 //     pairing, connecting, mode changes, battery level (Fn+Space), low battery
-//   - lighting off after 5 minutes idle on battery
+//   - battery saving: lighting off when idle, then deep sleep (rk71_sleep.c)
 //
 // Commands (A6 xx yy) and events (B6 xx yy) were decoded from stock firmware V1.12. They match
 // QMK's iton_bt.h: 51 81..85 select device, 51 89 pair, 51 70 forget all, 51 61 battery level,
@@ -17,6 +17,7 @@
 #include <string.h>
 #include "rk71_bt.h"
 #include "rk71_side.h"
+#include "rk71_sleep.h"
 #include "bluetooth.h"
 #include "connection.h"
 #ifdef VIA_ENABLE
@@ -34,11 +35,15 @@
 #define HOLD_MS 3000               /* hold time for pair / forget, as in the stock firmware */
 #define BOOT_SETTLE_MS 1000        /* let the module boot before the first command */
 #define BLINK_TIMEOUT_MS 60000     /* stop the pairing/connecting blink after this long */
-#define BATTERY_IDLE_RGB_MS 300000 /* on Bluetooth, lighting off after 5 minutes without typing */
 #define LEDS_STABLE_MS 200         /* right after connecting, a wrong lock-LED value can arrive */
 #define FLASH_MS 1500              /* mode-change flash */
 #define BATTERY_SHOW_MS 3000       /* Fn+Space battery bar */
 #define BATTERY_WAIT_MS 1500       /* no answer from the module after this long: show "unknown" */
+#define FORGET_FLASH_MS 2000       /* "all pairings forgotten" flash */
+#define LINK_DONE_MS 1000          /* connected: keep the solid blue this long */
+#define SAVE_DELAY_MS 2000         /* VIA slider changes are saved once they settle */
+#define WAKE_GRACE_MS 250          /* awake at least this long after waking: the key gets debounced
+                                      and a plugged-in cable gets confirmed (4 x 20 ms samples) */
 
 /* ---- saved settings ---------------------------------------------------------------------- */
 /* All-zero is the default: wired, slot 1, side lights follow the keyboard, status shown. */
@@ -162,15 +167,33 @@ void bluetooth_send_consumer(uint16_t usage) {
 
 /* ---- mode handling -------------------------------------------------------------------------- */
 
+/* A status display that runs for a fixed time after something happened. */
+typedef struct {
+    bool     active;
+    uint32_t since;
+} timed_t;
+
+static void timed_start(timed_t *t) {
+    t->active = true;
+    t->since  = timer_read32();
+}
+
+static void timed_expire(timed_t *t, uint32_t now, uint32_t duration_ms) {
+    if (t->active && TIMER_DIFF_32(now, t->since) > duration_ms) t->active = false;
+}
+
+enum { MODE_NONE = -1, MODE_WIRED, MODE_BLUETOOTH };
+
 static uint32_t boot_time;
-static int8_t   applied_mode = -1; /* -1 = nothing sent to the module yet; 0 wired; 1 Bluetooth */
-static uint32_t mode_flash_at;     /* when the mode last changed (side lights / P key flash) */
-static bool     mode_flash;
-static uint32_t forget_flash_at;
-static bool     forget_flash;
-static uint32_t battery_asked_at;
-static bool     battery_showing;
+static int8_t   applied_mode = MODE_NONE; /* MODE_NONE until the first command reaches the module */
+static timed_t  mode_flash;               /* wired/Bluetooth just changed */
+static timed_t  forget_flash;             /* all pairings forgotten */
+static timed_t  battery_bar;              /* Fn+Space: battery level requested */
 static bool     show_link; /* connect/pair progress: only after a key press, not for automatic reconnects */
+
+static bool on_bluetooth(void) {
+    return applied_mode == MODE_BLUETOOTH;
+}
 
 static bool want_bt(void) {
     return !vbus_present() || kb_config.bt_mode; /* no cable: Bluetooth is the only option */
@@ -183,9 +206,9 @@ static void connect_host(void) {
 
 static void apply_mode(void) {
     bool bt = want_bt();
-    if (applied_mode == (int8_t)bt) return;
-    bool first   = applied_mode < 0;
-    applied_mode = bt;
+    if (applied_mode == (bt ? MODE_BLUETOOTH : MODE_WIRED)) return;
+    bool first   = applied_mode == MODE_NONE;
+    applied_mode = bt ? MODE_BLUETOOTH : MODE_WIRED;
     if (bt) {
         host_leds = pending_leds = 0; /* no stale Caps Lock state from an earlier session */
         connection_set_host_noeeprom(CONNECTION_HOST_BLUETOOTH);
@@ -195,10 +218,7 @@ static void apply_mode(void) {
         bt_command(BT_CMD_USB, BT_USB_MODE);
         set_link(LINK_IDLE);
     }
-    if (!first) {
-        mode_flash    = true;
-        mode_flash_at = timer_read32();
-    }
+    if (!first) timed_start(&mode_flash);
 }
 
 static void save_config(void) {
@@ -209,7 +229,7 @@ static void select_host(uint8_t host, bool pair) {
     kb_config.host    = host;
     kb_config.bt_mode = true; /* choosing a device also means Bluetooth when plugged in */
     save_config();
-    if (applied_mode != 1) {
+    if (!on_bluetooth()) {
         apply_mode(); /* switches to Bluetooth and connects to the new slot */
     } else {
         connect_host();
@@ -237,10 +257,9 @@ static void key_tap(uint16_t kc) {
                 kb_config.bt_mode = !kb_config.bt_mode;
                 save_config();
                 apply_mode();
-                show_link = applied_mode == 1;
+                show_link = on_bluetooth();
             }
-            mode_flash    = true;
-            mode_flash_at = timer_read32();
+            timed_start(&mode_flash);
             break;
     }
 }
@@ -258,8 +277,7 @@ static void key_hold(uint16_t kc) {
         case BT_CLR:
             bt_command(BT_CMD_BT, BT_FORGET_ALL);
             set_link(LINK_IDLE);
-            forget_flash    = true;
-            forget_flash_at = timer_read32();
+            timed_start(&forget_flash);
             break;
     }
 }
@@ -268,9 +286,8 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
     if (!process_record_user(keycode, record)) return false;
     if (keycode == BT_BATT) {
         if (record->event.pressed) {
-            battery_level    = 0;
-            battery_showing  = true;
-            battery_asked_at = timer_read32();
+            battery_level = 0;
+            timed_start(&battery_bar);
             bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
         }
         return false;
@@ -307,20 +324,25 @@ static bool blink(uint32_t now, uint16_t period) {
     return (now / period) % 2;
 }
 
+/* Low battery is shown only while typing, so it never keeps a nearly flat keyboard awake. */
+static bool low_battery_warning(void) {
+    return battery_low && last_input_activity_elapsed() < RK71_SLEEP_IDLE_MS;
+}
+
 /* Status takes over the side lights while something is happening. Returns false when idle. */
 static bool side_status(uint32_t now, uint8_t *pos, uint8_t *col) {
-    if (forget_flash) {
+    if (forget_flash.active) {
         *pos = SIDE_ALL;
         *col = blink(now, 150) ? SIDE_RED : 0;
         return true;
     }
-    if (battery_showing) {
+    if (battery_bar.active) {
         if (battery_level) {
             static const uint8_t bars[] = {0, 0x20, 0x38, 0x3F}; /* 1 / 3 / 6 lights from the near end */
             static const uint8_t cols[] = {0, SIDE_RED, SIDE_YELLOW, SIDE_GREEN};
             *pos = bars[battery_level];
             *col = cols[battery_level];
-        } else if (TIMER_DIFF_32(now, battery_asked_at) > BATTERY_WAIT_MS) {
+        } else if (TIMER_DIFF_32(now, battery_bar.since) > BATTERY_WAIT_MS) {
             *pos = 0x20; /* no answer (slide switch off?): nearest light blinks red */
             *col = blink(now, 150) ? SIDE_RED : 0;
         } else {
@@ -328,7 +350,7 @@ static bool side_status(uint32_t now, uint8_t *pos, uint8_t *col) {
         }
         return true;
     }
-    if (show_link && applied_mode == 1) {
+    if (show_link && on_bluetooth()) {
         *pos = SIDE_ALL;
         switch (link_state) {
             case LINK_PAIRING: *col = blink(now, 200) ? SIDE_BLUE : 0; return true;
@@ -336,12 +358,12 @@ static bool side_status(uint32_t now, uint8_t *pos, uint8_t *col) {
             default: *col = blink(now, 500) ? SIDE_BLUE : 0; return true; /* connecting */
         }
     }
-    if (mode_flash) {
+    if (mode_flash.active) {
         *pos = SIDE_ALL;
-        *col = applied_mode == 1 ? SIDE_BLUE : SIDE_GREEN;
+        *col = on_bluetooth() ? SIDE_BLUE : SIDE_GREEN;
         return true;
     }
-    if (battery_low) {
+    if (low_battery_warning()) {
         *pos = 0x20; /* nearest light blinks red */
         *col = blink(now, 1000) ? SIDE_RED : 0;
         return true;
@@ -380,17 +402,44 @@ void keyboard_post_init_kb(void) {
     if (kb_config.host > 4) kb_config.host = 0;
     if (kb_config.side_mode > SIDE_OFF) kb_config.side_mode = SIDE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
+    rk71_sleep_init();
     boot_time = timer_read32();
     keyboard_post_init_user();
 }
 
-static bool rgb_off_for_idle;
-static bool     save_pending;      /* VIA settings changed, write to flash once they settle */
+static bool     rgb_off_for_idle;
+static bool     save_pending; /* VIA settings changed, write to flash once they settle */
 static uint32_t save_requested_at;
-#define SAVE_DELAY_MS 2000
+static uint32_t woke_at;
 
 bool rk71_rgb_lighting_on(void) {
     return rgb_matrix_is_enabled() && !rgb_matrix_get_suspend_state();
+}
+
+static bool on_battery(void) {
+    return on_bluetooth() && vbus_known() && !vbus_present();
+}
+
+/* A status display that should not be cut short by sleeping. */
+static bool status_showing(void) {
+    return forget_flash.active || battery_bar.active || mode_flash.active || (show_link && on_bluetooth());
+}
+
+static bool keys_held(void) {
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        if (matrix_get_row(row)) return true;
+    }
+    return held_key != 0;
+}
+
+/* Deep sleep: on battery, nothing lit, nothing pending, and no typing for a while. */
+static bool may_sleep(uint32_t now) {
+    return on_battery()                                          //
+           && !lighting_visible() && side_is_dark()              // nothing lit
+           && !status_showing()                                  //
+           && !keys_held() && !save_pending && rk71_bt_idle()    // nothing pending
+           && last_input_activity_elapsed() >= RK71_SLEEP_IDLE_MS //
+           && TIMER_DIFF_32(now, woke_at) >= WAKE_GRACE_MS;
 }
 
 void housekeeping_task_kb(void) {
@@ -404,12 +453,13 @@ void housekeeping_task_kb(void) {
         link_state = LINK_IDLE;
     }
     /* Progress display ends 1 s after connecting, or when the attempt times out. */
-    if (show_link && ((link_state == LINK_CONNECTED && TIMER_DIFF_32(now, link_since) > 1000) || TIMER_DIFF_32(now, link_since) > BLINK_TIMEOUT_MS || applied_mode != 1)) {
+    bool link_done = link_state == LINK_CONNECTED && TIMER_DIFF_32(now, link_since) > LINK_DONE_MS;
+    if (show_link && (link_done || TIMER_DIFF_32(now, link_since) > BLINK_TIMEOUT_MS || !on_bluetooth())) {
         show_link = false;
     }
-    if (mode_flash && TIMER_DIFF_32(now, mode_flash_at) > FLASH_MS) mode_flash = false;
-    if (forget_flash && TIMER_DIFF_32(now, forget_flash_at) > 2000) forget_flash = false;
-    if (battery_showing && TIMER_DIFF_32(now, battery_asked_at) > BATTERY_SHOW_MS) battery_showing = false;
+    timed_expire(&mode_flash, now, FLASH_MS);
+    timed_expire(&forget_flash, now, FORGET_FLASH_MS);
+    timed_expire(&battery_bar, now, BATTERY_SHOW_MS);
 
     if (held_key && !hold_done && TIMER_DIFF_32(now, held_since) >= HOLD_MS) {
         hold_done = true;
@@ -420,7 +470,7 @@ void housekeeping_task_kb(void) {
 
     /* Battery saving: on Bluetooth without a cable, lighting off after a while without typing,
      * and at once when the module reports a flat battery. */
-    bool idle = applied_mode == 1 && !vbus_present() && (last_input_activity_elapsed() > BATTERY_IDLE_RGB_MS || battery_shutdown);
+    bool idle = on_battery() && (last_input_activity_elapsed() > RK71_LIGHTS_OFF_IDLE_MS || battery_shutdown);
     if (idle && !rgb_off_for_idle && rgb_matrix_is_enabled()) {
         rgb_matrix_disable_noeeprom();
         rgb_off_for_idle = true;
@@ -436,6 +486,11 @@ void housekeeping_task_kb(void) {
 
     side_update(now);
 
+    if (may_sleep(now)) {
+        rk71_sleep();
+        woke_at = timer_read32();
+    }
+
     housekeeping_task_user();
 }
 
@@ -446,6 +501,12 @@ void suspend_power_down_kb(void) {
 
 /* ---- per-key RGB status (used when side-light status is turned off in VIA) ------------------- */
 
+/* Matrix positions (row, column) of the keys used for status. */
+#define KEY_BSPC 0, 13
+#define KEY_P 1, 10
+#define KEY_SPACE 4, 6
+#define KEY_HOST(h) 1, (1 + (h)) /* Q W E R T */
+
 static void light(uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b, uint8_t led_min, uint8_t led_max) {
     uint8_t led = g_led_config.matrix_co[row][col];
     if (led != NO_LED && led >= led_min && led < led_max) rgb_matrix_set_color(led, r, g, b);
@@ -454,42 +515,41 @@ static void light(uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b, uin
 bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     if (!rgb_matrix_indicators_advanced_user(led_min, led_max)) return false;
 
-    uint32_t now      = timer_read32();
-    uint8_t  host_col = 1 + kb_config.host; /* Q W E R T = row 1, columns 1..5 */
-    bool     bt       = applied_mode == 1;
+    uint32_t now = timer_read32();
+    bool     bt  = on_bluetooth();
 
     if (kb_config.side_no_status) {
         if (bt && show_link) {
             switch (link_state) {
                 case LINK_PAIRING:
-                    if (blink(now, 200)) light(1, host_col, RGB_BLUE, led_min, led_max);
+                    if (blink(now, 200)) light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
                     break;
                 case LINK_CONNECTED:
-                    light(1, host_col, RGB_BLUE, led_min, led_max);
+                    light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
                     break;
                 default:
-                    if (blink(now, 500)) light(1, host_col, RGB_BLUE, led_min, led_max);
+                    if (blink(now, 500)) light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
                     break;
             }
         }
-        if (mode_flash && blink(now, 250)) {
+        if (mode_flash.active && blink(now, 250)) {
             if (bt) {
-                light(1, 10, RGB_BLUE, led_min, led_max);
+                light(KEY_P, RGB_BLUE, led_min, led_max);
             } else {
-                light(1, 10, RGB_GREEN, led_min, led_max);
+                light(KEY_P, RGB_GREEN, led_min, led_max);
             }
         }
-        if (forget_flash) light(0, 13, RGB_RED, led_min, led_max);
-        if (battery_low && blink(now, 1000)) light(4, 6, RGB_RED, led_min, led_max);
+        if (forget_flash.active) light(KEY_BSPC, RGB_RED, led_min, led_max);
+        if (low_battery_warning() && blink(now, 1000)) light(KEY_SPACE, RGB_RED, led_min, led_max);
     }
 
     /* While Fn is held: P shows the mode (green wired, blue Bluetooth), the slot key is blue. */
-    if (IS_LAYER_ON(3) /* FN */) {
+    if (IS_LAYER_ON(RK71_FN_LAYER)) {
         if (bt) {
-            light(1, 10, RGB_BLUE, led_min, led_max);
-            light(1, host_col, RGB_BLUE, led_min, led_max);
+            light(KEY_P, RGB_BLUE, led_min, led_max);
+            light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
         } else {
-            light(1, 10, RGB_GREEN, led_min, led_max);
+            light(KEY_P, RGB_GREEN, led_min, led_max);
         }
     }
     return true;

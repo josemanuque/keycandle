@@ -32,7 +32,7 @@ This guide describes the latest version (`main`, currently **v0.5.5b**). The cha
 | Battery level | – | Fn+Space shows a 1/3/6-light bar on the side lights |
 | Debounce | Vendor default | 10 ms per key (fixes chattering switches without slowing the others) |
 | USB ID | `05AC:024F` (pretends to be an Apple keyboard) | `0C45:8071` (its own ID) |
-| Sleep on battery | Deep sleep | Lighting off when idle, but the chip stays awake (see [Limitations](#limitations)) |
+| Sleep on battery | Deep sleep | Deep sleep: instant wake on any key, and that key is typed ([details](#battery-saving)) |
 
 The RK configuration app doesn't work with this firmware, and VIA doesn't work with the stock firmware. To go
 back to stock at any time, see [stock/README.md](../stock/README.md).
@@ -128,6 +128,20 @@ with Fn+\\ or in VIA, where you also get hue, saturation, brightness and speed.
 * **On battery:** lighting turns off after 5 minutes without typing, and comes back with the next key press. It
   also turns off when the battery reports critically low.
 
+### Battery saving
+
+On Bluetooth without the cable, the keyboard **deep-sleeps** once nothing is lit and you haven't typed for
+10 seconds. That happens 10 seconds after you stop typing if your lighting is off, or right after the 5-minute
+lights-off otherwise. Asleep, the chip draws almost nothing, like the stock firmware's sleep.
+
+* **Any key wakes it instantly, and that key is typed.** You don't need a "wake-up" key press.
+* Plugging in the cable wakes it too.
+* It never sleeps while plugged in, while a key is held, or while a status (pairing, mode change, battery bar)
+  is showing.
+* The low-battery blink only shows while you're typing, so it can't keep a nearly flat keyboard awake.
+
+Both times are set in `keyboard/rk71_rgb/config.h` (`RK71_LIGHTS_OFF_IDLE_MS`, `RK71_SLEEP_IDLE_MS`).
+
 ## Side lights and status
 
 The two edge strips have 6 lights each (light 1 = far end, 6 = nearest you). Both strips always show the same
@@ -200,10 +214,10 @@ to defaults when you flash a new image or switch to stock and back.
 
 ## Limitations
 
-* **No deep sleep on battery yet.** The lighting turns off, but the chip and the radio stay awake. Slide the
-  switch off when you're not using the keyboard on battery.
-* **Storage is tight:** 5 layers is the maximum alongside VIA macros. The chip has 8 KB of RAM, and the
-  firmware uses almost all of it.
+* **While asleep, the keyboard doesn't hear the computer.** A Caps Lock change made on the computer while the
+  keyboard is asleep shows up on the Caps key only after the next change. The Bluetooth module itself stays
+  connected.
+* **Storage is tight:** 5 layers is the maximum alongside VIA macros. The chip has 8 KB of RAM.
 * **Bootmagic (hold Esc while plugging in)** only works if the chip actually restarts, so slide the battery
   switch off first. Fn+Pause is easier.
 * **Status lights:** Caps Lock may blink once when switching to Bluetooth.

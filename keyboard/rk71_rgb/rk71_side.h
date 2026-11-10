@@ -27,6 +27,7 @@
 
 void side_init(void);
 void side_show(uint8_t positions, uint8_t colour); /* colour 0 or positions 0 = off */
+bool side_is_dark(void);                           /* nothing lit (and the frame timer stopped) */
 
 /* Colour balance against the bluish diffuser: on-time of red, green, blue, 0..31 each. */
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue);

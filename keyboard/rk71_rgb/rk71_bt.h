@@ -8,15 +8,18 @@
 /*
  * Low-level link to the RK71's ITON Bluetooth module (SPI0, keyboard = slave).
  *
- * Packets keyboard -> module: A1 boot keyboard report (8), A2 NKRO bitmap (15), A3 consumer (2),
- * A6 command (2). Packets module -> keyboard: B1 host LEDs (1), B6 event (2).
+ * Packets keyboard -> module: A1 boot keyboard report (8), A3 consumer (2), A6 command (2).
+ * Packets module -> keyboard: B1 host LEDs (1), B6 event (2).
  */
 
 void rk71_bt_init(void);
 
-/* Queue one packet (up to 10 bytes); it goes out from rk71_bt_task() when the module is ready.
+/* Queue one packet (up to 9 bytes); it goes out from rk71_bt_task() when the module is ready.
  * Never blocks. Returns false only if the queue is full (module off or stuck). */
 bool rk71_bt_send(const uint8_t *data, uint8_t len);
+
+/* Nothing queued, sending or arriving: safe to sleep. */
+bool rk71_bt_idle(void);
 
 /* Call from the main loop: hands complete incoming packets to rk71_bt_received(). */
 void rk71_bt_task(void);

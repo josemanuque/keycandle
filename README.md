@@ -112,8 +112,6 @@ archive/       an earlier failed attempt, kept for history only
 
 ## Known limitations
 
-* Bluetooth: no deep sleep yet. Lighting turns off after 5 minutes idle, but the chip stays awake, so turn the
-  slide switch off when you are not using the keyboard on battery.
 * VIA settings, keymaps and lighting are stored in flash. Flashing a new build resets them to defaults.
 
 ## License

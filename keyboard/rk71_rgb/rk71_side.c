@@ -57,14 +57,29 @@ static void recompute(void) {
     chSysUnlock();
 }
 
+/* The frame timer only runs while something is lit, so a dark keyboard has no 1.2 ms wake-ups. */
+static void frame_timer_run(bool run) {
+    chSysLock();
+    if (run && !chVTIsArmedI(&frame_timer)) {
+        phase = 3; /* "off" phase: the next tick starts a fresh frame with red */
+        chVTSetI(&frame_timer, FRAME_TICKS, phase_tick, NULL);
+    } else if (!run && chVTIsArmedI(&frame_timer)) {
+        chVTResetI(&frame_timer);
+        for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]);
+    }
+    chSysUnlock();
+}
+
 void side_init(void) {
     gpio_set_pin_output(B8); /* stock keeps B8 high; low makes Win/Alt glow faintly */
     gpio_write_pin_high(B8);
-    for (uint8_t i = 0; i < 3; i++) gpio_set_pin_output(colour_pins[i]);
+    for (uint8_t i = 0; i < 3; i++) {
+        gpio_set_pin_output(colour_pins[i]);
+        gpio_write_pin_low(colour_pins[i]);
+    }
     for (uint8_t i = 0; i < 6; i++) gpio_set_pin_output(position_pins[i]);
-    side_show(0, 0);
     chVTObjectInit(&frame_timer);
-    chVTSet(&frame_timer, FRAME_TICKS, phase_tick, NULL);
+    side_show(0, 0);
 }
 
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue) {
@@ -87,6 +102,11 @@ void side_show(uint8_t positions, uint8_t colour) {
     shown_colour    = colour;
     recompute(); /* the colour lines are driven by phase_tick() */
     for (uint8_t i = 0; i < 6; i++) gpio_write_pin(position_pins[i], !((positions >> i) & 1));
+    frame_timer_run(colour != 0);
+}
+
+bool side_is_dark(void) {
+    return shown_colour == 0;
 }
 
 /* ---- cable detection --------------------------------------------------------------------------

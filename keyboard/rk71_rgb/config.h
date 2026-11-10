@@ -27,3 +27,15 @@
  */
 #define RK71_BT_REQ_PIN A0
 #define RK71_BT_DIR_PIN A1
+
+/* The keymaps' Fn layer: while it is held, P and the device key show the connection. */
+#define RK71_FN_LAYER 3
+
+/*
+ * Battery saving (Bluetooth, no cable):
+ *   - the lighting turns off after RK71_LIGHTS_OFF_IDLE_MS without typing
+ *   - once nothing is lit, the chip deep-sleeps after RK71_SLEEP_IDLE_MS without typing.
+ *     Any key (or plugging in the cable) wakes it at once, and that key is still typed.
+ */
+#define RK71_LIGHTS_OFF_IDLE_MS 300000 /* 5 minutes */
+#define RK71_SLEEP_IDLE_MS 10000       /* 10 seconds */
