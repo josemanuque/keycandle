@@ -14,6 +14,8 @@ static const pin_t col_pins[]     = MATRIX_COL_PINS;
 static const pin_t led_row_pins[] = SN32F2XX_RGB_MATRIX_ROW_PINS;
 
 #define VBUS_PIN C15 /* high while the USB cable supplies power (see rk71_side.c) */
+/* RK71_BT_DIR_PIN (A1) goes high when the Bluetooth module is about to send (host Caps Lock,
+ * connection and battery events). Waking on it keeps those from being lost while asleep. */
 
 #define LEN(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -62,12 +64,12 @@ void rk71_sleep_init(void) {
     nvicEnableVector(SN32_GPIOC_NUMBER, WAKE_IRQ_PRIORITY);
 }
 
-/* A key is down (its column reads low) or the cable just came in: do not sleep. */
+/* A key is down (its column reads low), the cable just came in, or the module is talking. */
 static bool wake_condition(void) {
     for (uint8_t i = 0; i < LEN(col_pins); i++) {
         if (!gpio_read_pin(col_pins[i])) return true;
     }
-    return gpio_read_pin(VBUS_PIN);
+    return gpio_read_pin(VBUS_PIN) || gpio_read_pin(RK71_BT_DIR_PIN);
 }
 
 void rk71_sleep(void) {
@@ -89,6 +91,7 @@ void rk71_sleep(void) {
     }
     gpio_set_pin_input(VBUS_PIN);
     arm_wake(VBUS_PIN);
+    arm_wake(RK71_BT_DIR_PIN);
 
     /* 3. Only the wake-up ports may wake the core; everything else (USB, SPI, timers) stays
      *    pending and is served after waking. */

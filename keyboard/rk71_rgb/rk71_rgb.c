@@ -438,6 +438,7 @@ static bool may_sleep(uint32_t now) {
            && !lighting_visible() && side_is_dark()              // nothing lit
            && !status_showing()                                  //
            && !keys_held() && !save_pending && rk71_bt_idle()    // nothing pending
+           && pending_leds == host_leds                          // Caps Lock update settled
            && last_input_activity_elapsed() >= RK71_SLEEP_IDLE_MS //
            && TIMER_DIFF_32(now, woke_at) >= WAKE_GRACE_MS;
 }

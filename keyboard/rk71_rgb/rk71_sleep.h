@@ -6,7 +6,8 @@
  * Deep sleep on battery, done the way stock firmware V1.12 does it (@0x01F0): stop the LED/key
  * scan, put the matrix in a "any key pulls a column low" state, arm GPIO interrupts on the
  * columns, set PMU mode 2 (Deep-sleep) and WFI. The clocks stop, so the chip draws next to
- * nothing until a key is pressed or the USB cable is plugged in.
+ * nothing until a key is pressed, the USB cable is plugged in, or the Bluetooth module has
+ * something to say (it raises A1 first).
  *
  * Call rk71_sleep_init() once at start-up. rk71_sleep() returns after waking up; the waking key is
  * still held, so the normal matrix scan picks it up and nothing is lost.
