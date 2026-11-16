@@ -30,6 +30,7 @@
 void side_init(void);
 void side_show(uint8_t positions, rgb_t colour); /* positions 0 or SIDE_OFF = off */
 bool side_is_dark(void);                           /* nothing lit (and the frame timer stopped) */
+void side_blank(void); /* colour lines off until the next frame (around a flash write, see rk71_leds_pause) */
 
 /* Colour balance against the bluish diffuser: on-time of red, green, blue, 0..31 each. */
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue);

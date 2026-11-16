@@ -164,6 +164,12 @@ void side_show(uint8_t positions, rgb_t colour) {
     frame_timer_run(positions != 0);
 }
 
+void side_blank(void) {
+    chSysLock();
+    for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]); /* the next frame relights them */
+    chSysUnlock();
+}
+
 bool side_is_dark(void) {
     return shown_positions == 0;
 }

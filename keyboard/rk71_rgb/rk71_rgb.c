@@ -22,6 +22,7 @@
 #include "connection.h"
 #ifdef VIA_ENABLE
 #    include "via.h"
+#    include "raw_hid.h"
 #endif
 
 #define BT_CMD_BT 0x51
@@ -113,9 +114,25 @@ static void load_config(void) {
     kb_extra      = data.extra;
 }
 
+/* Flash writes freeze the chip (it runs from flash), and frozen LEDs show a solid red, green or blue
+ * flash. So the LEDs are switched off around every write: at most a very short dark blink. */
+static bool leds_running; /* set once the LED driver is up (eeconfig_init_kb can run before) */
+
+static void flash_write_begin(void) {
+    if (!leds_running) return;
+    rk71_leds_pause();
+    side_blank();
+}
+
+static void flash_write_end(void) {
+    if (leds_running) rk71_leds_resume();
+}
+
 static void save_config(void) {
     kb_data_t data = {.config = kb_config.raw, .extra = kb_extra};
+    flash_write_begin();
     eeconfig_update_kb_datablock(&data, 0, sizeof(data));
+    flash_write_end();
 }
 
 void eeconfig_init_kb(void) {
@@ -448,12 +465,14 @@ void keyboard_post_init_kb(void) {
     if (kb_config.side_mode > SIDE_MODE_OFF) kb_config.side_mode = SIDE_MODE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
     rk71_sleep_init();
-    boot_time = timer_read32();
+    leds_running = true;
+    boot_time    = timer_read32();
     keyboard_post_init_user();
 }
 
 static bool     rgb_off_for_idle;
-static bool     save_pending; /* VIA settings changed, write to flash once they settle */
+static bool     save_pending;     /* VIA side-light settings changed: write once they settle */
+static bool     rgb_save_pending; /* VIA key-lighting settings changed: same */
 static uint32_t save_requested_at;
 static uint32_t woke_at;
 
@@ -482,7 +501,8 @@ static bool may_sleep(uint32_t now) {
     return on_battery()                                          //
            && !lighting_visible() && side_is_dark()              // nothing lit
            && !status_showing()                                  //
-           && !keys_held() && !save_pending && rk71_bt_idle()    // nothing pending
+           && !keys_held() && !save_pending && !rgb_save_pending // nothing pending
+           && rk71_bt_idle()                                     //
            && pending_leds == host_leds                          // Caps Lock update settled
            && last_input_activity_elapsed() >= RK71_SLEEP_IDLE_MS //
            && TIMER_DIFF_32(now, woke_at) >= WAKE_GRACE_MS;
@@ -525,9 +545,14 @@ void housekeeping_task_kb(void) {
         rgb_off_for_idle = false;
     }
 
-    if (save_pending && TIMER_DIFF_32(now, save_requested_at) > SAVE_DELAY_MS) {
-        save_pending = false;
-        save_config();
+    if ((save_pending || rgb_save_pending) && TIMER_DIFF_32(now, save_requested_at) > SAVE_DELAY_MS) {
+        if (save_pending) save_config();
+        if (rgb_save_pending) {
+            flash_write_begin();
+            eeconfig_force_flush_rgb_matrix();
+            flash_write_end();
+        }
+        save_pending = rgb_save_pending = false;
     }
 
     side_update(now);
@@ -601,8 +626,22 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     return true;
 }
 
-/* ---- VIA: "Side lights" settings page --------------------------------------------------------- */
+/* ---- VIA ----------------------------------------------------------------------------------------- */
 #ifdef VIA_ENABLE
+/* VIA saves the key lighting after every step of a slider or the colour picker, and QMK writes it to
+ * flash at once each time: dozens of writes while dragging, each freezing the LEDs on one colour.
+ * The save is postponed until the changes settle, like the side-light settings below. */
+bool via_command_kb(uint8_t *data, uint8_t length) {
+    if (data[0] == id_custom_save && data[1] == id_qmk_rgb_matrix_channel) {
+        rgb_save_pending  = true;
+        save_requested_at = timer_read32();
+        raw_hid_send(data, length); /* acknowledge, as QMK would */
+        return true;
+    }
+    return false;
+}
+
+/* "Side lights" settings page */
 enum {
     ID_SIDE_MODE = 1,
     ID_SIDE_COLOUR,

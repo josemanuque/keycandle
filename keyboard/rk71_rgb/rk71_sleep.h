@@ -16,3 +16,11 @@
 
 void rk71_sleep_init(void);
 void rk71_sleep(void);
+
+/*
+ * Key LEDs (and key scan) briefly off, e.g. around a flash write. The chip runs from flash, so a
+ * write freezes it; with the LEDs running, whichever colour row happened to be lit would stay on
+ * as a solid red, green or blue flash until the write finished.
+ */
+void rk71_leds_pause(void);
+void rk71_leds_resume(void);

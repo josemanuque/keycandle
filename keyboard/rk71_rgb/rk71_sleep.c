@@ -72,12 +72,21 @@ static bool wake_condition(void) {
     return gpio_read_pin(VBUS_PIN) || gpio_read_pin(RK71_BT_DIR_PIN);
 }
 
-void rk71_sleep(void) {
-    /* 1. Stop the LED PWM / key-scan interrupt (sn32f2xx driver), hand the column pins back from
-     *    the PWM unit to GPIO, and switch every LED row off (active high). */
+/* Stop the LED PWM / key-scan interrupt (sn32f2xx driver), hand the column pins back from the PWM
+ * unit to GPIO, and switch every LED row off (active high). */
+void rk71_leds_pause(void) {
     pwmDisablePeriodicNotification(&PWMD1);
     for (uint8_t ch = 0; ch < PWM_CHANNELS; ch++) pwmDisableChannel(&PWMD1, ch);
     for (uint8_t i = 0; i < LEN(led_row_pins); i++) gpio_write_pin_low(led_row_pins[i]);
+}
+
+void rk71_leds_resume(void) {
+    pwmEnablePeriodicNotification(&PWMD1); /* the next scan step re-enables the columns */
+}
+
+void rk71_sleep(void) {
+    /* 1. LEDs and key scan off. */
+    rk71_leds_pause();
 
     /* 2. Matrix in wake-up state: all rows driven low, columns pulled up. A pressed key pulls
      *    its column low through its diode. */
@@ -116,5 +125,5 @@ void rk71_sleep(void) {
     disarm_port(GPIOC);
     NVIC->ISER[0] = enabled;
     for (uint8_t i = 0; i < LEN(row_pins); i++) gpio_set_pin_input_high(row_pins[i]);
-    pwmEnablePeriodicNotification(&PWMD1);
+    rk71_leds_resume();
 }
