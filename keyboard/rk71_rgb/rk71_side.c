@@ -14,55 +14,79 @@ static uint8_t shown_positions = 0xFF, shown_colour = 0xFF;
 /*
  * Red, green and blue are lit one after another, never together: the LEDs share a supply per
  * position, and with red lit (lowest forward voltage) green and blue cannot light ("white" came
- * out red). Each 1.2 ms frame is: red on for t[0], green for t[1], blue for t[2], then off for
- * the rest. The on-times set both the colour balance (the side LEDs sit behind a bluish diffuser)
- * and the brightness. 1.2 ms frames = each colour repeats 833 times a second.
+ * out red). Each frame is: red on, green on, blue on, then off for the rest. The on-times set
+ * both the colour balance (the side LEDs sit behind a bluish diffuser) and the brightness.
+ *
+ * Frame rate: ~3 kHz (0.33 ms frames). Lit one colour at a time and fully on/off, the lights
+ * must cycle fast or the separate colours show as a flicker or rainbow fringe when the eyes move
+ * (seen at 0.83 kHz). IEEE 1789-2015 rates 100 % modulation as low-risk from 1.25 kHz and as
+ * having no observable effect from 3 kHz.
+ *
+ * Dithering: a 0.33 ms frame holds only ~20 system-timer ticks (5.3 us each) per colour, too
+ * coarse for the balance and brightness settings. So each colour's on-time is kept in 1/256 tick
+ * and every frame rounds it up or down so that the average is exact (first-order sigma-delta).
+ * Neighbouring frames differ by one tick, a ~5 % ripple at a few hundred Hz or more: far below
+ * anything visible.
  */
-#define FRAME_TICKS TIME_US2I(1200)
-#define MAX_TICKS (FRAME_TICKS / 3) /* one colour at full balance and brightness */
-#define MIN_TICKS 3                 /* shorter phases are skipped (timer overhead) */
+#define FRAME_TICKS TIME_US2I(330)
+#define MAX_TICKS ((FRAME_TICKS - MIN_TICKS) / 3) /* one colour at full balance and brightness */
+#define MIN_TICKS 2                               /* shortest delay the system timer allows */
+#define FRACTION 256                              /* on-times are kept in 1/256 tick */
 
-static volatile uint16_t      on_ticks[4]; /* red, green, blue, off (ticks, < 65536) */
-static uint8_t                phase;
-static virtual_timer_t        frame_timer;
-static uint8_t                balance[3] = {31, 31, 31}; /* 0..31 per colour */
-static uint8_t                level      = 255;          /* brightness 0..255 */
+static uint16_t        target[3];    /* wanted on-time per colour, in 1/256 tick */
+static uint16_t        residue[3];   /* sigma-delta accumulators */
+static uint8_t         frame_ticks[4]; /* this frame: red, green, blue, off */
+static uint8_t         phase;
+static virtual_timer_t frame_timer;
+static uint8_t         balance[3] = {31, 31, 31}; /* 0..31 per colour */
+static uint8_t         level      = 255;          /* brightness 0..255 */
+
+/* Plan the next frame: whole ticks per colour, carrying the remainder into the next frame. */
+static void plan_frame(void) {
+    uint8_t used = 0;
+    for (uint8_t c = 0; c < 3; c++) {
+        residue[c] += target[c];
+        uint8_t n = residue[c] / FRACTION;
+        if (n < MIN_TICKS) n = 0;         /* too short for the timer: carry it over until it fits */
+        if (n > MAX_TICKS) n = MAX_TICKS; /* after a jump from dim to bright the carry can overshoot */
+        residue[c] -= n * FRACTION;
+        frame_ticks[c] = n;
+        used += n;
+    }
+    frame_ticks[3] = FRAME_TICKS - used; /* always >= MIN_TICKS, see MAX_TICKS */
+}
 
 static void phase_tick(virtual_timer_t *vtp, void *p) {
     (void)p;
     for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]);
-    sysinterval_t d = 0;
-    for (uint8_t n = 0; n < 4; n++) {
+    do {
         phase = (phase + 1) % 4;
-        d     = on_ticks[phase];
-        if (d >= MIN_TICKS) break;
-    }
-    if (d < MIN_TICKS) d = FRAME_TICKS; /* everything off */
-    if (phase < 3 && on_ticks[phase] >= MIN_TICKS) gpio_write_pin_high(colour_pins[phase]);
-    chVTSetI(vtp, d, phase_tick, NULL);
+        if (phase == 0) plan_frame();
+    } while (frame_ticks[phase] == 0); /* ends at the latest on the "off" phase */
+    if (phase < 3) gpio_write_pin_high(colour_pins[phase]);
+    chVTSetI(vtp, frame_ticks[phase], phase_tick, NULL);
 }
 
 static void recompute(void) {
-    sysinterval_t t[4], used = 0;
+    uint16_t t[3];
     for (uint8_t c = 0; c < 3; c++) {
         t[c] = 0;
         if ((shown_colour >> c) & 1 && shown_colour != 0xFF) {
-            t[c] = (sysinterval_t)((uint32_t)MAX_TICKS * balance[c] * level / (31u * 255u));
+            t[c] = (uint32_t)MAX_TICKS * FRACTION * balance[c] * level / (31u * 255u);
         }
-        used += t[c];
     }
-    t[3] = FRAME_TICKS - used;
     chSysLock();
-    for (uint8_t i = 0; i < 4; i++) on_ticks[i] = t[i];
+    for (uint8_t c = 0; c < 3; c++) target[c] = t[c];
     chSysUnlock();
 }
 
-/* The frame timer only runs while something is lit, so a dark keyboard has no 1.2 ms wake-ups. */
+/* The frame timer only runs while something is lit, so a dark keyboard has no timer wake-ups. */
 static void frame_timer_run(bool run) {
     chSysLock();
     if (run && !chVTIsArmedI(&frame_timer)) {
-        phase = 3; /* "off" phase: the next tick starts a fresh frame with red */
-        chVTSetI(&frame_timer, FRAME_TICKS, phase_tick, NULL);
+        phase          = 3; /* "off" phase: the next tick plans a fresh frame and starts with red */
+        frame_ticks[3] = MIN_TICKS;
+        chVTSetI(&frame_timer, MIN_TICKS, phase_tick, NULL);
     } else if (!run && chVTIsArmedI(&frame_timer)) {
         chVTResetI(&frame_timer);
         for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]);
