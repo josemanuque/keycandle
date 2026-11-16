@@ -22,49 +22,77 @@ static uint8_t shown_positions = 0xFF, shown_colour = 0xFF;
  * (seen at 0.83 kHz). IEEE 1789-2015 rates 100 % modulation as low-risk from 1.25 kHz and as
  * having no observable effect from 3 kHz.
  *
- * Dithering: a 0.33 ms frame holds only ~20 system-timer ticks (5.3 us each) per colour, too
- * coarse for the balance and brightness settings. So each colour's on-time is kept in 1/256 tick
- * and every frame rounds it up or down so that the average is exact (first-order sigma-delta).
- * Neighbouring frames differ by one tick, a ~5 % ripple at a few hundred Hz or more: far below
- * anything visible.
+ * Exact on-times: a 0.33 ms frame holds only ~20 system-timer ticks (5.3 us each) per colour,
+ * and the timer cannot schedule less than 2 ticks. So each phase is timed in two parts: whole
+ * ticks by the timer, and the fraction of a tick (or a whole phase shorter than 2 ticks) by a
+ * counted busy-wait inside the interrupt (~0.17 us steps, calibrated against the system timer at
+ * start-up). Every frame is identical: no dithering, so no slow pulsing at low brightness
+ * (dithering showed as visible pulsing there). The busy-waits take at most ~30 us of each
+ * 330 us frame (all three colours very dim), and only while the side lights are on.
  */
 #define FRAME_TICKS TIME_US2I(330)
-#define MAX_TICKS ((FRAME_TICKS - MIN_TICKS) / 3) /* one colour at full balance and brightness */
 #define MIN_TICKS 2                               /* shortest delay the system timer allows */
+#define MAX_TICKS ((FRAME_TICKS - MIN_TICKS) / 3) /* one colour at full balance and brightness */
 #define FRACTION 256                              /* on-times are kept in 1/256 tick */
 
-static uint16_t        target[3];    /* wanted on-time per colour, in 1/256 tick */
-static uint16_t        residue[3];   /* sigma-delta accumulators */
-static uint8_t         frame_ticks[4]; /* this frame: red, green, blue, off */
-static uint8_t         phase;
+static uint16_t        target[3]; /* on-time per colour, in 1/256 tick */
+static uint8_t         phase;     /* 0 red, 1 green, 2 blue, 3 off */
+static uint8_t         frame_used;    /* timer ticks used by this frame's colour phases */
+static uint32_t        tail_loops;    /* busy-wait to finish the current phase with */
+static uint32_t        loops_per_tick = 1;
 static virtual_timer_t frame_timer;
 static uint8_t         balance[3] = {31, 31, 31}; /* 0..31 per colour */
 static uint8_t         level      = 255;          /* brightness 0..255 */
 
-/* Plan the next frame: whole ticks per colour, carrying the remainder into the next frame. */
-static void plan_frame(void) {
-    uint8_t used = 0;
-    for (uint8_t c = 0; c < 3; c++) {
-        residue[c] += target[c];
-        uint8_t n = residue[c] / FRACTION;
-        if (n < MIN_TICKS) n = 0;         /* too short for the timer: carry it over until it fits */
-        if (n > MAX_TICKS) n = MAX_TICKS; /* after a jump from dim to bright the carry can overshoot */
-        residue[c] -= n * FRACTION;
-        frame_ticks[c] = n;
-        used += n;
-    }
-    frame_ticks[3] = FRAME_TICKS - used; /* always >= MIN_TICKS, see MAX_TICKS */
+/* Delay loop. Not inlined, so there is exactly one copy of it and calibrate_spin() measures the very
+ * code every phase uses; the empty asm keeps the compiler from removing the loop. */
+__attribute__((noinline)) static void spin(uint32_t loops) {
+    while (loops--) __asm__ volatile("");
+}
+
+static uint32_t fraction_loops(uint32_t t) {
+    return t * loops_per_tick / FRACTION;
+}
+
+/* How many delay-loop iterations make one system-timer tick (measured, so it is right whatever the
+ * flash wait states or clock are). Interrupts are off so nothing stretches the measurement. */
+static void calibrate_spin(void) {
+    const uint32_t loops = 20000; /* ~1.7 ms, ~300 ticks */
+    chSysLock();
+    systime_t start = chVTGetSystemTimeX();
+    spin(loops);
+    sysinterval_t ticks = chTimeDiffX(start, chVTGetSystemTimeX());
+    chSysUnlock();
+    loops_per_tick = ticks ? loops / ticks : 1;
 }
 
 static void phase_tick(virtual_timer_t *vtp, void *p) {
     (void)p;
+    spin(tail_loops); /* finish the phase that is ending: its fraction of a tick */
+    tail_loops = 0;
     for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]);
-    do {
+
+    for (;;) {
         phase = (phase + 1) % 4;
-        if (phase == 0) plan_frame();
-    } while (frame_ticks[phase] == 0); /* ends at the latest on the "off" phase */
-    if (phase < 3) gpio_write_pin_high(colour_pins[phase]);
-    chVTSetI(vtp, frame_ticks[phase], phase_tick, NULL);
+        if (phase == 0) frame_used = 0;
+        if (phase == 3) {
+            chVTSetI(vtp, FRAME_TICKS - frame_used, phase_tick, NULL); /* >= MIN_TICKS, see MAX_TICKS */
+            return;
+        }
+        uint16_t t = target[phase];
+        if (!t) continue;
+        uint8_t whole = t / FRACTION;
+        gpio_write_pin_high(colour_pins[phase]);
+        if (whole < MIN_TICKS) {
+            spin(fraction_loops(t)); /* too short for the timer: the whole phase here */
+            gpio_write_pin_low(colour_pins[phase]);
+            continue;
+        }
+        tail_loops = fraction_loops(t % FRACTION);
+        frame_used += whole;
+        chVTSetI(vtp, whole, phase_tick, NULL);
+        return;
+    }
 }
 
 static void recompute(void) {
@@ -84,8 +112,8 @@ static void recompute(void) {
 static void frame_timer_run(bool run) {
     chSysLock();
     if (run && !chVTIsArmedI(&frame_timer)) {
-        phase          = 3; /* "off" phase: the next tick plans a fresh frame and starts with red */
-        frame_ticks[3] = MIN_TICKS;
+        phase      = 3; /* "off" phase: the next tick starts a fresh frame with red */
+        tail_loops = 0;
         chVTSetI(&frame_timer, MIN_TICKS, phase_tick, NULL);
     } else if (!run && chVTIsArmedI(&frame_timer)) {
         chVTResetI(&frame_timer);
@@ -103,6 +131,7 @@ void side_init(void) {
     }
     for (uint8_t i = 0; i < 6; i++) gpio_set_pin_output(position_pins[i]);
     chVTObjectInit(&frame_timer);
+    calibrate_spin();
     side_show(0, 0);
 }
 
