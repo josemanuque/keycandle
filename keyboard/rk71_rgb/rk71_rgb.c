@@ -46,16 +46,18 @@
                                       and a plugged-in cable gets confirmed (4 x 20 ms samples) */
 
 /* ---- saved settings ---------------------------------------------------------------------- */
-/* All-zero is the default: wired, slot 1, side lights follow the keyboard, status shown. */
+/* Kept in the keyboard's EEPROM data block (EECONFIG_KB_DATA_SIZE in config.h). All-zero is the
+ * default everywhere: wired, slot 1, side lights follow the keyboard, status shown. Settings whose
+ * default is not 0 are stored XOR their default. */
 
-enum { SIDE_FOLLOW, SIDE_FIXED, SIDE_OFF };
+enum { SIDE_MODE_FOLLOW, SIDE_MODE_FIXED, SIDE_MODE_OFF };
 
 typedef union {
     uint32_t raw;
     struct {
         bool    bt_mode : 1;     /* when plugged in: 0 = wired, 1 = Bluetooth */
         uint8_t host : 3;        /* 0..4 -> device 1..5 */
-        uint8_t side_mode : 2;   /* SIDE_FOLLOW / SIDE_FIXED / SIDE_OFF */
+        uint8_t side_mode : 2;   /* SIDE_MODE_FOLLOW / _FIXED / _OFF */
         uint8_t side_colour : 3; /* index into side_colours[] */
         bool    side_no_status : 1;
         /* Stored XOR the defaults below, so an all-zero config means "defaults". 0..31 each. */
@@ -68,6 +70,23 @@ typedef union {
 
 static kb_config_t kb_config;
 
+/* Settings added in v0.7b. */
+#define SIDE_FLAG_OWN_BRIGHTNESS 0x01 /* side-light brightness does not follow the keyboard's */
+
+typedef struct {
+    uint8_t side_flags;    /* SIDE_FLAG_* */
+    uint8_t status_bright; /* 0..31, XOR DEF_STATUS_BRIGHT */
+} kb_extra_t;
+
+static kb_extra_t kb_extra;
+
+typedef struct {
+    uint32_t   config; /* kb_config_t */
+    kb_extra_t extra;
+    uint8_t    reserved[EECONFIG_KB_DATA_SIZE - 4 - sizeof(kb_extra_t)];
+} kb_data_t;
+_Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill EECONFIG_KB_DATA_SIZE");
+
 /* Side-light defaults, tuned by eye on the real keyboard (2026-11-16): colour balance against the
  * diffuser, and a soft glow (the side lights are bright next to the keys at full power). */
 #define DEF_RED 31
@@ -78,13 +97,31 @@ static kb_config_t kb_config;
 #define SIDE_GREEN_V (kb_config.side_green ^ DEF_GREEN)
 #define SIDE_BLUE_V (kb_config.side_blue ^ DEF_BLUE)
 #define SIDE_BRIGHT_V (kb_config.side_bright ^ DEF_BRIGHT)
+/* Status (pairing, mode, battery) has its own brightness, so it stays readable when the side
+ * lights are set to a faint glow or the keyboard lighting is dim. */
+#define DEF_STATUS_BRIGHT 16
+#define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
 
 /* VIA dropdown order: White, Red, Yellow, Green, Cyan, Blue, Magenta */
-static const uint8_t side_colours[] = {SIDE_WHITE, SIDE_RED, SIDE_YELLOW, SIDE_GREEN, SIDE_CYAN, SIDE_BLUE, SIDE_MAGENTA};
+static const rgb_t side_colours[] = {SIDE_WHITE, SIDE_RED, SIDE_YELLOW, SIDE_GREEN, SIDE_CYAN, SIDE_BLUE, SIDE_MAGENTA};
+#define SIDE_COLOUR_COUNT (sizeof(side_colours) / sizeof(side_colours[0]))
+
+static void load_config(void) {
+    kb_data_t data;
+    eeconfig_read_kb_datablock(&data, 0, sizeof(data));
+    kb_config.raw = data.config;
+    kb_extra      = data.extra;
+}
+
+static void save_config(void) {
+    kb_data_t data = {.config = kb_config.raw, .extra = kb_extra};
+    eeconfig_update_kb_datablock(&data, 0, sizeof(data));
+}
 
 void eeconfig_init_kb(void) {
     kb_config.raw = 0;
-    eeconfig_update_kb(kb_config.raw);
+    kb_extra      = (kb_extra_t){0};
+    save_config();
     eeconfig_init_user();
 }
 
@@ -222,10 +259,6 @@ static void apply_mode(void) {
     if (!first) timed_start(&mode_flash);
 }
 
-static void save_config(void) {
-    eeconfig_update_kb(kb_config.raw);
-}
-
 static void select_host(uint8_t host, bool pair) {
     kb_config.host    = host;
     kb_config.bt_mode = true; /* choosing a device also means Bluetooth when plugged in */
@@ -313,12 +346,11 @@ static bool lighting_visible(void) {
     return rk71_rgb_lighting_on() && rgb_matrix_get_val() > 0;
 }
 
-/* Nearest of the 7 side-light colours to the keyboard's colour. */
-static uint8_t follow_colour(void) {
-    if (rgb_matrix_get_sat() < 80) return SIDE_WHITE;
-    static const uint8_t by_hue[] = {SIDE_RED, SIDE_YELLOW, SIDE_GREEN, SIDE_CYAN, SIDE_BLUE, SIDE_MAGENTA};
-    uint8_t              h        = rgb_matrix_get_hue();
-    return by_hue[((uint16_t)h * 6 + 128) / 256 % 6];
+/* The keyboard's colour (hue and saturation; brightness is applied separately). */
+static rgb_t follow_colour(void) {
+    hsv_t hsv = rgb_matrix_get_hsv();
+    hsv.v     = 255;
+    return hsv_to_rgb(hsv);
 }
 
 static bool blink(uint32_t now, uint16_t period) {
@@ -331,32 +363,33 @@ static bool low_battery_warning(void) {
 }
 
 /* Status takes over the side lights while something is happening. Returns false when idle. */
-static bool side_status(uint32_t now, uint8_t *pos, uint8_t *col) {
+static bool side_status(uint32_t now, uint8_t *pos, rgb_t *col) {
     if (forget_flash.active) {
         *pos = SIDE_ALL;
-        *col = blink(now, 150) ? SIDE_RED : 0;
+        *col = blink(now, 150) ? SIDE_RED : SIDE_OFF;
         return true;
     }
     if (battery_bar.active) {
         if (battery_level) {
             static const uint8_t bars[] = {0, 0x20, 0x38, 0x3F}; /* 1 / 3 / 6 lights from the near end */
-            static const uint8_t cols[] = {0, SIDE_RED, SIDE_YELLOW, SIDE_GREEN};
+            static const rgb_t   cols[] = {SIDE_OFF, SIDE_RED, SIDE_YELLOW, SIDE_GREEN};
             *pos = bars[battery_level];
             *col = cols[battery_level];
         } else if (TIMER_DIFF_32(now, battery_bar.since) > BATTERY_WAIT_MS) {
             *pos = 0x20; /* no answer (slide switch off?): nearest light blinks red */
-            *col = blink(now, 150) ? SIDE_RED : 0;
+            *col = blink(now, 150) ? SIDE_RED : SIDE_OFF;
         } else {
-            *pos = *col = 0;
+            *pos = 0;
+            *col = SIDE_OFF;
         }
         return true;
     }
     if (show_link && on_bluetooth()) {
         *pos = SIDE_ALL;
         switch (link_state) {
-            case LINK_PAIRING: *col = blink(now, 200) ? SIDE_BLUE : 0; return true;
+            case LINK_PAIRING: *col = blink(now, 200) ? SIDE_BLUE : SIDE_OFF; return true;
             case LINK_CONNECTED: *col = SIDE_BLUE; return true;
-            default: *col = blink(now, 500) ? SIDE_BLUE : 0; return true; /* connecting */
+            default: *col = blink(now, 500) ? SIDE_BLUE : SIDE_OFF; return true; /* connecting */
         }
     }
     if (mode_flash.active) {
@@ -366,23 +399,33 @@ static bool side_status(uint32_t now, uint8_t *pos, uint8_t *col) {
     }
     if (low_battery_warning()) {
         *pos = 0x20; /* nearest light blinks red */
-        *col = blink(now, 1000) ? SIDE_RED : 0;
+        *col = blink(now, 1000) ? SIDE_RED : SIDE_OFF;
         return true;
     }
     return false;
 }
 
-static void side_update(uint32_t now) {
-    uint8_t pos = 0, col = 0;
-    if (kb_config.side_no_status || !side_status(now, &pos, &col)) {
-        if (kb_config.side_mode != SIDE_OFF && lighting_visible()) {
-            pos = SIDE_ALL;
-            col = kb_config.side_mode == SIDE_FIXED ? side_colours[kb_config.side_colour % 7] : follow_colour();
-        }
-    }
-    /* Brightness: the side-light setting times the keyboard's own brightness. */
+/* Side-light brightness 0..255: the setting, times the keyboard's brightness unless the side lights
+ * have their own. */
+static uint8_t side_level(void) {
+    if (kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS) return SIDE_BRIGHT_V * 255 / 31;
     uint32_t level = (uint32_t)SIDE_BRIGHT_V * rgb_matrix_get_val() * 255 / (31u * RGB_MATRIX_MAXIMUM_BRIGHTNESS);
-    side_set_level(level > 255 ? 255 : level);
+    return level > 255 ? 255 : level;
+}
+
+static void side_update(uint32_t now) {
+    uint8_t pos = 0;
+    rgb_t   col = SIDE_OFF;
+    if (!kb_config.side_no_status && side_status(now, &pos, &col)) {
+        side_set_level(STATUS_BRIGHT_V * 255 / 31);
+    } else {
+        pos = 0;
+        if (kb_config.side_mode != SIDE_MODE_OFF && lighting_visible()) {
+            pos = SIDE_ALL;
+            col = kb_config.side_mode == SIDE_MODE_FIXED ? side_colours[kb_config.side_colour % SIDE_COLOUR_COUNT] : follow_colour();
+        }
+        side_set_level(side_level());
+    }
     side_show(pos, col);
 }
 
@@ -399,9 +442,10 @@ void keyboard_pre_init_kb(void) {
 }
 
 void keyboard_post_init_kb(void) {
-    kb_config.raw = eeconfig_read_kb();
+    if (!eeconfig_is_kb_datablock_valid()) eeconfig_init_kb_datablock();
+    load_config();
     if (kb_config.host > 4) kb_config.host = 0;
-    if (kb_config.side_mode > SIDE_OFF) kb_config.side_mode = SIDE_FOLLOW;
+    if (kb_config.side_mode > SIDE_MODE_OFF) kb_config.side_mode = SIDE_MODE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
     rk71_sleep_init();
     boot_time = timer_read32();
@@ -497,7 +541,7 @@ void housekeeping_task_kb(void) {
 }
 
 void suspend_power_down_kb(void) {
-    side_show(0, 0); /* computer asleep: side lights off, as the stock firmware does */
+    side_show(0, SIDE_OFF); /* computer asleep: side lights off, as the stock firmware does */
     suspend_power_down_user();
 }
 
@@ -559,7 +603,17 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
 
 /* ---- VIA: "Side lights" settings page --------------------------------------------------------- */
 #ifdef VIA_ENABLE
-enum { ID_SIDE_MODE = 1, ID_SIDE_COLOUR, ID_SIDE_STATUS, ID_SIDE_RED = 5, ID_SIDE_GREEN, ID_SIDE_BLUE, ID_SIDE_BRIGHT };
+enum {
+    ID_SIDE_MODE = 1,
+    ID_SIDE_COLOUR,
+    ID_SIDE_STATUS,
+    ID_SIDE_RED = 5,
+    ID_SIDE_GREEN,
+    ID_SIDE_BLUE,
+    ID_SIDE_BRIGHT,
+    ID_SIDE_FOLLOW_BRIGHTNESS, /* 1 = side brightness follows the keyboard's */
+    ID_STATUS_BRIGHT,
+};
 
 void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
     /* data = [ command_id, channel_id, value_id, value_data ] */
@@ -575,13 +629,21 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
     switch (*command_id) {
         case id_custom_set_value:
             switch (value_id) {
-                case ID_SIDE_MODE: kb_config.side_mode = value[0] > SIDE_OFF ? SIDE_FOLLOW : value[0]; break;
-                case ID_SIDE_COLOUR: kb_config.side_colour = value[0] % 7; break;
+                case ID_SIDE_MODE: kb_config.side_mode = value[0] > SIDE_MODE_OFF ? SIDE_MODE_FOLLOW : value[0]; break;
+                case ID_SIDE_COLOUR: kb_config.side_colour = value[0] % SIDE_COLOUR_COUNT; break;
                 case ID_SIDE_STATUS: kb_config.side_no_status = !value[0]; break;
                 case ID_SIDE_RED: kb_config.side_red = (value[0] & 31) ^ DEF_RED; break;
                 case ID_SIDE_GREEN: kb_config.side_green = (value[0] & 31) ^ DEF_GREEN; break;
                 case ID_SIDE_BLUE: kb_config.side_blue = (value[0] & 31) ^ DEF_BLUE; break;
                 case ID_SIDE_BRIGHT: kb_config.side_bright = (value[0] & 31) ^ DEF_BRIGHT; break;
+                case ID_SIDE_FOLLOW_BRIGHTNESS:
+                    if (value[0]) {
+                        kb_extra.side_flags &= ~SIDE_FLAG_OWN_BRIGHTNESS;
+                    } else {
+                        kb_extra.side_flags |= SIDE_FLAG_OWN_BRIGHTNESS;
+                    }
+                    break;
+                case ID_STATUS_BRIGHT: kb_extra.status_bright = (value[0] & 31) ^ DEF_STATUS_BRIGHT; break;
                 default: *command_id = id_unhandled; break;
             }
             side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
@@ -595,6 +657,8 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_SIDE_GREEN: value[0] = SIDE_GREEN_V; break;
                 case ID_SIDE_BLUE: value[0] = SIDE_BLUE_V; break;
                 case ID_SIDE_BRIGHT: value[0] = SIDE_BRIGHT_V; break;
+                case ID_SIDE_FOLLOW_BRIGHTNESS: value[0] = !(kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS); break;
+                case ID_STATUS_BRIGHT: value[0] = STATUS_BRIGHT_V; break;
                 default: *command_id = id_unhandled; break;
             }
             break;

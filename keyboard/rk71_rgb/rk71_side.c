@@ -9,7 +9,8 @@
 static const pin_t colour_pins[3]   = {D6, D4, D5};                /* red, green, blue */
 static const pin_t position_pins[6] = {B9, B10, B11, B12, C0, C1}; /* far … near */
 
-static uint8_t shown_positions = 0xFF, shown_colour = 0xFF;
+static uint8_t shown_positions = 0xFF; /* 0xFF: nothing shown yet, so the first side_show() applies */
+static rgb_t   shown_colour;
 
 /*
  * Red, green and blue are lit one after another, never together: the LEDs share a supply per
@@ -96,12 +97,10 @@ static void phase_tick(virtual_timer_t *vtp, void *p) {
 }
 
 static void recompute(void) {
-    uint16_t t[3];
+    const uint8_t want[3] = {shown_colour.r, shown_colour.g, shown_colour.b};
+    uint16_t      t[3];
     for (uint8_t c = 0; c < 3; c++) {
-        t[c] = 0;
-        if ((shown_colour >> c) & 1 && shown_colour != 0xFF) {
-            t[c] = (uint32_t)MAX_TICKS * FRACTION * balance[c] * level / (31u * 255u);
-        }
+        t[c] = shown_positions == 0xFF ? 0 : (uint32_t)MAX_TICKS * FRACTION * balance[c] * level / (31u * 255u) * want[c] / 255u;
     }
     chSysLock();
     for (uint8_t c = 0; c < 3; c++) target[c] = t[c];
@@ -132,7 +131,7 @@ void side_init(void) {
     for (uint8_t i = 0; i < 6; i++) gpio_set_pin_output(position_pins[i]);
     chVTObjectInit(&frame_timer);
     calibrate_spin();
-    side_show(0, 0);
+    side_show(0, SIDE_OFF);
 }
 
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue) {
@@ -148,18 +147,25 @@ void side_set_level(uint8_t new_level) {
     recompute();
 }
 
-void side_show(uint8_t positions, uint8_t colour) {
-    if (!positions || !colour) positions = colour = 0;
-    if (positions == shown_positions && colour == shown_colour) return;
+static bool is_off(rgb_t c) {
+    return !c.r && !c.g && !c.b;
+}
+
+void side_show(uint8_t positions, rgb_t colour) {
+    if (!positions || is_off(colour)) {
+        positions = 0;
+        colour    = SIDE_OFF;
+    }
+    if (positions == shown_positions && colour.r == shown_colour.r && colour.g == shown_colour.g && colour.b == shown_colour.b) return;
     shown_positions = positions;
     shown_colour    = colour;
     recompute(); /* the colour lines are driven by phase_tick() */
     for (uint8_t i = 0; i < 6; i++) gpio_write_pin(position_pins[i], !((positions >> i) & 1));
-    frame_timer_run(colour != 0);
+    frame_timer_run(positions != 0);
 }
 
 bool side_is_dark(void) {
-    return shown_colour == 0;
+    return shown_positions == 0;
 }
 
 /* ---- cable detection --------------------------------------------------------------------------

@@ -64,6 +64,15 @@
               ]
             },
             {
+              "label": "Brightness follows the keyboard",
+              "type": "toggle",
+              "content": [
+                "id_side_follow_brightness",
+                0,
+                9
+              ]
+            },
+            {
               "label": "Red",
               "type": "range",
               "options": [
@@ -109,6 +118,20 @@
                 "id_side_status",
                 0,
                 3
+              ]
+            },
+            {
+              "showIf": "{id_side_status} == 1",
+              "label": "Status brightness",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_status_bright",
+                0,
+                10
               ]
             }
           ]

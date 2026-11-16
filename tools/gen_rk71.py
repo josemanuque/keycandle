@@ -99,11 +99,15 @@ if len(sys.argv) > 2:
                     "content": ["id_side_colour", 0, 2]},
                    {"label": "Brightness", "type": "range", "options": [0, 31],
                     "content": ["id_side_bright", 0, 8]},
+                   {"label": "Brightness follows the keyboard", "type": "toggle",
+                    "content": ["id_side_follow_brightness", 0, 9]},
                    {"label": "Red", "type": "range", "options": [0, 31], "content": ["id_side_red", 0, 5]},
                    {"label": "Green", "type": "range", "options": [0, 31], "content": ["id_side_green", 0, 6]},
                    {"label": "Blue", "type": "range", "options": [0, 31], "content": ["id_side_blue", 0, 7]},
                    {"label": "Show status (pairing, mode, battery)", "type": "toggle",
-                    "content": ["id_side_status", 0, 3]}]}]}],
+                    "content": ["id_side_status", 0, 3]},
+                   {"showIf": "{id_side_status} == 1", "label": "Status brightness", "type": "range",
+                    "options": [0, 31], "content": ["id_status_bright", 0, 10]}]}]}],
            "customKeycodes": [  # QK_KB_0… in keyboard/rk71_rgb/rk71_rgb.h, same order
                {"name": f"BT {n}", "title": f"Bluetooth device {n} (hold 3 s: pair)", "shortName": f"BT{n}"}
                for n in range(1, 6)] + [

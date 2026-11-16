@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "color.h"
 
 /*
  * Side lights: 6 positions per side (1 = far end, 6 = near end), the same position lit on both
@@ -14,19 +15,20 @@
  * The stock firmware turns them off before sleeping (colours low, positions high, @0x0220).
  */
 
-/* Colours: bit 0 red, bit 1 green, bit 2 blue. */
-#define SIDE_RED 1
-#define SIDE_GREEN 2
-#define SIDE_YELLOW 3
-#define SIDE_BLUE 4
-#define SIDE_MAGENTA 5
-#define SIDE_CYAN 6
-#define SIDE_WHITE 7
+/* Any colour can be shown (each of red, green and blue 0..255); these are the named ones. */
+#define SIDE_OFF ((rgb_t){0, 0, 0})
+#define SIDE_RED ((rgb_t){255, 0, 0})
+#define SIDE_GREEN ((rgb_t){0, 255, 0})
+#define SIDE_YELLOW ((rgb_t){255, 255, 0})
+#define SIDE_BLUE ((rgb_t){0, 0, 255})
+#define SIDE_MAGENTA ((rgb_t){255, 0, 255})
+#define SIDE_CYAN ((rgb_t){0, 255, 255})
+#define SIDE_WHITE ((rgb_t){255, 255, 255})
 
 #define SIDE_ALL 0x3F /* positions mask: bit 0 = position 1 (far) … bit 5 = position 6 (near) */
 
 void side_init(void);
-void side_show(uint8_t positions, uint8_t colour); /* colour 0 or positions 0 = off */
+void side_show(uint8_t positions, rgb_t colour); /* positions 0 or SIDE_OFF = off */
 bool side_is_dark(void);                           /* nothing lit (and the frame timer stopped) */
 
 /* Colour balance against the bluish diffuser: on-time of red, green, blue, 0..31 each. */

@@ -28,6 +28,9 @@
 #define RK71_BT_REQ_PIN A0
 #define RK71_BT_DIR_PIN A1
 
+/* Saved keyboard settings (kb_data_t in rk71_rgb.c), with room to spare for new ones. */
+#define EECONFIG_KB_DATA_SIZE 32
+
 /* The keymaps' Fn layer: while it is held, P and the device key show the connection. */
 #define RK71_FN_LAYER 3
 
