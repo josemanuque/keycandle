@@ -16,15 +16,20 @@ use gpui_component::{
 
 use super::app::Configurator;
 use super::model::Model;
-use super::widgets::muted;
+use super::widgets::{muted, segment, segmented};
 use crate::colour;
 use crate::settings::{self, value, Kind, Setting};
 
 type ChoiceState = SelectState<Vec<&'static str>>;
 
-/// The interactive part of one setting's row. Toggles are stateless (drawn from the value).
+/// Choices with at most this many options show as a segmented control; longer ones as a dropdown.
+const MAX_SEGMENTS: usize = 6;
+
+/// The interactive part of one setting's row. Toggles and segments are stateless (drawn from the
+/// value).
 enum Control {
     Toggle,
+    Segments(&'static [&'static str]),
     Range(Entity<SliderState>),
     Choice(Entity<ChoiceState>),
     Colour(Entity<ColorPickerState>),
@@ -67,6 +72,7 @@ fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &
             .detach();
             Control::Range(state)
         }
+        Kind::Choice(options) if options.len() <= MAX_SEGMENTS => Control::Segments(options),
         Kind::Choice(options) => {
             let selected = (current[0] as usize).min(options.len() - 1);
             let state = cx.new(|cx| SelectState::new(options.to_vec(), Some(IndexPath::new(selected)), window, cx));
@@ -101,6 +107,21 @@ pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Confi
         .child(div().child(setting.label))
         .when(!setting.help.is_empty(), |el| el.child(muted(&theme, setting.help)));
 
+    if let Some(Control::Segments(options)) = app.controls.0.get(&id) {
+        // Label above, the options across the full width (as in the design).
+        let current = app.model.byte(id) as usize;
+        let view = cx.entity().downgrade();
+        let segments = options.iter().enumerate().map(|(i, option)| {
+            let view = view.clone();
+            segment(&theme, SharedString::from(format!("seg-{}-{}-{i}", id.0, id.1)), i == current)
+                .on_click(move |_, _, cx| {
+                    let _ = view.update(cx, |this, cx| this.write(setting, &[i as u8], cx));
+                })
+                .child(*option)
+        });
+        return v_flex().gap_2().py_3().child(label).child(segmented(&theme).children(segments)).into_any_element();
+    }
+
     let control: AnyElement = match app.controls.0.get(&id) {
         Some(Control::Toggle) => {
             let view = cx.entity().downgrade();
@@ -119,6 +140,7 @@ pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Confi
             .into_any_element(),
         Some(Control::Choice(state)) => div().w(px(300.)).child(Select::new(state)).into_any_element(),
         Some(Control::Colour(state)) => ColorPicker::new(state).into_any_element(),
+        Some(Control::Segments(_)) => unreachable!("drawn above"),
         None => muted(&theme, "not available").into_any_element(),
     };
     h_flex().gap_6().py_3().items_center().child(label).child(control).into_any_element()

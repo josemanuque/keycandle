@@ -10,7 +10,7 @@ use gpui_component::{h_flex, v_flex, ActiveTheme as _, Icon, Theme};
 use super::app::Configurator;
 use super::layout::{columns, keyboard_scale, GAP};
 use super::settings_page;
-use super::widgets::{badge, card, card_title, muted, segment};
+use super::widgets::{badge, card, card_title, muted, segment, segmented};
 use crate::preview::{self, effects};
 use crate::settings::{self, value, COLOUR_EFFECTS, KEY_EFFECTS, LIGHTING, MULTICOLOUR_EFFECTS, TYPING_EFFECTS};
 
@@ -129,7 +129,7 @@ fn effect_picker(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context
     let group = app.effect_group;
     let view = cx.entity().downgrade();
 
-    let tabs = h_flex().p_1().gap_1().rounded_lg().bg(theme.muted).children(EffectGroup::ALL.map(|g| {
+    let tabs = segmented(theme).children(EffectGroup::ALL.map(|g| {
         let view = view.clone();
         segment(theme, ("group", g as usize), g == group)
             .on_click(move |_, _, cx| {

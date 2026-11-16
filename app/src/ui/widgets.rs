@@ -1,7 +1,7 @@
 //! Small building blocks shared by the pages.
 
 use gpui::{div, prelude::*, px, Div, ElementId, FontWeight, SharedString, Stateful};
-use gpui_component::{v_flex, Theme};
+use gpui_component::{h_flex, v_flex, Theme};
 
 /// A raised panel that groups related content.
 pub fn card(theme: &Theme) -> Div {
@@ -37,11 +37,17 @@ pub fn badge(theme: &Theme, text: impl Into<SharedString>) -> Div {
     div().flex_none().px_1p5().py(px(1.)).rounded_sm().bg(theme.accent).text_xs().text_color(theme.accent_foreground).child(text.into())
 }
 
-/// One option of a segmented control: a clickable pill, highlighted when chosen.
+/// The outlined strip that holds a segmented control's options (see `segment`).
+pub fn segmented(theme: &Theme) -> Div {
+    h_flex().w_full().p_1().gap_1().rounded_lg().bg(theme.background).border_1().border_color(theme.border)
+}
+
+/// One option of a segmented control: a clickable pill, filled when chosen.
 pub fn segment(theme: &Theme, id: impl Into<ElementId>, selected: bool) -> Stateful<Div> {
     div()
         .id(id)
         .flex_1()
+        .min_w(px(64.))
         .flex()
         .items_center()
         .justify_center()
@@ -51,6 +57,6 @@ pub fn segment(theme: &Theme, id: impl Into<ElementId>, selected: bool) -> State
         .rounded_md()
         .cursor_pointer()
         .text_sm()
-        .when(selected, |el| el.bg(theme.background).font_weight(FontWeight::SEMIBOLD))
+        .when(selected, |el| el.bg(theme.accent).text_color(theme.accent_foreground).font_weight(FontWeight::SEMIBOLD))
         .when(!selected, |el| el.text_color(theme.muted_foreground).hover(|s| s.text_color(theme.foreground)))
 }
