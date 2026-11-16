@@ -46,7 +46,7 @@ typedef struct {
 } step_t;
 
 #define GROUPS 3                 /* main lights + 2 indicators */
-#define MAX_STEPS (3 * GROUPS) /* per colour: one step per group switching off */
+#define MAX_STEPS (3 * 6) /* per colour: one step per light (position) switching off */
 
 static step_t          steps[MAX_STEPS];
 static uint8_t         n_steps, step_idx;
@@ -57,6 +57,13 @@ static uint32_t        loops_per_tick = 1;
 static virtual_timer_t frame_timer;
 static uint8_t         balance[3] = {31, 31, 31}; /* 0..31 per colour */
 static uint8_t         level      = 255;          /* brightness 0..255 */
+
+/*
+ * Per-position calibration: LEDs differ slightly from the factory, so the same colour can look a
+ * little different from light to light. Each position (left + right pair, they share one switch)
+ * has its own red/green/blue strength, 0..31 (31 = unchanged).
+ */
+static uint8_t trim[6][3] = {[0 ... 5] = {31, 31, 31}};
 
 static uint8_t group_positions[GROUPS];
 static rgb_t   group_colour[GROUPS];
@@ -144,34 +151,37 @@ static void recompute(void) {
     step_t  s[MAX_STEPS];
     uint8_t n = 0;
 
-    /* Indicators replace the main colour on their lights. */
-    uint8_t pos[GROUPS];
-    pos[0] = group_positions[0];
-    for (uint8_t g = 1; g < GROUPS; g++) {
-        pos[g] = group_positions[g];
-        pos[0] &= ~pos[g];
+    /* Which group colours each light: indicators replace the main colour on their lights. */
+    int8_t owner[6];
+    for (uint8_t p = 0; p < 6; p++) {
+        owner[p] = -1;
+        for (uint8_t g = 0; g < GROUPS; g++) {
+            if ((group_positions[g] >> p) & 1) owner[p] = g;
+        }
     }
 
+    /* Per colour: all lit positions start together, each switches off when its time is up. */
     for (uint8_t c = 0; c < 3; c++) {
-        uint16_t t[GROUPS];
-        uint8_t  on = 0; /* groups still lit in this colour */
-        for (uint8_t g = 0; g < GROUPS; g++) {
-            t[g] = pos[g] ? on_time(c, component(group_colour[g], c)) : 0;
-            if (t[g]) on |= 1 << g;
+        uint16_t t[6];
+        uint8_t  on = 0;
+        for (uint8_t p = 0; p < 6; p++) {
+            t[p] = 0;
+            if (owner[p] >= 0) {
+                uint8_t comp = (uint16_t)component(group_colour[owner[p]], c) * trim[p][c] / 31;
+                t[p]         = on_time(c, comp);
+            }
+            if (t[p]) on |= 1 << p;
         }
         uint16_t elapsed = 0;
         while (on) {
             uint16_t next = UINT16_MAX;
-            uint8_t  lit  = 0;
-            for (uint8_t g = 0; g < GROUPS; g++) {
-                if (!((on >> g) & 1)) continue;
-                lit |= pos[g];
-                if (t[g] < next) next = t[g];
+            for (uint8_t p = 0; p < 6; p++) {
+                if ((on >> p) & 1 && t[p] < next) next = t[p];
             }
-            s[n++] = (step_t){next - elapsed, c, lit}; /* everyone still on, until the next one ends */
+            s[n++]  = (step_t){next - elapsed, c, on}; /* bit p of "on" = position p */
             elapsed = next;
-            for (uint8_t g = 0; g < GROUPS; g++) {
-                if (t[g] <= elapsed) on &= ~(1 << g);
+            for (uint8_t p = 0; p < 6; p++) {
+                if (t[p] <= elapsed) on &= ~(1 << p);
             }
         }
     }
@@ -182,6 +192,12 @@ static void recompute(void) {
     frame_used = 0;
     chSysUnlock();
     frame_timer_run(n != 0);
+}
+
+void side_set_trim(uint8_t position, uint8_t colour, uint8_t value) {
+    if (position >= 6 || colour >= 3) return;
+    trim[position][colour] = value > 31 ? 31 : value;
+    recompute();
 }
 
 /* The frame timer only runs while something is lit, so a dark keyboard has no timer wake-ups. */

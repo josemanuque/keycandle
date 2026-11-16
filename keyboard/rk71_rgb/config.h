@@ -29,7 +29,7 @@
 #define RK71_BT_DIR_PIN A1
 
 /* Saved keyboard settings (kb_data_t in rk71_rgb.c), with room to spare for new ones. */
-#define EECONFIG_KB_DATA_SIZE 32
+#define EECONFIG_KB_DATA_SIZE 48
 
 /* Layer numbers the keyboard code relies on (enum layers in the keymaps). */
 #define RK71_WIN_LAYER 0  /* Windows base layer */

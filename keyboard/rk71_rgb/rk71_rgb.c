@@ -109,6 +109,7 @@ typedef struct {
     uint8_t sleep_after;   /* index into sleep_ms[], XOR DEF_SLEEP_AFTER */
     uint8_t power_flags;   /* POWER_FLAG_* */
     uint8_t dim_level;     /* 0..31 brightness on battery, XOR DEF_DIM_LEVEL */
+    uint8_t side_trim[6][3]; /* per-position red/green/blue strength 0..31, XOR 31 (0 = unchanged) */
 } kb_extra_t;
 
 #define POWER_FLAG_NO_AUTO_BATTERY 0x01 /* no battery bar on unplugging / low battery */
@@ -592,7 +593,15 @@ static void side_effect(uint32_t now, uint8_t *pos, rgb_t *col, uint8_t *level) 
     }
 }
 
+static bool side_calibrating; /* VIA "Calibrate": all side lights plain white (not saved) */
+
 static void side_update(uint32_t now) {
+    if (side_calibrating) {
+        side_set_level(SIDE_BRIGHT_V * 255 / 31);
+        side_indicators(false);
+        side_show(SIDE_ALL, SIDE_WHITE);
+        return;
+    }
     uint8_t pos = 0;
     rgb_t   col = SIDE_OFF;
     if (!kb_config.side_no_status && side_status(now, &pos, &col)) {
@@ -630,6 +639,9 @@ void keyboard_post_init_kb(void) {
     if (kb_config.host > 4) kb_config.host = 0;
     if (kb_config.side_mode > SIDE_MODE_OFF) kb_config.side_mode = SIDE_MODE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
+    for (uint8_t p = 0; p < 6; p++) {
+        for (uint8_t c = 0; c < 3; c++) side_set_trim(p, c, kb_extra.side_trim[p][c] ^ 31);
+    }
     rk71_sleep_init();
     kb_ready  = true;
     boot_time = timer_read32();
@@ -919,6 +931,9 @@ enum {
     ID_AUTO_BATTERY,
     ID_DIM_ON_BATTERY,
     ID_DIM_LEVEL,
+    ID_SIDE_CALIBRATE = 28,
+    ID_SIDE_TRIM_FIRST,                          /* light 1 red, green, blue, light 2 red, … */
+    ID_SIDE_TRIM_LAST = ID_SIDE_TRIM_FIRST + 17, /* light 6 blue */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -965,6 +980,18 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
         value[1] = c.s;
         return;
     }
+    if (value_id >= ID_SIDE_TRIM_FIRST && value_id <= ID_SIDE_TRIM_LAST) {
+        uint8_t i = value_id - ID_SIDE_TRIM_FIRST, p = i / 3, c = i % 3;
+        if (*command_id == id_custom_set_value) {
+            kb_extra.side_trim[p][c] = (value[0] & 31) ^ 31;
+            side_set_trim(p, c, value[0] & 31);
+            return;
+        }
+        if (*command_id == id_custom_get_value) {
+            value[0] = kb_extra.side_trim[p][c] ^ 31;
+            return;
+        }
+    }
     switch (*command_id) {
         case id_custom_set_value:
             switch (value_id) {
@@ -992,6 +1019,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_AUTO_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_NO_AUTO_BATTERY, !value[0]); break;
                 case ID_DIM_ON_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_DIM_ON_BATTERY, value[0]); break;
                 case ID_DIM_LEVEL: kb_extra.dim_level = (value[0] & 31) ^ DEF_DIM_LEVEL; break;
+                case ID_SIDE_CALIBRATE: side_calibrating = value[0]; break;
                 case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
                 default: *command_id = id_unhandled; break;
             }
@@ -1017,6 +1045,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_AUTO_BATTERY: value[0] = !(kb_extra.power_flags & POWER_FLAG_NO_AUTO_BATTERY); break;
                 case ID_DIM_ON_BATTERY: value[0] = !!(kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY); break;
                 case ID_DIM_LEVEL: value[0] = DIM_LEVEL_V; break;
+                case ID_SIDE_CALIBRATE: value[0] = side_calibrating; break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 default: *command_id = id_unhandled; break;
             }

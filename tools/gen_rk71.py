@@ -115,7 +115,15 @@ if len(sys.argv) > 2:
                    {"showIf": "{id_side_status} == 1", "label": "Status colour: wired", "type": "color",
                     "content": ["id_status_wired_colour", 0, 19]},
                    {"showIf": "{id_side_status} == 1", "label": "Status colour: Bluetooth", "type": "color",
-                    "content": ["id_status_bt_colour", 0, 20]}]}]},
+                    "content": ["id_status_bt_colour", 0, 20]}]},
+                   # Per-position calibration (value ids 28, 29..46): side_set_trim() in rk71_side.c
+                   {"label": "Calibration", "content": [
+                       {"label": "Calibrate (all side lights plain white while on)", "type": "toggle",
+                        "content": ["id_side_calibrate", 0, 28]}] + [
+                       {"label": f"Light {n + 1}{' (far)' if n == 0 else ' (near)' if n == 5 else ''} {colour}",
+                        "type": "range", "options": [0, 31],
+                        "content": [f"id_side_trim_{n + 1}_{colour.lower()}", 0, 29 + n * 3 + ci]}
+                       for n in range(6) for ci, colour in enumerate(("Red", "Green", "Blue"))]}]},
                # Lock indicators and key highlights (value ids 11..16): side lights and keys
                {"label": "Indicators", "content": [{"label": "Indicators", "content": [
                        {"label": "Caps Lock on the nearest side light", "type": "toggle",

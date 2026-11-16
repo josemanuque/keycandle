@@ -177,6 +177,254 @@
               ]
             }
           ]
+        },
+        {
+          "label": "Calibration",
+          "content": [
+            {
+              "label": "Calibrate (all side lights plain white while on)",
+              "type": "toggle",
+              "content": [
+                "id_side_calibrate",
+                0,
+                28
+              ]
+            },
+            {
+              "label": "Light 1 (far) Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_1_red",
+                0,
+                29
+              ]
+            },
+            {
+              "label": "Light 1 (far) Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_1_green",
+                0,
+                30
+              ]
+            },
+            {
+              "label": "Light 1 (far) Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_1_blue",
+                0,
+                31
+              ]
+            },
+            {
+              "label": "Light 2 Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_2_red",
+                0,
+                32
+              ]
+            },
+            {
+              "label": "Light 2 Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_2_green",
+                0,
+                33
+              ]
+            },
+            {
+              "label": "Light 2 Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_2_blue",
+                0,
+                34
+              ]
+            },
+            {
+              "label": "Light 3 Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_3_red",
+                0,
+                35
+              ]
+            },
+            {
+              "label": "Light 3 Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_3_green",
+                0,
+                36
+              ]
+            },
+            {
+              "label": "Light 3 Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_3_blue",
+                0,
+                37
+              ]
+            },
+            {
+              "label": "Light 4 Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_4_red",
+                0,
+                38
+              ]
+            },
+            {
+              "label": "Light 4 Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_4_green",
+                0,
+                39
+              ]
+            },
+            {
+              "label": "Light 4 Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_4_blue",
+                0,
+                40
+              ]
+            },
+            {
+              "label": "Light 5 Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_5_red",
+                0,
+                41
+              ]
+            },
+            {
+              "label": "Light 5 Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_5_green",
+                0,
+                42
+              ]
+            },
+            {
+              "label": "Light 5 Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_5_blue",
+                0,
+                43
+              ]
+            },
+            {
+              "label": "Light 6 (near) Red",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_6_red",
+                0,
+                44
+              ]
+            },
+            {
+              "label": "Light 6 (near) Green",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_6_green",
+                0,
+                45
+              ]
+            },
+            {
+              "label": "Light 6 (near) Blue",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_trim_6_blue",
+                0,
+                46
+              ]
+            }
+          ]
         }
       ]
     },

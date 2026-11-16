@@ -16,3 +16,6 @@ releases/
 stock/*.exe
 
 __pycache__/
+
+# Calibration photos (local only)
+photos/
