@@ -5,6 +5,7 @@
 
 mod app;
 mod device;
+mod settings;
 
 use anyhow::Result;
 use device::{Keyboard, CHANNEL_KEYBOARD, CHANNEL_RGB_MATRIX};
