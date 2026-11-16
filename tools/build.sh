@@ -28,9 +28,21 @@ command -v qmk > /dev/null || { echo "qmk CLI not found (pip install qmk)"; exit
 have=$(git -C "$QMK_DIR" rev-parse --short=8 HEAD)
 [ "$have" = "$QMK_COMMIT" ] || echo "warning: qmk_firmware is at $have, this port was tested on $QMK_COMMIT"
 
+# Sync the keyboard into the QMK tree, copying only files whose contents changed. Unchanged files
+# keep their timestamps, so make rebuilds just what was edited instead of the whole firmware
+# (a fresh copy of keyboard.json alone would regenerate QMK's headers and recompile everything).
+src="$HERE/keyboard/rk71_rgb"
 dst="$QMK_DIR/keyboards/royal_kludge/rk71_rgb"
-rm -rf "$dst"
-cp -r "$HERE/keyboard/rk71_rgb" "$dst"
+mkdir -p "$dst"
+(cd "$src" && find . -type f) | while IFS= read -r f; do
+  if ! cmp -s "$src/$f" "$dst/$f"; then
+    mkdir -p "$(dirname "$dst/$f")"
+    cp "$src/$f" "$dst/$f"
+  fi
+done
+(cd "$dst" && find . -type f) | while IFS= read -r f; do
+  [ -e "$src/$f" ] || rm -f "$dst/$f" # deleted in the repo
+done
 
 (cd "$QMK_DIR" && qmk compile -kb royal_kludge/rk71_rgb -km "$KM")
 mkdir -p "$(dirname "$OUT")"
