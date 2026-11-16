@@ -192,9 +192,9 @@ You get:
 * **Lighting:** effect, brightness, speed, colour.
 * **Side lights:**
   * **Colour:** Follow keyboard / Fixed colour / Off (and which fixed colour)
-  * **Brightness:** 0–31. This is multiplied by the keyboard's own brightness.
+  * **Brightness:** 0–31 (default 2, a soft glow). This is multiplied by the keyboard's own brightness.
   * **Red / Green / Blue:** 0–31 each. The side lights sit behind a bluish diffuser, and these sliders balance it
-    out. Defaults are 31 / 20 / 8 (warm), which looks close to neutral white through the diffuser.
+    out. Defaults are 31 / 15 / 23, tuned by eye on a real board.
   * **Show status:** status on the side lights (on) or on the keys (off)
 
 VIA has to be connected over USB. Settings are saved about 2 seconds after you stop moving a slider.

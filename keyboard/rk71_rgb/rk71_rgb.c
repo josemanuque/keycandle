@@ -68,11 +68,12 @@ typedef union {
 
 static kb_config_t kb_config;
 
-/* Side-light defaults: warm balance against the bluish diffuser, full brightness. */
+/* Side-light defaults, tuned by eye on the real keyboard (2026-11-16): colour balance against the
+ * diffuser, and a soft glow (the side lights are bright next to the keys at full power). */
 #define DEF_RED 31
-#define DEF_GREEN 20
-#define DEF_BLUE 8
-#define DEF_BRIGHT 31
+#define DEF_GREEN 15
+#define DEF_BLUE 23
+#define DEF_BRIGHT 2
 #define SIDE_RED_V (kb_config.side_red ^ DEF_RED)
 #define SIDE_GREEN_V (kb_config.side_green ^ DEF_GREEN)
 #define SIDE_BLUE_V (kb_config.side_blue ^ DEF_BLUE)
