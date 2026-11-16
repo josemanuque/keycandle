@@ -34,20 +34,42 @@
             {
               "showIf": "{id_side_mode} == 1",
               "label": "Fixed colour",
-              "type": "dropdown",
-              "options": [
-                "White",
-                "Red",
-                "Yellow",
-                "Green",
-                "Cyan",
-                "Blue",
-                "Magenta"
-              ],
+              "type": "color",
               "content": [
                 "id_side_colour",
                 0,
                 2
+              ]
+            },
+            {
+              "showIf": "{id_side_mode} != 2",
+              "label": "Effect",
+              "type": "dropdown",
+              "options": [
+                "Static",
+                "Breathing",
+                "Colour cycle",
+                "Type pulse",
+                "Wave"
+              ],
+              "content": [
+                "id_side_effect",
+                0,
+                17
+              ]
+            },
+            {
+              "showIf": "{id_side_mode} != 2 && {id_side_effect} != 0",
+              "label": "Effect speed",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_side_fx_speed",
+                0,
+                18
               ]
             },
             {
@@ -133,6 +155,26 @@
                 0,
                 10
               ]
+            },
+            {
+              "showIf": "{id_side_status} == 1",
+              "label": "Status colour: wired",
+              "type": "color",
+              "content": [
+                "id_status_wired_colour",
+                0,
+                19
+              ]
+            },
+            {
+              "showIf": "{id_side_status} == 1",
+              "label": "Status colour: Bluetooth",
+              "type": "color",
+              "content": [
+                "id_status_bt_colour",
+                0,
+                20
+              ]
             }
           ]
         },
@@ -151,16 +193,7 @@
             {
               "showIf": "{id_caps_on_side} == 1",
               "label": "Caps Lock side colour",
-              "type": "dropdown",
-              "options": [
-                "White",
-                "Red",
-                "Yellow",
-                "Green",
-                "Cyan",
-                "Blue",
-                "Magenta"
-              ],
+              "type": "color",
               "content": [
                 "id_caps_side_colour",
                 0,
@@ -179,16 +212,7 @@
             {
               "showIf": "{id_frow_on_side} == 1",
               "label": "F-row lock side colour",
-              "type": "dropdown",
-              "options": [
-                "White",
-                "Red",
-                "Yellow",
-                "Green",
-                "Cyan",
-                "Blue",
-                "Magenta"
-              ],
+              "type": "color",
               "content": [
                 "id_frow_side_colour",
                 0,
@@ -196,23 +220,27 @@
               ]
             },
             {
-              "label": "Caps Lock key colour",
+              "label": "Caps Lock key",
               "type": "dropdown",
               "options": [
                 "Auto",
                 "Off",
-                "White",
-                "Red",
-                "Yellow",
-                "Green",
-                "Cyan",
-                "Blue",
-                "Magenta"
+                "Custom colour"
               ],
+              "content": [
+                "id_caps_key_mode",
+                0,
+                15
+              ]
+            },
+            {
+              "showIf": "{id_caps_key_mode} == 2",
+              "label": "Caps Lock key colour",
+              "type": "color",
               "content": [
                 "id_caps_key_colour",
                 0,
-                15
+                21
               ]
             },
             {

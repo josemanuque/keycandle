@@ -18,6 +18,7 @@
 #include "rk71_bt.h"
 #include "rk71_side.h"
 #include "rk71_sleep.h"
+#include "lib/lib8tion/lib8tion.h"
 #include "bluetooth.h"
 #include "connection.h"
 #ifdef VIA_ENABLE
@@ -59,7 +60,6 @@ typedef union {
         bool    bt_mode : 1;     /* when plugged in: 0 = wired, 1 = Bluetooth */
         uint8_t host : 3;        /* 0..4 -> device 1..5 */
         uint8_t side_mode : 2;   /* SIDE_MODE_FOLLOW / _FIXED / _OFF */
-        uint8_t side_colour : 3; /* index into side_colours[] */
         bool    side_no_status : 1;
         /* Stored XOR the defaults below, so an all-zero config means "defaults". 0..31 each. */
         uint8_t side_red : 5;
@@ -77,18 +77,32 @@ static kb_config_t kb_config;
 #define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
 #define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
 
-/* Caps Lock key colour: Auto (cool white, or dark on white-ish lighting), Off, or a fixed colour
- * from side_colours[] (value 2 + index). */
-enum { CAPS_KEY_AUTO, CAPS_KEY_OFF, CAPS_KEY_FIXED };
+/* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off, or a custom colour. */
+enum { CAPS_KEY_AUTO, CAPS_KEY_OFF, CAPS_KEY_CUSTOM };
+
+/* Side-light effects (applied to the main colour; status and indicators are not animated). */
+enum { SIDE_FX_STATIC, SIDE_FX_BREATHING, SIDE_FX_CYCLE, SIDE_FX_PULSE, SIDE_FX_WAVE, SIDE_FX_COUNT };
+
+/* A colour picked in VIA: hue and saturation (brightness has its own setting). Stored XOR its
+ * default, so all-zero settings mean the defaults. */
+typedef struct {
+    uint8_t h, s;
+} hs_t;
 
 typedef struct {
-    uint8_t side_flags;       /* SIDE_FLAG_* */
-    uint8_t status_bright;    /* 0..31, XOR DEF_STATUS_BRIGHT */
-    uint8_t caps_side_colour; /* index into side_colours[], XOR DEF_CAPS_SIDE_COLOUR */
-    uint8_t frow_side_colour; /* index into side_colours[], XOR DEF_FROW_SIDE_COLOUR */
-    uint8_t caps_key_colour;  /* CAPS_KEY_AUTO / _OFF / _FIXED + side_colours[] index */
-    uint8_t key_flags;        /* KEY_FLAG_* */
-    uint8_t mac_devices;      /* bit n: device n is in Mac mode (0..4 Bluetooth slots, 5 wired) */
+    uint8_t side_flags;    /* SIDE_FLAG_* */
+    uint8_t status_bright; /* 0..31, XOR DEF_STATUS_BRIGHT */
+    uint8_t key_flags;     /* KEY_FLAG_* */
+    uint8_t caps_key_mode; /* CAPS_KEY_* */
+    uint8_t mac_devices;   /* bit n: device n is in Mac mode (0..4 Bluetooth slots, 5 wired) */
+    uint8_t side_effect;   /* SIDE_FX_* */
+    uint8_t side_fx_speed; /* 0..31, XOR DEF_FX_SPEED */
+    hs_t    side_fixed;    /* "Fixed colour" of the side lights */
+    hs_t    caps_side;     /* Caps Lock on the side lights */
+    hs_t    frow_side;     /* F-row lock on the side lights */
+    hs_t    caps_key;      /* Caps Lock key, CAPS_KEY_CUSTOM */
+    hs_t    status_wired;  /* status colour for wired */
+    hs_t    status_bt;     /* status colour for Bluetooth (connecting, pairing, mode) */
 } kb_extra_t;
 
 static kb_extra_t kb_extra;
@@ -114,14 +128,29 @@ _Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill 
  * lights are set to a faint glow or the keyboard lighting is dim. */
 #define DEF_STATUS_BRIGHT 16
 #define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
-#define DEF_CAPS_SIDE_COLOUR 1 /* red */
-#define DEF_FROW_SIDE_COLOUR 2 /* yellow */
-#define CAPS_SIDE_COLOUR_V ((kb_extra.caps_side_colour ^ DEF_CAPS_SIDE_COLOUR) % SIDE_COLOUR_COUNT)
-#define FROW_SIDE_COLOUR_V ((kb_extra.frow_side_colour ^ DEF_FROW_SIDE_COLOUR) % SIDE_COLOUR_COUNT)
+#define DEF_FX_SPEED 16
+#define FX_SPEED_V (kb_extra.side_fx_speed ^ DEF_FX_SPEED)
 
-/* VIA dropdown order: White, Red, Yellow, Green, Cyan, Blue, Magenta */
-static const rgb_t side_colours[] = {SIDE_WHITE, SIDE_RED, SIDE_YELLOW, SIDE_GREEN, SIDE_CYAN, SIDE_BLUE, SIDE_MAGENTA};
-#define SIDE_COLOUR_COUNT (sizeof(side_colours) / sizeof(side_colours[0]))
+/* Colour defaults (hue, saturation). */
+#define DEF_SIDE_FIXED ((hs_t){0, 0})      /* white */
+#define DEF_CAPS_SIDE ((hs_t){0, 255})     /* red */
+#define DEF_FROW_SIDE ((hs_t){43, 255})    /* yellow */
+#define DEF_CAPS_KEY ((hs_t){0, 255})      /* red */
+#define DEF_STATUS_WIRED ((hs_t){85, 255}) /* green */
+#define DEF_STATUS_BT ((hs_t){170, 255})   /* blue */
+
+static hs_t hs_value(hs_t stored, hs_t def) {
+    return (hs_t){stored.h ^ def.h, stored.s ^ def.s};
+}
+
+/* A stored colour at the given brightness (side lights: 255, their level is applied separately). */
+static rgb_t hs_rgb(hs_t stored, hs_t def, uint8_t v) {
+    hs_t c = hs_value(stored, def);
+    return hsv_to_rgb((hsv_t){c.h, c.s, v});
+}
+
+#define STATUS_WIRED_RGB hs_rgb(kb_extra.status_wired, DEF_STATUS_WIRED, 255)
+#define STATUS_BT_RGB hs_rgb(kb_extra.status_bt, DEF_STATUS_BT, 255)
 
 static void load_config(void) {
     kb_data_t data;
@@ -453,14 +482,14 @@ static bool side_status(uint32_t now, uint8_t *pos, rgb_t *col) {
     if (show_link && on_bluetooth()) {
         *pos = SIDE_ALL;
         switch (link_state) {
-            case LINK_PAIRING: *col = blink(now, 200) ? SIDE_BLUE : SIDE_OFF; return true;
-            case LINK_CONNECTED: *col = SIDE_BLUE; return true;
-            default: *col = blink(now, 500) ? SIDE_BLUE : SIDE_OFF; return true; /* connecting */
+            case LINK_PAIRING: *col = blink(now, 200) ? STATUS_BT_RGB : SIDE_OFF; return true;
+            case LINK_CONNECTED: *col = STATUS_BT_RGB; return true;
+            default: *col = blink(now, 500) ? STATUS_BT_RGB : SIDE_OFF; return true; /* connecting */
         }
     }
     if (mode_flash.active) {
         *pos = SIDE_ALL;
-        *col = on_bluetooth() ? SIDE_BLUE : SIDE_GREEN;
+        *col = on_bluetooth() ? STATUS_BT_RGB : STATUS_WIRED_RGB;
         return true;
     }
     if (low_battery_warning()) {
@@ -485,8 +514,41 @@ static void side_indicators(bool show) {
     bool active = show && (lighting_visible() || last_input_activity_elapsed() < RK71_SLEEP_IDLE_MS);
     bool caps   = active && (kb_extra.side_flags & SIDE_FLAG_CAPS) && host_keyboard_led_state().caps_lock;
     bool frow   = active && (kb_extra.side_flags & SIDE_FLAG_FROW) && layer_state_is(RK71_FROW_LAYER);
-    side_indicator(0, caps ? SIDE_NEAR : 0, side_colours[CAPS_SIDE_COLOUR_V]);
-    side_indicator(1, frow ? SIDE_FAR : 0, side_colours[FROW_SIDE_COLOUR_V]);
+    side_indicator(0, caps ? SIDE_NEAR : 0, hs_rgb(kb_extra.caps_side, DEF_CAPS_SIDE, 255));
+    side_indicator(1, frow ? SIDE_FAR : 0, hs_rgb(kb_extra.frow_side, DEF_FROW_SIDE, 255));
+}
+
+/* Effect period: speed 0..31 -> 4.0 s .. 0.9 s. */
+static uint16_t fx_period(void) {
+    return 4000 - FX_SPEED_V * 100;
+}
+
+/* Apply the side-light effect to the main lights: positions, colour and brightness. */
+static void side_effect(uint32_t now, uint8_t *pos, rgb_t *col, uint8_t *level) {
+    uint16_t period = fx_period();
+    uint8_t  angle  = (now % period) * 256 / period; /* 0..255 through one period */
+    switch (kb_extra.side_effect) {
+        case SIDE_FX_BREATHING: /* 12 % .. 100 % */
+            *level = scale8(*level, 32 + scale8(sin8(angle), 223));
+            break;
+        case SIDE_FX_CYCLE: /* drift through all hues */
+            *col = hsv_to_rgb((hsv_t){angle, 255, 255});
+            break;
+        case SIDE_FX_PULSE: { /* faint, flaring up with each key press */
+            uint32_t since = last_input_activity_elapsed();
+            uint8_t  flare = since < period / 4 ? 255 - since * 255 / (period / 4) : 0;
+            *level         = scale8(*level, 48 + scale8(flare, 207));
+            break;
+        }
+        case SIDE_FX_WAVE: { /* two lights travelling far -> near -> far */
+            uint8_t step = (now % period) * 8 / period; /* 0..7 */
+            uint8_t at   = step < 5 ? step : 8 - step;  /* 0 1 2 3 4 3 2 1 */
+            *pos         = 0x03 << at;
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 static void side_update(uint32_t now) {
@@ -499,9 +561,11 @@ static void side_update(uint32_t now) {
         pos = 0;
         if (kb_config.side_mode != SIDE_MODE_OFF && lighting_visible()) {
             pos = SIDE_ALL;
-            col = kb_config.side_mode == SIDE_MODE_FIXED ? side_colours[kb_config.side_colour % SIDE_COLOUR_COUNT] : follow_colour();
+            col = kb_config.side_mode == SIDE_MODE_FIXED ? hs_rgb(kb_extra.side_fixed, DEF_SIDE_FIXED, 255) : follow_colour();
         }
-        side_set_level(side_level());
+        uint8_t level = side_level();
+        if (pos) side_effect(now, &pos, &col, &level);
+        side_set_level(level);
         side_indicators(true);
     }
     side_show(pos, col);
@@ -675,10 +739,10 @@ static void win_lock_dark(uint8_t led_min, uint8_t led_max) {
 
 static void caps_key(uint8_t led_min, uint8_t led_max) {
     if (!host_keyboard_led_state().caps_lock) return;
-    uint8_t setting = kb_extra.caps_key_colour;
-    if (setting == CAPS_KEY_OFF) return;
-    if (setting >= CAPS_KEY_FIXED) {
-        rgb_t c = side_colours[(setting - CAPS_KEY_FIXED) % SIDE_COLOUR_COUNT];
+    uint8_t mode = kb_extra.caps_key_mode;
+    if (mode == CAPS_KEY_OFF) return;
+    if (mode == CAPS_KEY_CUSTOM) {
+        rgb_t c = hs_rgb(kb_extra.caps_key, DEF_CAPS_KEY, RGB_MATRIX_MAXIMUM_BRIGHTNESS);
         light(KEY_CAPS, c.r, c.g, c.b, led_min, led_max);
     } else if (rgb_matrix_get_sat() < 64) {
         light(KEY_CAPS, 0, 0, 0, led_min, led_max); /* white-ish lighting: a dark key stands out */
@@ -692,6 +756,10 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
 
     uint32_t now = timer_read32();
     bool     bt  = on_bluetooth();
+    rgb_t    sb  = hs_rgb(kb_extra.status_bt, DEF_STATUS_BT, RGB_MATRIX_MAXIMUM_BRIGHTNESS);
+    rgb_t    sw  = hs_rgb(kb_extra.status_wired, DEF_STATUS_WIRED, RGB_MATRIX_MAXIMUM_BRIGHTNESS);
+#define STATUS_BT sb.r, sb.g, sb.b
+#define STATUS_WIRED sw.r, sw.g, sw.b
 
     if (keymap_config.no_gui) win_lock_dark(led_min, led_max);
     caps_key(led_min, led_max);
@@ -701,21 +769,21 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
         if (bt && show_link) {
             switch (link_state) {
                 case LINK_PAIRING:
-                    if (blink(now, 200)) light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
+                    if (blink(now, 200)) light(KEY_HOST(kb_config.host), STATUS_BT, led_min, led_max);
                     break;
                 case LINK_CONNECTED:
-                    light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
+                    light(KEY_HOST(kb_config.host), STATUS_BT, led_min, led_max);
                     break;
                 default:
-                    if (blink(now, 500)) light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
+                    if (blink(now, 500)) light(KEY_HOST(kb_config.host), STATUS_BT, led_min, led_max);
                     break;
             }
         }
         if (mode_flash.active && blink(now, 250)) {
             if (bt) {
-                light(KEY_P, RGB_BLUE, led_min, led_max);
+                light(KEY_P, STATUS_BT, led_min, led_max);
             } else {
-                light(KEY_P, RGB_GREEN, led_min, led_max);
+                light(KEY_P, STATUS_WIRED, led_min, led_max);
             }
         }
         if (forget_flash.active) light(KEY_BSPC, RGB_RED, led_min, led_max);
@@ -725,12 +793,14 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     /* While Fn is held: P shows the mode (green wired, blue Bluetooth), the slot key is blue. */
     if (IS_LAYER_ON(RK71_FN_LAYER)) {
         if (bt) {
-            light(KEY_P, RGB_BLUE, led_min, led_max);
-            light(KEY_HOST(kb_config.host), RGB_BLUE, led_min, led_max);
+            light(KEY_P, STATUS_BT, led_min, led_max);
+            light(KEY_HOST(kb_config.host), STATUS_BT, led_min, led_max);
         } else {
-            light(KEY_P, RGB_GREEN, led_min, led_max);
+            light(KEY_P, STATUS_WIRED, led_min, led_max);
         }
     }
+#undef STATUS_BT
+#undef STATUS_WIRED
     return true;
 }
 
@@ -764,9 +834,31 @@ enum {
     ID_CAPS_SIDE_COLOUR,
     ID_FROW_ON_SIDE,
     ID_FROW_SIDE_COLOUR,
-    ID_CAPS_KEY_COLOUR,
+    ID_CAPS_KEY_MODE,
     ID_FN_HIGHLIGHT,
+    ID_SIDE_EFFECT,
+    ID_SIDE_FX_SPEED,
+    ID_STATUS_WIRED_COLOUR,
+    ID_STATUS_BT_COLOUR,
+    ID_CAPS_KEY_COLOUR,
 };
+
+static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
+    return (hs_t){h ^ def.h, s ^ def.s};
+}
+
+/* VIA colour pickers send and expect [hue, saturation]. */
+static hs_t *colour_setting(uint8_t value_id, hs_t *def) {
+    switch (value_id) {
+        case ID_SIDE_COLOUR: *def = DEF_SIDE_FIXED; return &kb_extra.side_fixed;
+        case ID_CAPS_SIDE_COLOUR: *def = DEF_CAPS_SIDE; return &kb_extra.caps_side;
+        case ID_FROW_SIDE_COLOUR: *def = DEF_FROW_SIDE; return &kb_extra.frow_side;
+        case ID_CAPS_KEY_COLOUR: *def = DEF_CAPS_KEY; return &kb_extra.caps_key;
+        case ID_STATUS_WIRED_COLOUR: *def = DEF_STATUS_WIRED; return &kb_extra.status_wired;
+        case ID_STATUS_BT_COLOUR: *def = DEF_STATUS_BT; return &kb_extra.status_bt;
+        default: return NULL;
+    }
+}
 
 static void set_flag(uint8_t *flags, uint8_t flag, bool on) {
     *flags = on ? *flags | flag : *flags & ~flag;
@@ -783,11 +875,22 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
         *command_id = id_unhandled;
         return;
     }
+    hs_t  def;
+    hs_t *colour = colour_setting(value_id, &def);
+    if (colour && *command_id == id_custom_set_value) {
+        *colour = hs_store(value[0], value[1], def);
+        return;
+    }
+    if (colour && *command_id == id_custom_get_value) {
+        hs_t c   = hs_value(*colour, def);
+        value[0] = c.h;
+        value[1] = c.s;
+        return;
+    }
     switch (*command_id) {
         case id_custom_set_value:
             switch (value_id) {
                 case ID_SIDE_MODE: kb_config.side_mode = value[0] > SIDE_MODE_OFF ? SIDE_MODE_FOLLOW : value[0]; break;
-                case ID_SIDE_COLOUR: kb_config.side_colour = value[0] % SIDE_COLOUR_COUNT; break;
                 case ID_SIDE_STATUS: kb_config.side_no_status = !value[0]; break;
                 case ID_SIDE_RED: kb_config.side_red = (value[0] & 31) ^ DEF_RED; break;
                 case ID_SIDE_GREEN: kb_config.side_green = (value[0] & 31) ^ DEF_GREEN; break;
@@ -802,10 +905,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     break;
                 case ID_STATUS_BRIGHT: kb_extra.status_bright = (value[0] & 31) ^ DEF_STATUS_BRIGHT; break;
                 case ID_CAPS_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_CAPS, value[0]); break;
-                case ID_CAPS_SIDE_COLOUR: kb_extra.caps_side_colour = (value[0] % SIDE_COLOUR_COUNT) ^ DEF_CAPS_SIDE_COLOUR; break;
                 case ID_FROW_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_FROW, value[0]); break;
-                case ID_FROW_SIDE_COLOUR: kb_extra.frow_side_colour = (value[0] % SIDE_COLOUR_COUNT) ^ DEF_FROW_SIDE_COLOUR; break;
-                case ID_CAPS_KEY_COLOUR: kb_extra.caps_key_colour = value[0] < CAPS_KEY_FIXED + SIDE_COLOUR_COUNT ? value[0] : CAPS_KEY_AUTO; break;
+                case ID_CAPS_KEY_MODE: kb_extra.caps_key_mode = value[0] <= CAPS_KEY_CUSTOM ? value[0] : CAPS_KEY_AUTO; break;
+                case ID_SIDE_EFFECT: kb_extra.side_effect = value[0] < SIDE_FX_COUNT ? value[0] : SIDE_FX_STATIC; break;
+                case ID_SIDE_FX_SPEED: kb_extra.side_fx_speed = (value[0] & 31) ^ DEF_FX_SPEED; break;
                 case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
                 default: *command_id = id_unhandled; break;
             }
@@ -814,7 +917,6 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
         case id_custom_get_value:
             switch (value_id) {
                 case ID_SIDE_MODE: value[0] = kb_config.side_mode; break;
-                case ID_SIDE_COLOUR: value[0] = kb_config.side_colour; break;
                 case ID_SIDE_STATUS: value[0] = !kb_config.side_no_status; break;
                 case ID_SIDE_RED: value[0] = SIDE_RED_V; break;
                 case ID_SIDE_GREEN: value[0] = SIDE_GREEN_V; break;
@@ -823,10 +925,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_SIDE_FOLLOW_BRIGHTNESS: value[0] = !(kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS); break;
                 case ID_STATUS_BRIGHT: value[0] = STATUS_BRIGHT_V; break;
                 case ID_CAPS_ON_SIDE: value[0] = !!(kb_extra.side_flags & SIDE_FLAG_CAPS); break;
-                case ID_CAPS_SIDE_COLOUR: value[0] = CAPS_SIDE_COLOUR_V; break;
                 case ID_FROW_ON_SIDE: value[0] = !!(kb_extra.side_flags & SIDE_FLAG_FROW); break;
-                case ID_FROW_SIDE_COLOUR: value[0] = FROW_SIDE_COLOUR_V; break;
-                case ID_CAPS_KEY_COLOUR: value[0] = kb_extra.caps_key_colour; break;
+                case ID_CAPS_KEY_MODE: value[0] = kb_extra.caps_key_mode; break;
+                case ID_SIDE_EFFECT: value[0] = kb_extra.side_effect; break;
+                case ID_SIDE_FX_SPEED: value[0] = FX_SPEED_V; break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 default: *command_id = id_unhandled; break;
             }
