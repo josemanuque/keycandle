@@ -29,14 +29,7 @@ pub fn run(page: Option<&str>) {
     let app = gpui::Application::with_platform(gpui_platform::current_platform(false)).with_assets(gpui_kit_assets::AllAssets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
-        // 1180 × 800, or 90 % of a smaller screen.
-        let screen = cx.primary_display().map(|d| d.bounds().size);
-        let fit = |want: f32, have: Option<f32>| px(have.map_or(want, |h| want.min(h * 0.9)));
-        let window_size = size(
-            fit(1180., screen.map(|s| f32::from(s.width))),
-            fit(800., screen.map(|s| f32::from(s.height))),
-        );
-        let bounds = Bounds::centered(None, window_size, cx);
+        let bounds = Bounds::centered(None, size(px(1180.), px(800.)), cx);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(TitlebarOptions { title: Some("RK71 Configurator".into()), ..Default::default() }),
