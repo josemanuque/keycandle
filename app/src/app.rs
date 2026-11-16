@@ -4,6 +4,7 @@
 //! changes straight back over USB. The firmware stores them in flash once they settle.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use gpui::{
     div, hsla, prelude::*, px, size, App, Bounds, Context, Entity, Hsla, SharedString, TitlebarOptions, Window,
@@ -20,7 +21,8 @@ use gpui_component::{
 };
 
 use crate::device::Keyboard;
-use crate::settings::{Kind, Section, Setting, KEYS, LIGHTING, POWER};
+use crate::preview;
+use crate::settings::{Kind, Section, Setting, KEYS, KEY_EFFECTS, LIGHTING, POWER};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -117,7 +119,33 @@ impl Configurator {
             controls: HashMap::new(),
         };
         this.connect(window, cx);
+        this.watch_connection(window, cx);
         this
+    }
+
+    /// Every 2 s: notice an unplugged keyboard, and connect again when it comes back.
+    fn watch_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        cx.spawn_in(window, async move |this, cx| loop {
+            cx.background_executor().timer(Duration::from_secs(2)).await;
+            let alive = this.update_in(cx, |this, window, cx| {
+                let lost = this.keyboard.as_ref().is_some_and(|kb| kb.ping().is_err());
+                if lost {
+                    this.keyboard = None;
+                    this.controls.clear();
+                    this.status = "Unplugged. Waiting for the keyboard…".into();
+                    cx.notify();
+                } else if this.keyboard.is_none() {
+                    this.connect(window, cx);
+                    if this.keyboard.is_some() {
+                        cx.notify();
+                    }
+                }
+            });
+            if alive.is_err() {
+                break; // window closed
+            }
+        })
+        .detach();
     }
 
     fn all_settings() -> impl Iterator<Item = &'static Setting> {
@@ -260,6 +288,9 @@ impl Configurator {
                 .child(div().text_color(theme.muted_foreground).child(self.status.clone()))
                 .into_any_element();
         }
+        if self.page == Page::Overview {
+            return self.render_overview(cx);
+        }
         let sections = self.page.sections();
         if sections.is_empty() {
             return div().text_color(theme.muted_foreground).child("This page is coming next.").into_any_element();
@@ -277,6 +308,73 @@ impl Configurator {
                     .child(div().pb_2().font_weight(gpui::FontWeight::SEMIBOLD).child(section.title))
                     .children(section.settings.iter().filter(|s| self.is_shown(s)).map(|s| self.render_row(s, cx)))
             }))
+            .into_any_element()
+    }
+}
+
+impl Configurator {
+    fn value(&self, channel: u8, id: u8) -> Option<&[u8]> {
+        self.values.get(&(channel, id)).map(|v| v.as_slice())
+    }
+
+    fn render_overview(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        use crate::device::{CHANNEL_KEYBOARD as KB, CHANNEL_RGB_MATRIX as RGB};
+        let theme = cx.theme().clone();
+        let effect = self.value(RGB, 2).map(|v| v[0] as usize).unwrap_or(0);
+        let key = (effect != 0).then(|| self.value(RGB, 4).map(to_hsla)).flatten();
+        let side_mode = self.value(KB, 1).map(|v| v[0]).unwrap_or(0);
+        let side = match side_mode {
+            0 => key,
+            1 => self.value(KB, 2).map(to_hsla),
+            _ => None,
+        };
+        let pick = |id: u8, options: &[&'static str]| -> &'static str {
+            let i = self.value(KB, id).map(|v| v[0] as usize).unwrap_or(0);
+            options.get(i).copied().unwrap_or("?")
+        };
+        let tiles = [
+            ("Key lighting", KEY_EFFECTS.get(effect).copied().unwrap_or("?"), Page::Lighting),
+            ("Side lights", pick(1, &["Follow keyboard", "Fixed colour", "Off"]), Page::Lighting),
+            ("Caps Lock indicator", if self.value(KB, 11).is_some_and(|v| v[0] != 0) { "Key + side light" } else { "On the key" }, Page::Keys),
+            ("Lighting off on battery", pick(22, &["After 1 min", "After 2 min", "After 5 min", "After 10 min", "After 30 min", "Never"]), Page::Power),
+        ];
+        let view = cx.entity().downgrade();
+        v_flex()
+            .gap_5()
+            .child(
+                div()
+                    .flex()
+                    .justify_center()
+                    .p_4()
+                    .rounded_lg()
+                    .bg(theme.secondary)
+                    .border_1()
+                    .border_color(theme.border)
+                    .child(preview::keyboard(key, side)),
+            )
+            .child(h_flex().gap_4().children(tiles.into_iter().enumerate().map(|(i, (title, value, page))| {
+                let view = view.clone();
+                v_flex()
+                    .id(("tile", i))
+                    .flex_1()
+                    .p_4()
+                    .gap_1()
+                    .rounded_lg()
+                    .bg(theme.secondary)
+                    .border_1()
+                    .border_color(theme.border)
+                    .cursor_pointer()
+                    .hover(|s| s.border_color(theme.ring))
+                    .on_click(move |_, _, cx| {
+                        let _ = view.update(cx, |this, cx| {
+                            this.page = page;
+                            cx.notify();
+                        });
+                    })
+                    .child(div().text_xs().text_color(theme.muted_foreground).child(title.to_uppercase()))
+                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(value))
+                    .child(div().text_xs().text_color(theme.link).child(format!("{} →", page.title())))
+            })))
             .into_any_element()
     }
 }

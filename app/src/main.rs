@@ -5,6 +5,7 @@
 
 mod app;
 mod device;
+mod preview;
 mod settings;
 
 use anyhow::Result;

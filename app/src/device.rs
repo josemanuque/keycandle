@@ -50,6 +50,11 @@ impl Keyboard {
         Ok(kb)
     }
 
+    /// Cheap "still there?" check (asks for the protocol version).
+    pub fn ping(&self) -> Result<()> {
+        self.transfer(&[cmd::GET_PROTOCOL_VERSION]).map(|_| ())
+    }
+
     /// Send one VIA packet and return the keyboard's answer.
     fn transfer(&self, data: &[u8]) -> Result<[u8; PACKET]> {
         let mut out = [0u8; PACKET + 1]; // report id 0 + packet

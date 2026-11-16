@@ -47,7 +47,7 @@ const fn when(mut setting: Setting, id: u8, values: &'static [u8]) -> Setting {
 
 /// Key-lighting effects in the firmware's mode order (0 = lighting off). Only the effects enabled in
 /// keyboard/rk71_rgb/keyboard.json exist, in QMK's rgb_matrix_effects.inc order.
-const KEY_EFFECTS: &[&str] = &[
+pub const KEY_EFFECTS: &[&str] = &[
     "Off", "Solid colour", "Gradient up/down", "Gradient left/right", "Breathing", "Band brightness",
     "Cycle all", "Cycle left/right", "Cycle up/down", "Rainbow chevron", "Cycle pinwheel", "Cycle spiral",
     "Raindrops", "Jellybean raindrops", "Pixel rain", "Typing heatmap", "Digital rain", "Reactive",
