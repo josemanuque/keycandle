@@ -1,0 +1,14 @@
+[package]
+name = "rk71-configurator"
+version = "0.1.0"
+edition = "2021"
+description = "Configurator for the RK71 QMK firmware (Windows, macOS, Linux)"
+license = "GPL-2.0-or-later"
+
+[[bin]]
+name = "rk71-configurator"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+hidapi = "2.6"
