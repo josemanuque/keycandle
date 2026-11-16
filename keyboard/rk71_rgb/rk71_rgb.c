@@ -77,7 +77,6 @@ static kb_config_t kb_config;
 #define SIDE_FLAG_OWN_BRIGHTNESS 0x01 /* side-light brightness does not follow the keyboard's */
 #define SIDE_FLAG_CAPS 0x02           /* Caps Lock shown on the nearest side light */
 #define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
-#define SIDE_FLAG_SCAN 0x08           /* experimental: side lights one position at a time */
 #define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
 
 /* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off, or a custom colour. */
@@ -631,7 +630,6 @@ void keyboard_post_init_kb(void) {
     if (kb_config.host > 4) kb_config.host = 0;
     if (kb_config.side_mode > SIDE_MODE_OFF) kb_config.side_mode = SIDE_MODE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
-    side_set_scan(kb_extra.side_flags & SIDE_FLAG_SCAN);
     rk71_sleep_init();
     kb_ready  = true;
     boot_time = timer_read32();
@@ -921,7 +919,6 @@ enum {
     ID_AUTO_BATTERY,
     ID_DIM_ON_BATTERY,
     ID_DIM_LEVEL,
-    ID_SIDE_SCAN,
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -995,10 +992,6 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_AUTO_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_NO_AUTO_BATTERY, !value[0]); break;
                 case ID_DIM_ON_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_DIM_ON_BATTERY, value[0]); break;
                 case ID_DIM_LEVEL: kb_extra.dim_level = (value[0] & 31) ^ DEF_DIM_LEVEL; break;
-                case ID_SIDE_SCAN:
-                    set_flag(&kb_extra.side_flags, SIDE_FLAG_SCAN, value[0]);
-                    side_set_scan(value[0]);
-                    break;
                 case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
                 default: *command_id = id_unhandled; break;
             }
@@ -1024,7 +1017,6 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_AUTO_BATTERY: value[0] = !(kb_extra.power_flags & POWER_FLAG_NO_AUTO_BATTERY); break;
                 case ID_DIM_ON_BATTERY: value[0] = !!(kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY); break;
                 case ID_DIM_LEVEL: value[0] = DIM_LEVEL_V; break;
-                case ID_SIDE_SCAN: value[0] = !!(kb_extra.side_flags & SIDE_FLAG_SCAN); break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 default: *command_id = id_unhandled; break;
             }

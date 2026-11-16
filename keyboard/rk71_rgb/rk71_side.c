@@ -46,7 +46,7 @@ typedef struct {
 } step_t;
 
 #define GROUPS 3                 /* main lights + 2 indicators */
-#define MAX_STEPS (3 * 6) /* per colour: one step per group switching off, or per light when scanning */
+#define MAX_STEPS (3 * GROUPS) /* per colour: one step per group switching off */
 
 static step_t          steps[MAX_STEPS];
 static uint8_t         n_steps, step_idx;
@@ -57,15 +57,6 @@ static uint32_t        loops_per_tick = 1;
 static virtual_timer_t frame_timer;
 static uint8_t         balance[3] = {31, 31, 31}; /* 0..31 per colour */
 static uint8_t         level      = 255;          /* brightness 0..255 */
-
-/*
- * Experimental "one light at a time": the 12 LEDs of a colour share its supply, so an LED with a
- * slightly lower forward voltage draws more than its share and the lights look uneven. Lighting
- * one position at a time (left + right pair) removes that sharing. Each position then gets up to a
- * sixth of the colour time, so its on-time is multiplied by SCAN_GAIN to make up for it.
- */
-#define SCAN_GAIN 6
-static bool scan_positions;
 
 static uint8_t group_positions[GROUPS];
 static rgb_t   group_colour[GROUPS];
@@ -161,18 +152,7 @@ static void recompute(void) {
         pos[0] &= ~pos[g];
     }
 
-    for (uint8_t c = 0; scan_positions && c < 3; c++) {
-        for (uint8_t p = 0; p < 6; p++) {
-            for (uint8_t g = 0; g < GROUPS; g++) {
-                if (!((pos[g] >> p) & 1)) continue;
-                uint32_t t = (uint32_t)on_time(c, component(group_colour[g], c)) * SCAN_GAIN;
-                if (t > MAX_TICKS * FRACTION / 6) t = MAX_TICKS * FRACTION / 6;
-                if (t) s[n++] = (step_t){t, c, 1 << p};
-            }
-        }
-    }
-
-    for (uint8_t c = 0; !scan_positions && c < 3; c++) {
+    for (uint8_t c = 0; c < 3; c++) {
         uint16_t t[GROUPS];
         uint8_t  on = 0; /* groups still lit in this colour */
         for (uint8_t g = 0; g < GROUPS; g++) {
@@ -268,12 +248,6 @@ void side_show(uint8_t positions, rgb_t colour) {
 
 void side_indicator(uint8_t slot, uint8_t positions, rgb_t colour) {
     if (slot < GROUPS - 1) set_group(1 + slot, positions, colour);
-}
-
-void side_set_scan(bool scan) {
-    if (scan == scan_positions) return;
-    scan_positions = scan;
-    recompute();
 }
 
 void side_blank(void) {

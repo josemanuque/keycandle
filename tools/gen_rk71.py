@@ -105,8 +105,6 @@ if len(sys.argv) > 2:
                     "content": ["id_side_bright", 0, 8]},
                    {"label": "Brightness follows the keyboard", "type": "toggle",
                     "content": ["id_side_follow_brightness", 0, 9]},
-                   {"label": "Experimental: light one position at a time", "type": "toggle",
-                    "content": ["id_side_scan", 0, 27]},
                    {"label": "Red", "type": "range", "options": [0, 31], "content": ["id_side_red", 0, 5]},
                    {"label": "Green", "type": "range", "options": [0, 31], "content": ["id_side_green", 0, 6]},
                    {"label": "Blue", "type": "range", "options": [0, 31], "content": ["id_side_blue", 0, 7]},
