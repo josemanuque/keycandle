@@ -253,6 +253,77 @@
               ]
             }
           ]
+        },
+        {
+          "label": "Power",
+          "content": [
+            {
+              "label": "On battery, lighting off after",
+              "type": "dropdown",
+              "options": [
+                "1 minute",
+                "2 minutes",
+                "5 minutes",
+                "10 minutes",
+                "30 minutes",
+                "Never"
+              ],
+              "content": [
+                "id_lights_off",
+                0,
+                22
+              ]
+            },
+            {
+              "label": "Sleep once dark after",
+              "type": "dropdown",
+              "options": [
+                "5 seconds",
+                "10 seconds",
+                "30 seconds",
+                "1 minute",
+                "5 minutes",
+                "Never"
+              ],
+              "content": [
+                "id_sleep_after",
+                0,
+                23
+              ]
+            },
+            {
+              "label": "Show the battery bar when unplugging or when low",
+              "type": "toggle",
+              "content": [
+                "id_auto_battery",
+                0,
+                24
+              ]
+            },
+            {
+              "label": "Dim the lighting on battery",
+              "type": "toggle",
+              "content": [
+                "id_dim_on_battery",
+                0,
+                25
+              ]
+            },
+            {
+              "showIf": "{id_dim_on_battery} == 1",
+              "label": "Brightness on battery",
+              "type": "range",
+              "options": [
+                0,
+                31
+              ],
+              "content": [
+                "id_dim_level",
+                0,
+                26
+              ]
+            }
+          ]
         }
       ]
     }

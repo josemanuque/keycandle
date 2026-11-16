@@ -3,7 +3,11 @@
 # of RAM this 8 KB chip does not have); rk71_rgb.c holds the modes, keys and status lights.
 BLUETOOTH_ENABLE = yes
 BLUETOOTH_DRIVER = custom
-SRC += rk71_bt.c rk71_side.c rk71_sleep.c rk71_rand.c
+SRC += rk71_bt.c rk71_side.c rk71_sleep.c rk71_rand.c rk71_keyled.c
+
+# Key LED brightness scaling (dim on battery): calls into the SN32 LED driver go through
+# rk71_keyled.c first.
+EXTRALDFLAGS += -Wl,--wrap=sn32f2xx_set_color -Wl,--wrap=sn32f2xx_set_color_all
 
 # Per-key debounce: a bouncy switch (seen as double letters) is filtered without slowing other keys.
 DEBOUNCE_TYPE = sym_defer_pk

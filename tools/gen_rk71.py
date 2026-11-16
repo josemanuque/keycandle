@@ -131,7 +131,21 @@ if len(sys.argv) > 2:
                        {"showIf": "{id_caps_key_mode} == 2", "label": "Caps Lock key colour", "type": "color",
                         "content": ["id_caps_key_colour", 0, 21]},
                        {"label": "While Fn is held, light only keys with an Fn function", "type": "toggle",
-                        "content": ["id_fn_highlight", 0, 16]}]}]}],
+                        "content": ["id_fn_highlight", 0, 16]}]},
+                   # Battery saving (value ids 22..26)
+                   {"label": "Power", "content": [
+                       {"label": "On battery, lighting off after", "type": "dropdown",
+                        "options": ["1 minute", "2 minutes", "5 minutes", "10 minutes", "30 minutes", "Never"],
+                        "content": ["id_lights_off", 0, 22]},
+                       {"label": "Sleep once dark after", "type": "dropdown",
+                        "options": ["5 seconds", "10 seconds", "30 seconds", "1 minute", "5 minutes", "Never"],
+                        "content": ["id_sleep_after", 0, 23]},
+                       {"label": "Show the battery bar when unplugging or when low", "type": "toggle",
+                        "content": ["id_auto_battery", 0, 24]},
+                       {"label": "Dim the lighting on battery", "type": "toggle",
+                        "content": ["id_dim_on_battery", 0, 25]},
+                       {"showIf": "{id_dim_on_battery} == 1", "label": "Brightness on battery", "type": "range",
+                        "options": [0, 31], "content": ["id_dim_level", 0, 26]}]}]}],
            "customKeycodes": [  # QK_KB_0… in keyboard/rk71_rgb/rk71_rgb.h, same order
                {"name": f"BT {n}", "title": f"Bluetooth device {n} (hold 3 s: pair)", "shortName": f"BT{n}"}
                for n in range(1, 6)] + [

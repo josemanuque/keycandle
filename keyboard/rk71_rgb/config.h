@@ -38,10 +38,7 @@
 #define RK71_FN_LAYER 3   /* Fn: while held, P and the device key show the connection */
 
 /*
- * Battery saving (Bluetooth, no cable):
- *   - the lighting turns off after RK71_LIGHTS_OFF_IDLE_MS without typing
- *   - once nothing is lit, the chip deep-sleeps after RK71_SLEEP_IDLE_MS without typing.
- *     Any key (or plugging in the cable) wakes it at once, and that key is still typed.
+ * Battery saving (Bluetooth, no cable): the lighting turns off after a while without typing, and
+ * once nothing is lit the chip deep-sleeps. Both times are set in VIA (Power); the defaults are 5
+ * minutes and 10 seconds (rk71_rgb.c, lights_off_ms[] / sleep_ms[]).
  */
-#define RK71_LIGHTS_OFF_IDLE_MS 300000 /* 5 minutes */
-#define RK71_SLEEP_IDLE_MS 10000       /* 10 seconds */

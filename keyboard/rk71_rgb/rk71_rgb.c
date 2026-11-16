@@ -18,6 +18,7 @@
 #include "rk71_bt.h"
 #include "rk71_side.h"
 #include "rk71_sleep.h"
+#include "rk71_keyled.h"
 #include "lib/lib8tion/lib8tion.h"
 #include "bluetooth.h"
 #include "connection.h"
@@ -44,6 +45,7 @@
 #define FORGET_FLASH_MS 2000       /* "all pairings forgotten" flash */
 #define LINK_DONE_MS 1000          /* connected: keep the solid blue this long */
 #define SAVE_DELAY_MS 2000         /* VIA slider changes are saved once they settle */
+#define LOW_BATTERY_BAR_EVERY_MS 600000 /* automatic battery bar on "battery low": at most every 10 min */
 #define WAKE_GRACE_MS 250          /* awake at least this long after waking: the key gets debounced
                                       and a plugged-in cable gets confirmed (4 x 20 ms samples) */
 
@@ -103,7 +105,14 @@ typedef struct {
     hs_t    caps_key;      /* Caps Lock key, CAPS_KEY_CUSTOM */
     hs_t    status_wired;  /* status colour for wired */
     hs_t    status_bt;     /* status colour for Bluetooth (connecting, pairing, mode) */
+    uint8_t lights_off;    /* index into lights_off_ms[], XOR DEF_LIGHTS_OFF */
+    uint8_t sleep_after;   /* index into sleep_ms[], XOR DEF_SLEEP_AFTER */
+    uint8_t power_flags;   /* POWER_FLAG_* */
+    uint8_t dim_level;     /* 0..31 brightness on battery, XOR DEF_DIM_LEVEL */
 } kb_extra_t;
+
+#define POWER_FLAG_NO_AUTO_BATTERY 0x01 /* no battery bar on unplugging / low battery */
+#define POWER_FLAG_DIM_ON_BATTERY 0x02  /* lighting dimmed to dim_level while unplugged */
 
 static kb_extra_t kb_extra;
 
@@ -129,6 +138,28 @@ _Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill 
 #define DEF_STATUS_BRIGHT 16
 #define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
 #define DEF_FX_SPEED 16
+
+/* Battery saving times (VIA "Power"). 0 = never. */
+static const uint32_t lights_off_ms[] = {60000, 120000, 300000, 600000, 1800000, 0}; /* 1/2/5/10/30 min, never */
+static const uint32_t sleep_ms[]      = {5000, 10000, 30000, 60000, 300000, 0};      /* 5/10/30 s, 1/5 min, never */
+#define TIME_CHOICES 6
+#define DEF_LIGHTS_OFF 2  /* 5 minutes */
+#define DEF_SLEEP_AFTER 1 /* 10 seconds */
+#define DEF_DIM_LEVEL 12  /* ~40 % */
+#define LIGHTS_OFF_V ((kb_extra.lights_off ^ DEF_LIGHTS_OFF) % TIME_CHOICES)
+#define SLEEP_AFTER_V ((kb_extra.sleep_after ^ DEF_SLEEP_AFTER) % TIME_CHOICES)
+#define DIM_LEVEL_V (kb_extra.dim_level ^ DEF_DIM_LEVEL)
+#define ACTIVE_WINDOW_MS 10000 /* "typing recently", when sleep is set to never */
+
+static uint32_t sleep_after_ms(void) {
+    return sleep_ms[SLEEP_AFTER_V];
+}
+
+/* Recently typed: indicators and the low-battery blink show only then (or with lighting on). */
+static bool typing_recently(void) {
+    uint32_t window = sleep_after_ms() ? sleep_after_ms() : ACTIVE_WINDOW_MS;
+    return last_input_activity_elapsed() < window;
+}
 #define FX_SPEED_V (kb_extra.side_fx_speed ^ DEF_FX_SPEED)
 
 /* Colour defaults (hue, saturation). */
@@ -197,6 +228,7 @@ static link_state_t link_state;
 static uint32_t     link_since;
 static bool         link_connected;
 static bool         battery_low;
+static bool         low_battery_event; /* "battery low" just arrived: maybe show the bar */
 static bool         battery_shutdown;
 static uint8_t      battery_level; /* 0 unknown, 1 low, 2 medium, 3 high */
 static uint8_t      host_leds;     /* lock LEDs (Num/Caps/Scroll) as the Bluetooth host reports them */
@@ -225,7 +257,10 @@ void rk71_bt_received(const uint8_t *p, uint8_t len) {
             case 0x04: battery_level = 3; break;
             case 0x02: battery_level = 2; break;
             case 0x01: battery_level = 1; break;
-            case 0x06: battery_low = true; break;
+            case 0x06:
+                battery_low       = true;
+                low_battery_event = true;
+                break;
             case 0x07: battery_shutdown = true; break;
             case 0x0A: battery_low = battery_shutdown = false; break;
         }
@@ -411,14 +446,17 @@ static void key_hold(uint16_t kc) {
     }
 }
 
+/* Ask the module for the battery level and show it as a bar on the side lights (Fn+Space). */
+static void show_battery_bar(void) {
+    battery_level = 0;
+    timed_start(&battery_bar);
+    bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
+}
+
 bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
     if (!process_record_user(keycode, record)) return false;
     if (keycode == BT_BATT) {
-        if (record->event.pressed) {
-            battery_level = 0;
-            timed_start(&battery_bar);
-            bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
-        }
+        if (record->event.pressed) show_battery_bar();
         return false;
     }
     if (keycode >= BT_HST1 && keycode <= BT_CLR) {
@@ -454,7 +492,7 @@ static bool blink(uint32_t now, uint16_t period) {
 
 /* Low battery is shown only while typing, so it never keeps a nearly flat keyboard awake. */
 static bool low_battery_warning(void) {
-    return battery_low && last_input_activity_elapsed() < RK71_SLEEP_IDLE_MS;
+    return battery_low && typing_recently();
 }
 
 /* Status takes over the side lights while something is happening. Returns false when idle. */
@@ -500,18 +538,21 @@ static bool side_status(uint32_t now, uint8_t *pos, rgb_t *col) {
     return false;
 }
 
+static bool on_battery(void);
+
 /* Side-light brightness 0..255: the setting, times the keyboard's brightness unless the side lights
  * have their own. */
 static uint8_t side_level(void) {
-    if (kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS) return SIDE_BRIGHT_V * 255 / 31;
-    uint32_t level = (uint32_t)SIDE_BRIGHT_V * rgb_matrix_get_val() * 255 / (31u * RGB_MATRIX_MAXIMUM_BRIGHTNESS);
+    uint32_t level = SIDE_BRIGHT_V * 255 / 31;
+    if (!(kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS)) level = level * rgb_matrix_get_val() / RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+    if (on_battery() && (kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY)) level = level * DIM_LEVEL_V / 31;
     return level > 255 ? 255 : level;
 }
 
 /* Caps Lock and F-row lock on the side lights. Shown while the lighting is on or while typing, so
  * a lock left on never keeps the keyboard from sleeping. */
 static void side_indicators(bool show) {
-    bool active = show && (lighting_visible() || last_input_activity_elapsed() < RK71_SLEEP_IDLE_MS);
+    bool active = show && (lighting_visible() || typing_recently());
     bool caps   = active && (kb_extra.side_flags & SIDE_FLAG_CAPS) && host_keyboard_led_state().caps_lock;
     bool frow   = active && (kb_extra.side_flags & SIDE_FLAG_FROW) && layer_state_is(RK71_FROW_LAYER);
     side_indicator(0, caps ? SIDE_NEAR : 0, hs_rgb(kb_extra.caps_side, DEF_CAPS_SIDE, 255));
@@ -629,8 +670,38 @@ static bool may_sleep(uint32_t now) {
            && !keys_held() && !save_pending && !rgb_save_pending // nothing pending
            && rk71_bt_idle()                                     //
            && pending_leds == host_leds                          // Caps Lock update settled
-           && last_input_activity_elapsed() >= RK71_SLEEP_IDLE_MS //
+           && sleep_after_ms() && last_input_activity_elapsed() >= sleep_after_ms() //
            && TIMER_DIFF_32(now, woke_at) >= WAKE_GRACE_MS;
+}
+
+/* Dim on battery, and the automatic battery bar (after unplugging, and on "battery low"). */
+static void power_task(uint32_t now) {
+    static bool     was_plugged;
+    static uint32_t bar_due, last_low_bar;
+    static bool     bar_pending;
+
+    bool dim = on_battery() && (kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY);
+    rk71_keyled_scale(dim ? DIM_LEVEL_V * 255 / 31 : 255);
+
+    bool plugged = vbus_known() && vbus_present();
+    bool autobar = !(kb_extra.power_flags & POWER_FLAG_NO_AUTO_BATTERY);
+    if (was_plugged && !plugged && autobar) {
+        bar_pending = true; /* after the "switched to Bluetooth" flash */
+        bar_due     = now + FLASH_MS + 200;
+    }
+    was_plugged = plugged;
+    if (low_battery_event) {
+        low_battery_event = false;
+        if (autobar && (!last_low_bar || TIMER_DIFF_32(now, last_low_bar) > LOW_BATTERY_BAR_EVERY_MS)) {
+            last_low_bar = now;
+            bar_pending  = true;
+            bar_due      = now;
+        }
+    }
+    if (bar_pending && TIMER_DIFF_32(now, bar_due) < 0x80000000u) {
+        bar_pending = false;
+        if (on_bluetooth()) show_battery_bar();
+    }
 }
 
 void housekeeping_task_kb(void) {
@@ -661,7 +732,8 @@ void housekeeping_task_kb(void) {
 
     /* Battery saving: on Bluetooth without a cable, lighting off after a while without typing,
      * and at once when the module reports a flat battery. */
-    bool idle = on_battery() && (last_input_activity_elapsed() > RK71_LIGHTS_OFF_IDLE_MS || battery_shutdown);
+    uint32_t off_ms = lights_off_ms[LIGHTS_OFF_V];
+    bool     idle   = on_battery() && ((off_ms && last_input_activity_elapsed() > off_ms) || battery_shutdown);
     if (idle && !rgb_off_for_idle && rgb_matrix_is_enabled()) {
         rgb_matrix_disable_noeeprom();
         rgb_off_for_idle = true;
@@ -680,6 +752,7 @@ void housekeeping_task_kb(void) {
         save_pending = rgb_save_pending = false;
     }
 
+    power_task(now);
     side_update(now);
 
     if (may_sleep(now)) {
@@ -841,6 +914,11 @@ enum {
     ID_STATUS_WIRED_COLOUR,
     ID_STATUS_BT_COLOUR,
     ID_CAPS_KEY_COLOUR,
+    ID_LIGHTS_OFF,
+    ID_SLEEP_AFTER,
+    ID_AUTO_BATTERY,
+    ID_DIM_ON_BATTERY,
+    ID_DIM_LEVEL,
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -909,6 +987,11 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_CAPS_KEY_MODE: kb_extra.caps_key_mode = value[0] <= CAPS_KEY_CUSTOM ? value[0] : CAPS_KEY_AUTO; break;
                 case ID_SIDE_EFFECT: kb_extra.side_effect = value[0] < SIDE_FX_COUNT ? value[0] : SIDE_FX_STATIC; break;
                 case ID_SIDE_FX_SPEED: kb_extra.side_fx_speed = (value[0] & 31) ^ DEF_FX_SPEED; break;
+                case ID_LIGHTS_OFF: kb_extra.lights_off = (value[0] % TIME_CHOICES) ^ DEF_LIGHTS_OFF; break;
+                case ID_SLEEP_AFTER: kb_extra.sleep_after = (value[0] % TIME_CHOICES) ^ DEF_SLEEP_AFTER; break;
+                case ID_AUTO_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_NO_AUTO_BATTERY, !value[0]); break;
+                case ID_DIM_ON_BATTERY: set_flag(&kb_extra.power_flags, POWER_FLAG_DIM_ON_BATTERY, value[0]); break;
+                case ID_DIM_LEVEL: kb_extra.dim_level = (value[0] & 31) ^ DEF_DIM_LEVEL; break;
                 case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
                 default: *command_id = id_unhandled; break;
             }
@@ -929,6 +1012,11 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_CAPS_KEY_MODE: value[0] = kb_extra.caps_key_mode; break;
                 case ID_SIDE_EFFECT: value[0] = kb_extra.side_effect; break;
                 case ID_SIDE_FX_SPEED: value[0] = FX_SPEED_V; break;
+                case ID_LIGHTS_OFF: value[0] = LIGHTS_OFF_V; break;
+                case ID_SLEEP_AFTER: value[0] = SLEEP_AFTER_V; break;
+                case ID_AUTO_BATTERY: value[0] = !(kb_extra.power_flags & POWER_FLAG_NO_AUTO_BATTERY); break;
+                case ID_DIM_ON_BATTERY: value[0] = !!(kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY); break;
+                case ID_DIM_LEVEL: value[0] = DIM_LEVEL_V; break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 default: *command_id = id_unhandled; break;
             }
