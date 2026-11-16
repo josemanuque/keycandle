@@ -65,6 +65,13 @@ static uint8_t         level      = 255;          /* brightness 0..255 */
  */
 static uint8_t trim[6][3] = {[0 ... 5] = {31, 31, 31}};
 
+/*
+ * Short-pulse compensation: every pulse loses a fixed slice of light at its start (LED and driver
+ * switch-on), which matters when pulses are only microseconds long (low brightness) and shifts
+ * white toward red there. A fixed extra on-time per colour, in 1/64 tick, makes up for it.
+ */
+static uint8_t pulse_extra[3];
+
 static uint8_t group_positions[GROUPS];
 static rgb_t   group_colour[GROUPS];
 
@@ -169,6 +176,7 @@ static void recompute(void) {
             if (owner[p] >= 0) {
                 uint8_t comp = (uint16_t)component(group_colour[owner[p]], c) * trim[p][c] / 31;
                 t[p]         = on_time(c, comp);
+                if (t[p]) t[p] += pulse_extra[c] * (FRACTION / 64);
             }
             if (t[p]) on |= 1 << p;
         }
@@ -192,6 +200,12 @@ static void recompute(void) {
     frame_used = 0;
     chSysUnlock();
     frame_timer_run(n != 0);
+}
+
+void side_set_pulse_extra(uint8_t colour, uint8_t value) {
+    if (colour >= 3) return;
+    pulse_extra[colour] = value > 63 ? 63 : value;
+    recompute();
 }
 
 void side_set_trim(uint8_t position, uint8_t colour, uint8_t value) {

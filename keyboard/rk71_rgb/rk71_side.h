@@ -44,6 +44,9 @@ void side_set_level(uint8_t level);
 /* Per-position calibration: position 0..5 (far … near), colour 0 red / 1 green / 2 blue, strength
  * 0..31 (31 = unchanged). Evens out the small factory differences between the lights. */
 void side_set_trim(uint8_t position, uint8_t colour, uint8_t value);
+/* Extra on-time per colour pulse, 0..63 in 1/64 timer tick (0..~5 us): makes up for the light every
+ * pulse loses while the LED switches on, so white stays white at low brightness. */
+void side_set_pulse_extra(uint8_t colour, uint8_t value);
 
 /* USB cable present (C15, high when the cable supplies power). Call vbus_task() from the main
  * loop; vbus_present() is debounced. */

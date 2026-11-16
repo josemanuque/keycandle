@@ -123,7 +123,10 @@ if len(sys.argv) > 2:
                        {"label": f"Light {n + 1}{' (far)' if n == 0 else ' (near)' if n == 5 else ''} {colour}",
                         "type": "range", "options": [0, 31],
                         "content": [f"id_side_trim_{n + 1}_{colour.lower()}", 0, 29 + n * 3 + ci]}
-                       for n in range(6) for ci, colour in enumerate(("Red", "Green", "Blue"))]}]},
+                       for n in range(6) for ci, colour in enumerate(("Red", "Green", "Blue"))] + [
+                       {"label": f"Low-brightness correction {colour}", "type": "range", "options": [0, 63],
+                        "content": [f"id_pulse_extra_{colour.lower()}", 0, 47 + ci]}
+                       for ci, colour in enumerate(("Red", "Green", "Blue"))]}]},
                # Lock indicators and key highlights (value ids 11..16): side lights and keys
                {"label": "Indicators", "content": [{"label": "Indicators", "content": [
                        {"label": "Caps Lock on the nearest side light", "type": "toggle",

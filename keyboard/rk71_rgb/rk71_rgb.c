@@ -110,6 +110,7 @@ typedef struct {
     uint8_t power_flags;   /* POWER_FLAG_* */
     uint8_t dim_level;     /* 0..31 brightness on battery, XOR DEF_DIM_LEVEL */
     uint8_t side_trim[6][3]; /* per-position red/green/blue strength 0..31, XOR 31 (0 = unchanged) */
+    uint8_t pulse_extra[3];  /* side-light short-pulse compensation per colour, 0..63 */
 } kb_extra_t;
 
 #define POWER_FLAG_NO_AUTO_BATTERY 0x01 /* no battery bar on unplugging / low battery */
@@ -642,6 +643,7 @@ void keyboard_post_init_kb(void) {
     for (uint8_t p = 0; p < 6; p++) {
         for (uint8_t c = 0; c < 3; c++) side_set_trim(p, c, kb_extra.side_trim[p][c] ^ 31);
     }
+    for (uint8_t c = 0; c < 3; c++) side_set_pulse_extra(c, kb_extra.pulse_extra[c]);
     rk71_sleep_init();
     kb_ready  = true;
     boot_time = timer_read32();
@@ -934,6 +936,8 @@ enum {
     ID_SIDE_CALIBRATE = 28,
     ID_SIDE_TRIM_FIRST,                          /* light 1 red, green, blue, light 2 red, … */
     ID_SIDE_TRIM_LAST = ID_SIDE_TRIM_FIRST + 17, /* light 6 blue */
+    ID_PULSE_EXTRA_FIRST,                        /* red, green, blue */
+    ID_PULSE_EXTRA_LAST = ID_PULSE_EXTRA_FIRST + 2,
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -979,6 +983,18 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
         value[0] = c.h;
         value[1] = c.s;
         return;
+    }
+    if (value_id >= ID_PULSE_EXTRA_FIRST && value_id <= ID_PULSE_EXTRA_LAST) {
+        uint8_t c = value_id - ID_PULSE_EXTRA_FIRST;
+        if (*command_id == id_custom_set_value) {
+            kb_extra.pulse_extra[c] = value[0] > 63 ? 63 : value[0];
+            side_set_pulse_extra(c, kb_extra.pulse_extra[c]);
+            return;
+        }
+        if (*command_id == id_custom_get_value) {
+            value[0] = kb_extra.pulse_extra[c];
+            return;
+        }
     }
     if (value_id >= ID_SIDE_TRIM_FIRST && value_id <= ID_SIDE_TRIM_LAST) {
         uint8_t i = value_id - ID_SIDE_TRIM_FIRST, p = i / 3, c = i % 3;

@@ -423,6 +423,45 @@
                 0,
                 46
               ]
+            },
+            {
+              "label": "Low-brightness correction Red",
+              "type": "range",
+              "options": [
+                0,
+                63
+              ],
+              "content": [
+                "id_pulse_extra_red",
+                0,
+                47
+              ]
+            },
+            {
+              "label": "Low-brightness correction Green",
+              "type": "range",
+              "options": [
+                0,
+                63
+              ],
+              "content": [
+                "id_pulse_extra_green",
+                0,
+                48
+              ]
+            },
+            {
+              "label": "Low-brightness correction Blue",
+              "type": "range",
+              "options": [
+                0,
+                63
+              ],
+              "content": [
+                "id_pulse_extra_blue",
+                0,
+                49
+              ]
             }
           ]
         }
