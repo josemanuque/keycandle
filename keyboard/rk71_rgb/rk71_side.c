@@ -5,6 +5,7 @@
 #include "gpio.h"
 #include "timer.h"
 #include "wait.h"
+#include "usb_device_state.h"
 
 static const pin_t colour_pins[3]   = {D6, D4, D5};                /* red, green, blue */
 static const pin_t position_pins[6] = {B9, B10, B11, B12, C0, C1}; /* far … near */
@@ -292,8 +293,13 @@ bool side_is_dark(void) {
 
 /* ---- cable detection --------------------------------------------------------------------------
  * C15 sees the cable's power through a resistor but has no pull-down (and the chip has none), so
- * once unplugged it only drifts low over seconds. Each sample therefore drains the pin for a few
- * microseconds, then reads it: with the cable in it is pulled straight back up. */
+ * once unplugged it only drifts low over seconds. To notice unplugging at once, a sample drains
+ * the pin for a few microseconds before reading it: with the cable in it is pulled straight back up.
+ *
+ * C15 is also tied into the charger's LED circuit: draining it every 20 ms made the red charge LED
+ * glow and blink faintly once charging had finished. So the pin is only drained while the USB link
+ * is down. While the computer has the keyboard configured the cable is in, and the pin is just
+ * read (if the link ever missed an unplug, the pin still drifts low within a few seconds). */
 
 #define VBUS_PIN C15
 #define SAMPLE_MS 20
@@ -307,11 +313,13 @@ void vbus_task(void) {
     if (timer_elapsed32(last_sample) < SAMPLE_MS) return;
     last_sample = timer_read32();
 
-    gpio_set_pin_output(VBUS_PIN);
-    gpio_write_pin_low(VBUS_PIN);
-    wait_us(5);
-    gpio_set_pin_input(VBUS_PIN);
-    wait_us(30);
+    if (usb_device_state_get_configure_state() != USB_DEVICE_STATE_CONFIGURED) {
+        gpio_set_pin_output(VBUS_PIN);
+        gpio_write_pin_low(VBUS_PIN);
+        wait_us(5);
+        gpio_set_pin_input(VBUS_PIN);
+        wait_us(30);
+    }
     bool raw = gpio_read_pin(VBUS_PIN);
 
     if (raw == raw_last) {

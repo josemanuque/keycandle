@@ -110,7 +110,7 @@ typedef struct {
     uint8_t power_flags;   /* POWER_FLAG_* */
     uint8_t dim_level;     /* 0..31 brightness on battery, XOR DEF_DIM_LEVEL */
     uint8_t side_trim[6][3]; /* per-position red/green/blue strength 0..31, XOR 31 (0 = unchanged) */
-    uint8_t pulse_extra[3];  /* side-light short-pulse compensation per colour, 0..63 */
+    uint8_t pulse_extra[3];  /* side-light short-pulse compensation per colour, 0..63, XOR default */
 } kb_extra_t;
 
 #define POWER_FLAG_NO_AUTO_BATTERY 0x01 /* no battery bar on unplugging / low battery */
@@ -140,6 +140,11 @@ _Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill 
 #define DEF_STATUS_BRIGHT 16
 #define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
 #define DEF_FX_SPEED 16
+
+/* Side-light short-pulse compensation (red, green, blue), tuned by eye on the real board so white
+ * stays white at low brightness (2026-11-16). */
+static const uint8_t def_pulse_extra[3] = {0, 8, 5};
+#define PULSE_EXTRA_V(c) (kb_extra.pulse_extra[c] ^ def_pulse_extra[c])
 
 /* Battery saving times (VIA "Power"). 0 = never. */
 static const uint32_t lights_off_ms[] = {60000, 120000, 300000, 600000, 1800000, 0}; /* 1/2/5/10/30 min, never */
@@ -643,7 +648,7 @@ void keyboard_post_init_kb(void) {
     for (uint8_t p = 0; p < 6; p++) {
         for (uint8_t c = 0; c < 3; c++) side_set_trim(p, c, kb_extra.side_trim[p][c] ^ 31);
     }
-    for (uint8_t c = 0; c < 3; c++) side_set_pulse_extra(c, kb_extra.pulse_extra[c]);
+    for (uint8_t c = 0; c < 3; c++) side_set_pulse_extra(c, PULSE_EXTRA_V(c));
     rk71_sleep_init();
     kb_ready  = true;
     boot_time = timer_read32();
@@ -987,12 +992,13 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
     if (value_id >= ID_PULSE_EXTRA_FIRST && value_id <= ID_PULSE_EXTRA_LAST) {
         uint8_t c = value_id - ID_PULSE_EXTRA_FIRST;
         if (*command_id == id_custom_set_value) {
-            kb_extra.pulse_extra[c] = value[0] > 63 ? 63 : value[0];
-            side_set_pulse_extra(c, kb_extra.pulse_extra[c]);
+            uint8_t v               = value[0] > 63 ? 63 : value[0];
+            kb_extra.pulse_extra[c] = v ^ def_pulse_extra[c];
+            side_set_pulse_extra(c, v);
             return;
         }
         if (*command_id == id_custom_get_value) {
-            value[0] = kb_extra.pulse_extra[c];
+            value[0] = PULSE_EXTRA_V(c);
             return;
         }
     }
