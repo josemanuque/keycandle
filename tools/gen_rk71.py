@@ -115,9 +115,9 @@ if len(sys.argv) > 2:
                    {"showIf": "{id_side_status} == 1", "label": "Status colour: wired", "type": "color",
                     "content": ["id_status_wired_colour", 0, 19]},
                    {"showIf": "{id_side_status} == 1", "label": "Status colour: Bluetooth", "type": "color",
-                    "content": ["id_status_bt_colour", 0, 20]}]},
-                   # Lock indicators and key highlights (value ids 11..16)
-                   {"label": "Indicators", "content": [
+                    "content": ["id_status_bt_colour", 0, 20]}]}]},
+               # Lock indicators and key highlights (value ids 11..16): side lights and keys
+               {"label": "Indicators", "content": [{"label": "Indicators", "content": [
                        {"label": "Caps Lock on the nearest side light", "type": "toggle",
                         "content": ["id_caps_on_side", 0, 11]},
                        {"showIf": "{id_caps_on_side} == 1", "label": "Caps Lock side colour", "type": "color",
@@ -131,9 +131,9 @@ if len(sys.argv) > 2:
                        {"showIf": "{id_caps_key_mode} == 2", "label": "Caps Lock key colour", "type": "color",
                         "content": ["id_caps_key_colour", 0, 21]},
                        {"label": "While Fn is held, light only keys with an Fn function", "type": "toggle",
-                        "content": ["id_fn_highlight", 0, 16]}]},
-                   # Battery saving (value ids 22..26)
-                   {"label": "Power", "content": [
+                        "content": ["id_fn_highlight", 0, 16]}]}]},
+               # Battery saving (value ids 22..26): whole keyboard
+               {"label": "Power", "content": [{"label": "Power", "content": [
                        {"label": "On battery, lighting off after", "type": "dropdown",
                         "options": ["1 minute", "2 minutes", "5 minutes", "10 minutes", "30 minutes", "Never"],
                         "content": ["id_lights_off", 0, 22]},

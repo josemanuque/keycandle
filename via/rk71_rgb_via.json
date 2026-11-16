@@ -177,7 +177,12 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "label": "Indicators",
+      "content": [
         {
           "label": "Indicators",
           "content": [
@@ -253,7 +258,12 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "label": "Power",
+      "content": [
         {
           "label": "Power",
           "content": [
