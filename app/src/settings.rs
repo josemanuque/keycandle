@@ -26,6 +26,10 @@ pub struct Setting {
 }
 
 impl Setting {
+    pub fn value_id(&self) -> value::Id {
+        (self.channel, self.id)
+    }
+
     pub fn len(&self) -> usize {
         if matches!(self.kind, Kind::Colour) { 2 } else { 1 }
     }
@@ -119,3 +123,29 @@ pub const POWER: &[Section] = &[Section {
         when(s(KB, 26, "Brightness on battery", "", Kind::Range { min: 0, max: 31 }), 25, &[1]),
     ],
 }];
+
+/// The values the app reads by name (previews and the overview), as (channel, id).
+pub mod value {
+    use super::{KB, RGB};
+    pub type Id = (u8, u8);
+    pub const KEY_BRIGHTNESS: Id = (RGB, 1);
+    pub const KEY_EFFECT: Id = (RGB, 2);
+    pub const KEY_SPEED: Id = (RGB, 3);
+    pub const KEY_COLOUR: Id = (RGB, 4);
+    pub const SIDE_MODE: Id = (KB, 1);
+    pub const SIDE_COLOUR: Id = (KB, 2);
+    pub const SIDE_EFFECT: Id = (KB, 17);
+    pub const SIDE_SPEED: Id = (KB, 18);
+    pub const CAPS_SIDE_LIGHT: Id = (KB, 11);
+    pub const LIGHTS_OFF_AFTER: Id = (KB, 22);
+}
+
+/// Every setting on every page.
+pub fn all() -> impl Iterator<Item = &'static Setting> {
+    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter())
+}
+
+/// The setting for a value id.
+pub fn find(id: value::Id) -> Option<&'static Setting> {
+    all().find(|s| (s.channel, s.id) == id)
+}

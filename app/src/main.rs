@@ -3,10 +3,11 @@
 //!   rk71-configurator            open the app
 //!   rk71-configurator --probe    print every keyboard setting in the terminal (USB test)
 
-mod app;
+mod colour;
 mod device;
 mod preview;
 mod settings;
+mod ui;
 
 use anyhow::Result;
 use device::{Keyboard, CHANNEL_KEYBOARD, CHANNEL_RGB_MATRIX};
@@ -15,7 +16,7 @@ fn main() -> Result<()> {
     if std::env::args().any(|a| a == "--probe") {
         return probe();
     }
-    app::run();
+    ui::run();
     Ok(())
 }
 
