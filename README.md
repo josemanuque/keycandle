@@ -28,6 +28,7 @@ Every push also builds the firmware on GitHub Actions. Open a run under **Action
 
 | Version | Changes |
 |---|---|
+| `v0.6b` | Deep sleep on battery (any key or the cable wakes it, the key is still typed; the Bluetooth module can wake it too), side lights cycle at ~3 kHz (no flicker or rainbow fringe), side-light defaults tuned on a real board, 416 bytes of RAM freed |
 | `v0.5.5b` | No keyboard blinking while dragging VIA side-light sliders (saves once settled) |
 | `v0.5.4b` | Side lights: Red/Green/Blue balance and Brightness sliders in VIA (0–31); follow keyboard brightness |
 | `v0.5.3b` | Side-light white balance in VIA (Neutral / Warm / Warmer / Warmest), default Warm |
