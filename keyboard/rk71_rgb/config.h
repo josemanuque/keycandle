@@ -31,8 +31,11 @@
 /* Saved keyboard settings (kb_data_t in rk71_rgb.c), with room to spare for new ones. */
 #define EECONFIG_KB_DATA_SIZE 32
 
-/* The keymaps' Fn layer: while it is held, P and the device key show the connection. */
-#define RK71_FN_LAYER 3
+/* Layer numbers the keyboard code relies on (enum layers in the keymaps). */
+#define RK71_WIN_LAYER 0  /* Windows base layer */
+#define RK71_MAC_LAYER 1  /* Mac base layer */
+#define RK71_FROW_LAYER 2 /* F-row lock */
+#define RK71_FN_LAYER 3   /* Fn: while held, P and the device key show the connection */
 
 /*
  * Battery saving (Bluetooth, no cable):

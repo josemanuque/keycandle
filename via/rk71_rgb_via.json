@@ -135,6 +135,96 @@
               ]
             }
           ]
+        },
+        {
+          "label": "Indicators",
+          "content": [
+            {
+              "label": "Caps Lock on the nearest side light",
+              "type": "toggle",
+              "content": [
+                "id_caps_on_side",
+                0,
+                11
+              ]
+            },
+            {
+              "showIf": "{id_caps_on_side} == 1",
+              "label": "Caps Lock side colour",
+              "type": "dropdown",
+              "options": [
+                "White",
+                "Red",
+                "Yellow",
+                "Green",
+                "Cyan",
+                "Blue",
+                "Magenta"
+              ],
+              "content": [
+                "id_caps_side_colour",
+                0,
+                12
+              ]
+            },
+            {
+              "label": "F-row lock on the farthest side light",
+              "type": "toggle",
+              "content": [
+                "id_frow_on_side",
+                0,
+                13
+              ]
+            },
+            {
+              "showIf": "{id_frow_on_side} == 1",
+              "label": "F-row lock side colour",
+              "type": "dropdown",
+              "options": [
+                "White",
+                "Red",
+                "Yellow",
+                "Green",
+                "Cyan",
+                "Blue",
+                "Magenta"
+              ],
+              "content": [
+                "id_frow_side_colour",
+                0,
+                14
+              ]
+            },
+            {
+              "label": "Caps Lock key colour",
+              "type": "dropdown",
+              "options": [
+                "Auto",
+                "Off",
+                "White",
+                "Red",
+                "Yellow",
+                "Green",
+                "Cyan",
+                "Blue",
+                "Magenta"
+              ],
+              "content": [
+                "id_caps_key_colour",
+                0,
+                15
+              ]
+            },
+            {
+              "label": "While Fn is held, light only keys with an Fn function",
+              "type": "toggle",
+              "content": [
+                "id_fn_highlight",
+                0,
+                16
+              ]
+            }
+          ]
         }
       ]
     }

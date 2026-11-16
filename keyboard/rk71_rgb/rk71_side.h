@@ -29,6 +29,11 @@
 
 void side_init(void);
 void side_show(uint8_t positions, rgb_t colour); /* positions 0 or SIDE_OFF = off */
+/* Indicators on top (slot 0 or 1): these lights show their own colour instead of the main one.
+ * positions 0 = no indicator. */
+void side_indicator(uint8_t slot, uint8_t positions, rgb_t colour);
+#define SIDE_NEAR 0x20 /* the light nearest you (position 6) */
+#define SIDE_FAR 0x01  /* the farthest light (position 1) */
 bool side_is_dark(void);                           /* nothing lit (and the frame timer stopped) */
 void side_blank(void); /* colour lines off until the next frame (around a flash write, see rk71_leds_pause) */
 

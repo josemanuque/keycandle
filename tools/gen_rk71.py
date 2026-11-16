@@ -73,6 +73,7 @@ json.dump(kb, open(sys.argv[1], "w"), indent=4)
 print("wrote", sys.argv[1], "keys:", len(layout))
 
 # ---- VIA definition (v3) -------------------------------------------------
+COLOURS = ["White", "Red", "Yellow", "Green", "Cyan", "Blue", "Magenta"]  # side_colours[] in rk71_rgb.c, same order
 if len(sys.argv) > 2:
     rows = []
     for r in range(5):
@@ -107,7 +108,21 @@ if len(sys.argv) > 2:
                    {"label": "Show status (pairing, mode, battery)", "type": "toggle",
                     "content": ["id_side_status", 0, 3]},
                    {"showIf": "{id_side_status} == 1", "label": "Status brightness", "type": "range",
-                    "options": [0, 31], "content": ["id_status_bright", 0, 10]}]}]}],
+                    "options": [0, 31], "content": ["id_status_bright", 0, 10]}]},
+                   # Lock indicators and key highlights (value ids 11..16)
+                   {"label": "Indicators", "content": [
+                       {"label": "Caps Lock on the nearest side light", "type": "toggle",
+                        "content": ["id_caps_on_side", 0, 11]},
+                       {"showIf": "{id_caps_on_side} == 1", "label": "Caps Lock side colour", "type": "dropdown",
+                        "options": COLOURS, "content": ["id_caps_side_colour", 0, 12]},
+                       {"label": "F-row lock on the farthest side light", "type": "toggle",
+                        "content": ["id_frow_on_side", 0, 13]},
+                       {"showIf": "{id_frow_on_side} == 1", "label": "F-row lock side colour", "type": "dropdown",
+                        "options": COLOURS, "content": ["id_frow_side_colour", 0, 14]},
+                       {"label": "Caps Lock key colour", "type": "dropdown", "options": ["Auto", "Off"] + COLOURS,
+                        "content": ["id_caps_key_colour", 0, 15]},
+                       {"label": "While Fn is held, light only keys with an Fn function", "type": "toggle",
+                        "content": ["id_fn_highlight", 0, 16]}]}]}],
            "customKeycodes": [  # QK_KB_0… in keyboard/rk71_rgb/rk71_rgb.h, same order
                {"name": f"BT {n}", "title": f"Bluetooth device {n} (hold 3 s: pair)", "shortName": f"BT{n}"}
                for n in range(1, 6)] + [

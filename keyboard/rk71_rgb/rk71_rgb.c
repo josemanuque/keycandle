@@ -73,10 +73,22 @@ static kb_config_t kb_config;
 
 /* Settings added in v0.7b. */
 #define SIDE_FLAG_OWN_BRIGHTNESS 0x01 /* side-light brightness does not follow the keyboard's */
+#define SIDE_FLAG_CAPS 0x02           /* Caps Lock shown on the nearest side light */
+#define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
+#define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
+
+/* Caps Lock key colour: Auto (cool white, or dark on white-ish lighting), Off, or a fixed colour
+ * from side_colours[] (value 2 + index). */
+enum { CAPS_KEY_AUTO, CAPS_KEY_OFF, CAPS_KEY_FIXED };
 
 typedef struct {
-    uint8_t side_flags;    /* SIDE_FLAG_* */
-    uint8_t status_bright; /* 0..31, XOR DEF_STATUS_BRIGHT */
+    uint8_t side_flags;       /* SIDE_FLAG_* */
+    uint8_t status_bright;    /* 0..31, XOR DEF_STATUS_BRIGHT */
+    uint8_t caps_side_colour; /* index into side_colours[], XOR DEF_CAPS_SIDE_COLOUR */
+    uint8_t frow_side_colour; /* index into side_colours[], XOR DEF_FROW_SIDE_COLOUR */
+    uint8_t caps_key_colour;  /* CAPS_KEY_AUTO / _OFF / _FIXED + side_colours[] index */
+    uint8_t key_flags;        /* KEY_FLAG_* */
+    uint8_t mac_devices;      /* bit n: device n is in Mac mode (0..4 Bluetooth slots, 5 wired) */
 } kb_extra_t;
 
 static kb_extra_t kb_extra;
@@ -102,6 +114,10 @@ _Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill 
  * lights are set to a faint glow or the keyboard lighting is dim. */
 #define DEF_STATUS_BRIGHT 16
 #define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
+#define DEF_CAPS_SIDE_COLOUR 1 /* red */
+#define DEF_FROW_SIDE_COLOUR 2 /* yellow */
+#define CAPS_SIDE_COLOUR_V ((kb_extra.caps_side_colour ^ DEF_CAPS_SIDE_COLOUR) % SIDE_COLOUR_COUNT)
+#define FROW_SIDE_COLOUR_V ((kb_extra.frow_side_colour ^ DEF_FROW_SIDE_COLOUR) % SIDE_COLOUR_COUNT)
 
 /* VIA dropdown order: White, Red, Yellow, Green, Cyan, Blue, Magenta */
 static const rgb_t side_colours[] = {SIDE_WHITE, SIDE_RED, SIDE_YELLOW, SIDE_GREEN, SIDE_CYAN, SIDE_BLUE, SIDE_MAGENTA};
@@ -116,16 +132,18 @@ static void load_config(void) {
 
 /* Flash writes freeze the chip (it runs from flash), and frozen LEDs show a solid red, green or blue
  * flash. So the LEDs are switched off around every write: at most a very short dark blink. */
-static bool leds_running; /* set once the LED driver is up (eeconfig_init_kb can run before) */
+/* Set at the end of keyboard_post_init_kb(): settings loaded and the LED driver running. Before
+ * that, eeconfig_init_kb() may already save, and QMK already sets the default layer. */
+static bool kb_ready;
 
 static void flash_write_begin(void) {
-    if (!leds_running) return;
+    if (!kb_ready) return;
     rk71_leds_pause();
     side_blank();
 }
 
 static void flash_write_end(void) {
-    if (leds_running) rk71_leds_resume();
+    if (kb_ready) rk71_leds_resume();
 }
 
 static void save_config(void) {
@@ -259,6 +277,35 @@ static void connect_host(void) {
     set_link(LINK_CONNECTING);
 }
 
+/* ---- Windows / Mac per device ------------------------------------------------------------------
+ * Fn+A / Fn+S pick the layout for the device in use; each Bluetooth slot and wired remember their
+ * own, so switching from a PC to a Mac flips the modifiers by itself. */
+
+#define WIRED_DEVICE 5
+
+
+static uint8_t current_device(void) {
+    return on_bluetooth() ? kb_config.host : WIRED_DEVICE;
+}
+
+static void apply_device_layout(void) {
+    bool          mac  = (kb_extra.mac_devices >> current_device()) & 1;
+    layer_state_t want = (layer_state_t)1 << (mac ? RK71_MAC_LAYER : RK71_WIN_LAYER);
+    if (default_layer_state != want) default_layer_set(want);
+}
+
+layer_state_t default_layer_state_set_kb(layer_state_t state) {
+    if (kb_ready) {
+        uint8_t bit  = 1 << current_device();
+        uint8_t devs = (state >> RK71_MAC_LAYER) & 1 ? kb_extra.mac_devices | bit : kb_extra.mac_devices & ~bit;
+        if (devs != kb_extra.mac_devices) {
+            kb_extra.mac_devices = devs;
+            save_config();
+        }
+    }
+    return default_layer_state_set_user(state);
+}
+
 static void apply_mode(void) {
     bool bt = want_bt();
     if (applied_mode == (bt ? MODE_BLUETOOTH : MODE_WIRED)) return;
@@ -274,6 +321,7 @@ static void apply_mode(void) {
         set_link(LINK_IDLE);
     }
     if (!first) timed_start(&mode_flash);
+    apply_device_layout();
 }
 
 static void select_host(uint8_t host, bool pair) {
@@ -284,6 +332,7 @@ static void select_host(uint8_t host, bool pair) {
         apply_mode(); /* switches to Bluetooth and connects to the new slot */
     } else {
         connect_host();
+        apply_device_layout();
     }
     if (pair) {
         bt_command(BT_CMD_BT, BT_PAIR);
@@ -430,11 +479,22 @@ static uint8_t side_level(void) {
     return level > 255 ? 255 : level;
 }
 
+/* Caps Lock and F-row lock on the side lights. Shown while the lighting is on or while typing, so
+ * a lock left on never keeps the keyboard from sleeping. */
+static void side_indicators(bool show) {
+    bool active = show && (lighting_visible() || last_input_activity_elapsed() < RK71_SLEEP_IDLE_MS);
+    bool caps   = active && (kb_extra.side_flags & SIDE_FLAG_CAPS) && host_keyboard_led_state().caps_lock;
+    bool frow   = active && (kb_extra.side_flags & SIDE_FLAG_FROW) && layer_state_is(RK71_FROW_LAYER);
+    side_indicator(0, caps ? SIDE_NEAR : 0, side_colours[CAPS_SIDE_COLOUR_V]);
+    side_indicator(1, frow ? SIDE_FAR : 0, side_colours[FROW_SIDE_COLOUR_V]);
+}
+
 static void side_update(uint32_t now) {
     uint8_t pos = 0;
     rgb_t   col = SIDE_OFF;
     if (!kb_config.side_no_status && side_status(now, &pos, &col)) {
         side_set_level(STATUS_BRIGHT_V * 255 / 31);
+        side_indicators(false); /* status takes over all six lights */
     } else {
         pos = 0;
         if (kb_config.side_mode != SIDE_MODE_OFF && lighting_visible()) {
@@ -442,6 +502,7 @@ static void side_update(uint32_t now) {
             col = kb_config.side_mode == SIDE_MODE_FIXED ? side_colours[kb_config.side_colour % SIDE_COLOUR_COUNT] : follow_colour();
         }
         side_set_level(side_level());
+        side_indicators(true);
     }
     side_show(pos, col);
 }
@@ -465,8 +526,8 @@ void keyboard_post_init_kb(void) {
     if (kb_config.side_mode > SIDE_MODE_OFF) kb_config.side_mode = SIDE_MODE_FOLLOW;
     side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
     rk71_sleep_init();
-    leds_running = true;
-    boot_time    = timer_read32();
+    kb_ready  = true;
+    boot_time = timer_read32();
     keyboard_post_init_user();
 }
 
@@ -567,6 +628,8 @@ void housekeeping_task_kb(void) {
 
 void suspend_power_down_kb(void) {
     side_show(0, SIDE_OFF); /* computer asleep: side lights off, as the stock firmware does */
+    side_indicator(0, 0, SIDE_OFF);
+    side_indicator(1, 0, SIDE_OFF);
     suspend_power_down_user();
 }
 
@@ -583,11 +646,56 @@ static void light(uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b, uin
     if (led != NO_LED && led >= led_min && led < led_max) rgb_matrix_set_color(led, r, g, b);
 }
 
+#define KEY_CAPS 2, 0
+
+/* Fn-layer highlight: while Fn is held, keys without an Fn function go dark (the Fn key stays). */
+static void fn_highlight(uint8_t led_min, uint8_t led_max) {
+    uint8_t base = get_highest_layer(default_layer_state);
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            keypos_t pos = {.row = row, .col = col};
+            uint16_t fn  = keymap_key_to_keycode(RK71_FN_LAYER, pos);
+            if (fn != KC_TRNS && fn != KC_NO) continue;
+            if (keymap_key_to_keycode(base, pos) == MO(RK71_FN_LAYER)) continue;
+            light(row, col, 0, 0, 0, led_min, led_max);
+        }
+    }
+}
+
+/* Win-key lock (Fn+Win): the locked GUI keys go dark. */
+static void win_lock_dark(uint8_t led_min, uint8_t led_max) {
+    uint8_t base = get_highest_layer(default_layer_state);
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            uint16_t kc = keymap_key_to_keycode(base, (keypos_t){.row = row, .col = col});
+            if (kc == KC_LGUI || kc == KC_RGUI) light(row, col, 0, 0, 0, led_min, led_max);
+        }
+    }
+}
+
+static void caps_key(uint8_t led_min, uint8_t led_max) {
+    if (!host_keyboard_led_state().caps_lock) return;
+    uint8_t setting = kb_extra.caps_key_colour;
+    if (setting == CAPS_KEY_OFF) return;
+    if (setting >= CAPS_KEY_FIXED) {
+        rgb_t c = side_colours[(setting - CAPS_KEY_FIXED) % SIDE_COLOUR_COUNT];
+        light(KEY_CAPS, c.r, c.g, c.b, led_min, led_max);
+    } else if (rgb_matrix_get_sat() < 64) {
+        light(KEY_CAPS, 0, 0, 0, led_min, led_max); /* white-ish lighting: a dark key stands out */
+    } else {
+        light(KEY_CAPS, 170, 255, 255, led_min, led_max); /* stock's cool white (V1.12 @0xA914) */
+    }
+}
+
 bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     if (!rgb_matrix_indicators_advanced_user(led_min, led_max)) return false;
 
     uint32_t now = timer_read32();
     bool     bt  = on_bluetooth();
+
+    if (keymap_config.no_gui) win_lock_dark(led_min, led_max);
+    caps_key(led_min, led_max);
+    if ((kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT) && IS_LAYER_ON(RK71_FN_LAYER)) fn_highlight(led_min, led_max);
 
     if (kb_config.side_no_status) {
         if (bt && show_link) {
@@ -652,7 +760,17 @@ enum {
     ID_SIDE_BRIGHT,
     ID_SIDE_FOLLOW_BRIGHTNESS, /* 1 = side brightness follows the keyboard's */
     ID_STATUS_BRIGHT,
+    ID_CAPS_ON_SIDE,
+    ID_CAPS_SIDE_COLOUR,
+    ID_FROW_ON_SIDE,
+    ID_FROW_SIDE_COLOUR,
+    ID_CAPS_KEY_COLOUR,
+    ID_FN_HIGHLIGHT,
 };
+
+static void set_flag(uint8_t *flags, uint8_t flag, bool on) {
+    *flags = on ? *flags | flag : *flags & ~flag;
+}
 
 void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
     /* data = [ command_id, channel_id, value_id, value_data ] */
@@ -683,6 +801,12 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     }
                     break;
                 case ID_STATUS_BRIGHT: kb_extra.status_bright = (value[0] & 31) ^ DEF_STATUS_BRIGHT; break;
+                case ID_CAPS_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_CAPS, value[0]); break;
+                case ID_CAPS_SIDE_COLOUR: kb_extra.caps_side_colour = (value[0] % SIDE_COLOUR_COUNT) ^ DEF_CAPS_SIDE_COLOUR; break;
+                case ID_FROW_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_FROW, value[0]); break;
+                case ID_FROW_SIDE_COLOUR: kb_extra.frow_side_colour = (value[0] % SIDE_COLOUR_COUNT) ^ DEF_FROW_SIDE_COLOUR; break;
+                case ID_CAPS_KEY_COLOUR: kb_extra.caps_key_colour = value[0] < CAPS_KEY_FIXED + SIDE_COLOUR_COUNT ? value[0] : CAPS_KEY_AUTO; break;
+                case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
                 default: *command_id = id_unhandled; break;
             }
             side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
@@ -698,6 +822,12 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_SIDE_BRIGHT: value[0] = SIDE_BRIGHT_V; break;
                 case ID_SIDE_FOLLOW_BRIGHTNESS: value[0] = !(kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS); break;
                 case ID_STATUS_BRIGHT: value[0] = STATUS_BRIGHT_V; break;
+                case ID_CAPS_ON_SIDE: value[0] = !!(kb_extra.side_flags & SIDE_FLAG_CAPS); break;
+                case ID_CAPS_SIDE_COLOUR: value[0] = CAPS_SIDE_COLOUR_V; break;
+                case ID_FROW_ON_SIDE: value[0] = !!(kb_extra.side_flags & SIDE_FLAG_FROW); break;
+                case ID_FROW_SIDE_COLOUR: value[0] = FROW_SIDE_COLOUR_V; break;
+                case ID_CAPS_KEY_COLOUR: value[0] = kb_extra.caps_key_colour; break;
+                case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 default: *command_id = id_unhandled; break;
             }
             break;

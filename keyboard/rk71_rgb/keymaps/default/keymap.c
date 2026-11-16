@@ -4,7 +4,7 @@
 
 /*
  * Layers (5 in total, the most that fits the 1 KB of storage alongside VIA macros):
- *   WIN_BASE / MAC_BASE  default layers, switched with Fn+Win / Fn+Alt and remembered
+ *   WIN_BASE / MAC_BASE  default layers, switched with Fn+A / Fn+S, remembered per device
  *   FROW                 F-row lock: 1…= send F1…F12. Toggled with Fn+Ctrl and remembered
  *   FN                   held with Fn
  *   FMEDIA               turns on automatically while FROW and FN are both active: Fn+F-key = media
@@ -60,21 +60,22 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
      * Fn + Enter        → RGB on/off    Fn + \ → next RGB effect   Fn + H → hue
      * Fn + ↑ / ↓        → RGB brighter / dimmer
      * Fn + ← / →        → RGB effect slower / faster
-     * Fn + Win          → Mac mode      Fn + Alt → Windows mode    (remembered)
+     * Fn + A / S        → Windows / Mac mode (remembered per device: each Bluetooth slot and wired)
+     * Fn + Win          → Win-key lock on/off (the Win key goes dark while locked)
      * Fn + Pause        → bootloader (for reflashing)
- * Bluetooth (same keys as the stock firmware):
- * Fn + Q/W/E/R/T    → Bluetooth device 1–5;  hold 3 s → pair a new device in that slot
- * Fn + P            → switch wired / Bluetooth;  hold 3 s → pair the current slot
- * Fn + Backspace    → hold 3 s → forget all paired devices
- * Fn + Space        → battery level on the side lights (green high, yellow medium, red low)
-     * (Win/Alt here are the physical keys, so these combos work the same in both modes.)
+     * Bluetooth (same keys as the stock firmware):
+     * Fn + Q/W/E/R/T    → Bluetooth device 1–5;  hold 3 s → pair a new device in that slot
+     * Fn + P            → switch wired / Bluetooth;  hold 3 s → pair the current slot
+     * Fn + Backspace    → hold 3 s → forget all paired devices
+     * Fn + Space        → battery level on the side lights (green high, yellow medium, red low)
+     * (Win is the physical key, so Fn + Win works the same in both modes.)
      */
     [FN] = LAYOUT(
         KC_GRV,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  BT_CLR,           KC_PSCR, KC_MPRV,
         _______, BT_HST1, BT_HST2, BT_HST3, BT_HST4, BT_HST5, _______, _______, _______, _______, BT_MODE, _______, _______, RM_NEXT,          KC_MPLY, KC_MNXT,
-        _______, _______, _______, _______, _______, _______, RM_HUEU, _______, _______, _______, _______, _______,          RM_TOGG,          QK_BOOT, KC_VOLU,
+        _______, DF(WIN_BASE), DF(MAC_BASE), _______, _______, _______, RM_HUEU, _______, _______, _______, _______, _______, RM_TOGG,   QK_BOOT, KC_VOLU,
         _______,          _______, _______, _______, _______, _______, _______, KC_MUTE, _______, _______, _______,          _______,          RM_VALU, KC_VOLD,
-        TG(FROW), PDF(MAC_BASE), PDF(WIN_BASE),               BT_BATT,                   _______, _______, TG(FROW),         RM_SPDD,          RM_VALD, RM_SPDU
+        TG(FROW), GU_TOGG, _______,                           BT_BATT,                   _______, _______, TG(FROW),         RM_SPDD,          RM_VALD, RM_SPDU
     ),
     /*
      * Media on the F-row, active only while the F-row lock is on and Fn is held.
@@ -130,17 +131,9 @@ static void light_key(uint8_t row, uint8_t col, uint8_t r, uint8_t g, uint8_t b,
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
-    if (host_keyboard_led_state().caps_lock) {
-        /* Stock look: cool white (R 170, G 255, B 255, from firmware V1.12 @0xA914). On white-ish
-         * lighting that would not stand out, so there the Caps key goes dark instead. */
-        if (rgb_matrix_get_sat() < 64) {
-            light_key(2, 0, 0, 0, 0, led_min, led_max);
-        } else {
-            light_key(2, 0, 170, 255, 255, led_min, led_max);
-        }
-    }
+    /* Caps Lock, Win-key lock and the Fn layer are drawn by the keyboard (colours set in VIA). */
     if (layer_state_is(FROW)) {
         light_key(4, 11, RGB_ORANGE, led_min, led_max); /* Fn key */
     }
-    return true; /* let the keyboard draw the Bluetooth status on top */
+    return true;
 }
