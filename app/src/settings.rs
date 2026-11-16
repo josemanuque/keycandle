@@ -23,6 +23,8 @@ pub struct Setting {
     pub kind: Kind,
     /// Shown only while another setting (same channel) has one of these values.
     pub shown_when: Option<(u8, &'static [u8])>,
+    /// Shown in the setting's place while it is hidden (says why).
+    pub note_when_hidden: Option<&'static str>,
 }
 
 impl Setting {
@@ -41,11 +43,16 @@ pub struct Section {
 }
 
 const fn s(channel: u8, id: u8, label: &'static str, help: &'static str, kind: Kind) -> Setting {
-    Setting { channel, id, label, help, kind, shown_when: None }
+    Setting { channel, id, label, help, kind, shown_when: None, note_when_hidden: None }
 }
 
 const fn when(mut setting: Setting, id: u8, values: &'static [u8]) -> Setting {
     setting.shown_when = Some((id, values));
+    setting
+}
+
+const fn else_note(mut setting: Setting, note: &'static str) -> Setting {
+    setting.note_when_hidden = Some(note);
     setting
 }
 
@@ -58,12 +65,24 @@ pub const KEY_EFFECTS: &[&str] = &[
     "Reactive (wide, multi)", "Splash", "Multi splash",
 ];
 
+/// Effects that use the colour you pick (solid, or shades and waves of it), in gallery order.
+pub const COLOUR_EFFECTS: &[u8] = &[1, 4, 5, 2, 3, 12, 17, 18, 19, 20];
+/// Effects that make their own colours, in gallery order.
+pub const MULTICOLOUR_EFFECTS: &[u8] = &[6, 7, 8, 9, 10, 11, 13, 14, 15, 16];
+/// Effects that react to typing.
+pub const TYPING_EFFECTS: &[u8] = &[15, 17, 18, 19, 20];
+
+/// The key-lighting effect. Chosen in the Lighting page's effect gallery rather than in a card.
+pub static KEY_EFFECT: Setting = s(RGB, 2, "Effect", "", Kind::Choice(KEY_EFFECTS));
+
 pub const LIGHTING: &[Section] = &[
     Section {
         title: "Keys",
         settings: &[
-            s(RGB, 2, "Effect", "", Kind::Choice(KEY_EFFECTS)),
-            s(RGB, 4, "Colour", "", Kind::Colour),
+            else_note(
+                when(s(RGB, 4, "Colour", "", Kind::Colour), 2, COLOUR_EFFECTS),
+                "This effect makes its own colours, so the colour isn't used. Effects under “Your colour” use it.",
+            ),
             s(RGB, 1, "Brightness", "", Kind::Range { min: 0, max: 255 }),
             s(RGB, 3, "Effect speed", "", Kind::Range { min: 0, max: 255 }),
         ],
@@ -142,7 +161,7 @@ pub mod value {
 
 /// Every setting on every page.
 pub fn all() -> impl Iterator<Item = &'static Setting> {
-    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter())
+    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter()).chain([&KEY_EFFECT])
 }
 
 /// The setting for a value id.

@@ -1,26 +1,34 @@
-//! A page of settings cards, one per section (Keys & indicators, Power, and the lower part of
-//! Lighting).
+//! Settings cards, one per section, laid out in as many columns as fit (Keys & indicators, Power,
+//! and the lower part of Lighting).
 
-use gpui::{prelude::*, AnyElement, Context};
-use gpui_component::{v_flex, ActiveTheme as _};
+use gpui::{div, prelude::*, px, AnyElement, Context};
+use gpui_component::{h_flex, ActiveTheme as _};
 
 use super::app::Configurator;
 use super::controls;
-use super::widgets::{card, card_title};
+use super::layout::{columns, GAP};
+use super::widgets::{card, card_title, note};
 use crate::settings::Section;
 
-pub fn render(app: &Configurator, sections: &'static [Section], cx: &mut Context<Configurator>) -> AnyElement {
+/// Narrowest a card gets before cards stack.
+const MIN_CARD: f32 = 440.0;
+
+pub fn render(app: &Configurator, sections: &'static [Section], width: f32, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
-    v_flex()
-        .gap_5()
+    let (_, card_width) = columns(width, MIN_CARD, GAP);
+    h_flex()
+        .flex_wrap()
+        .items_start()
+        .gap(px(GAP))
         .children(sections.iter().map(|section| {
-            card(&theme).child(card_title(section.title)).children(
-                section
-                    .settings
-                    .iter()
-                    .filter(|s| app.model.is_shown(s))
-                    .map(|s| controls::row(app, s, cx)),
-            )
+            let rows = section.settings.iter().filter_map(|s| {
+                if app.model.is_shown(s) {
+                    Some(controls::row(app, s, cx))
+                } else {
+                    s.note_when_hidden.map(|text| div().py_3().child(note(&theme, text)).into_any_element())
+                }
+            });
+            card(&theme).w(px(card_width)).child(card_title(section.title)).children(rows.collect::<Vec<_>>())
         }))
         .into_any_element()
 }

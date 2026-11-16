@@ -22,7 +22,13 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoEl
     }));
 
     let connected = app.model.is_connected();
-    let dot = if connected { rgb(0x4ADE80) } else { rgb(0xF87171) };
+    let (dot, state) = if connected {
+        (rgb(0x4ADE80), "Connected")
+    } else if app.model.in_flash_mode() {
+        (rgb(0xFBBF24), "Flash mode")
+    } else {
+        (rgb(0xF87171), "Not connected")
+    };
     Sidebar::new("sections")
         .header(SidebarHeader::new().child(
             v_flex()
@@ -38,7 +44,7 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoEl
                         .gap_2()
                         .items_center()
                         .child(div().size_2().rounded_full().bg(dot))
-                        .child(if connected { "Connected" } else { "Not connected" }),
+                        .child(state),
                 )
                 .child(muted(&theme, app.model.status().to_string())),
         ))

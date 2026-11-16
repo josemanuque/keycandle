@@ -7,11 +7,18 @@ use crate::device::Keyboard;
 use crate::preview::effects::{Scene, SideScene};
 use crate::settings::{self, value, Kind, Setting};
 
+/// Every setting's value, keyed by (channel, id).
+pub type Values = HashMap<value::Id, Vec<u8>>;
+
 #[derive(Default)]
 pub struct Model {
     keyboard: Option<Keyboard>,
-    values: HashMap<value::Id, Vec<u8>>,
+    values: Values,
     status: String,
+    /// 0x00MMmmpp; 0 = older than v0.7 (did not report it).
+    firmware_version: Option<u32>,
+    /// No keyboard, but its bootloader (flash mode) is on USB.
+    in_flash_mode: bool,
 }
 
 impl Model {
@@ -24,11 +31,43 @@ impl Model {
         &self.status
     }
 
+    pub fn firmware_version(&self) -> Option<u32> {
+        self.firmware_version
+    }
+
+    pub fn in_flash_mode(&self) -> bool {
+        self.in_flash_mode
+    }
+
+    /// Hand the open keyboard over (to the updater, which restarts it into flash mode).
+    pub fn take_keyboard(&mut self) -> Option<Keyboard> {
+        self.firmware_version = None;
+        self.values.clear();
+        self.keyboard.take()
+    }
+
+    /// A copy of every setting, to put back after a firmware update.
+    pub fn snapshot(&self) -> Values {
+        self.values.clone()
+    }
+
+    /// Write saved settings back (after a firmware update reset them).
+    pub fn restore(&mut self, saved: &Values) {
+        for setting in settings::all() {
+            if let Some(v) = saved.get(&setting.value_id()) {
+                self.write(setting, v);
+            }
+        }
+    }
+
     /// Open the keyboard and read every setting. Returns whether it is connected.
     pub fn connect(&mut self) -> bool {
         self.values.clear();
+        self.firmware_version = None;
         match Keyboard::open() {
             Ok(kb) => {
+                self.in_flash_mode = false;
+                self.firmware_version = kb.firmware_version().ok();
                 self.status = format!("USB · VIA protocol {}", kb.protocol_version);
                 for setting in settings::all() {
                     if let Ok(v) = kb.get(setting.channel, setting.id, setting.len()) {
@@ -38,8 +77,9 @@ impl Model {
                 self.keyboard = Some(kb);
             }
             Err(e) => {
-                self.status = format!("{e:#}");
                 self.keyboard = None;
+                self.in_flash_mode = crate::isp::is_present();
+                self.status = if self.in_flash_mode { "In flash mode (bootloader)".into() } else { format!("{e:#}") };
             }
         }
         self.is_connected()

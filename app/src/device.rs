@@ -16,10 +16,16 @@ const TIMEOUT_MS: i32 = 500;
 /// VIA command ids (quantum/via.h).
 mod cmd {
     pub const GET_PROTOCOL_VERSION: u8 = 0x01;
+    pub const GET_KEYBOARD_VALUE: u8 = 0x02;
     pub const CUSTOM_SET_VALUE: u8 = 0x07;
     pub const CUSTOM_GET_VALUE: u8 = 0x08;
     pub const CUSTOM_SAVE: u8 = 0x09;
+    pub const BOOTLOADER_JUMP: u8 = 0x0B;
     pub const UNHANDLED: u8 = 0xFF;
+    /// GET_KEYBOARD_VALUE ids
+    pub const FIRMWARE_VERSION: u8 = 0x04;
+    /// The RK71 firmware only jumps to the bootloader when this follows BOOTLOADER_JUMP.
+    pub const BOOTLOADER_MAGIC: &[u8; 4] = b"RK71";
 }
 
 /// VIA value channels: 0 = the keyboard's own settings, 3 = QMK RGB matrix.
@@ -55,8 +61,36 @@ impl Keyboard {
         self.transfer(&[cmd::GET_PROTOCOL_VERSION]).map(|_| ())
     }
 
+    /// The firmware's version, 0x00MMmmpp (config.h VIA_FIRMWARE_VERSION). 0 = older than v0.7,
+    /// which did not report one.
+    pub fn firmware_version(&self) -> Result<u32> {
+        let r = self.transfer(&[cmd::GET_KEYBOARD_VALUE, cmd::FIRMWARE_VERSION])?;
+        Ok(u32::from_be_bytes([r[2], r[3], r[4], r[5]]))
+    }
+
+    /// Restart the keyboard into its ROM bootloader (USB 0C45:7040) for a firmware update.
+    /// Errors when the firmware is too old to do this; then Fn + Pause does the same by hand.
+    pub fn enter_bootloader(self) -> Result<()> {
+        let mut p = vec![cmd::BOOTLOADER_JUMP];
+        p.extend_from_slice(cmd::BOOTLOADER_MAGIC);
+        match self.exchange(&p) {
+            Ok(answer) if answer[0] == cmd::UNHANDLED => bail!("this firmware cannot restart itself for updates"),
+            // Otherwise it is restarting; it may even vanish before its answer is read.
+            _ => Ok(()),
+        }
+    }
+
     /// Send one VIA packet and return the keyboard's answer.
     fn transfer(&self, data: &[u8]) -> Result<[u8; PACKET]> {
+        let answer = self.exchange(data)?;
+        if answer[0] == cmd::UNHANDLED {
+            bail!("the firmware does not know this command (older firmware?)");
+        }
+        Ok(answer)
+    }
+
+    /// Write a packet and read the answer, whatever it is.
+    fn exchange(&self, data: &[u8]) -> Result<[u8; PACKET]> {
         let mut out = [0u8; PACKET + 1]; // report id 0 + packet
         out[1..1 + data.len()].copy_from_slice(data);
         self.dev.write(&out).context("USB write failed")?;
@@ -64,9 +98,6 @@ impl Keyboard {
         let n = self.dev.read_timeout(&mut answer, TIMEOUT_MS).context("USB read failed")?;
         if n == 0 {
             bail!("the keyboard did not answer");
-        }
-        if answer[0] == cmd::UNHANDLED {
-            bail!("the firmware does not know this command (older firmware?)");
         }
         Ok(answer)
     }

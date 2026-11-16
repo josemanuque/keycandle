@@ -661,6 +661,17 @@ static bool     rgb_save_pending; /* VIA key-lighting settings changed: same */
 static uint32_t save_requested_at;
 static uint32_t woke_at;
 
+/* Write the settings VIA changed and that are still waiting to settle. */
+static void flush_pending_saves(void) {
+    if (save_pending) save_config();
+    if (rgb_save_pending) {
+        flash_write_begin();
+        eeconfig_force_flush_rgb_matrix();
+        flash_write_end();
+    }
+    save_pending = rgb_save_pending = false;
+}
+
 bool rk71_rgb_lighting_on(void) {
     return rgb_matrix_is_enabled() && !rgb_matrix_get_suspend_state();
 }
@@ -762,13 +773,7 @@ void housekeeping_task_kb(void) {
     }
 
     if ((save_pending || rgb_save_pending) && TIMER_DIFF_32(now, save_requested_at) > SAVE_DELAY_MS) {
-        if (save_pending) save_config();
-        if (rgb_save_pending) {
-            flash_write_begin();
-            eeconfig_force_flush_rgb_matrix();
-            flash_write_end();
-        }
-        save_pending = rgb_save_pending = false;
+        flush_pending_saves();
     }
 
     power_task(now);
@@ -906,6 +911,16 @@ bool via_command_kb(uint8_t *data, uint8_t length) {
         rgb_save_pending  = true;
         save_requested_at = timer_read32();
         raw_hid_send(data, length); /* acknowledge, as QMK would */
+        return true;
+    }
+    /* The configurator's firmware update: restart into the ROM bootloader (0C45:7040), like
+     * Fn+Pause. VIA reserves this command id but QMK leaves it unhandled; the magic word makes sure
+     * no other tool's packet can trigger it. Pending settings are saved first. */
+    if (data[0] == id_bootloader_jump && length >= 5 && memcmp(&data[1], "RK71", 4) == 0) {
+        flush_pending_saves();
+        raw_hid_send(data, length);
+        wait_ms(50); /* let the reply leave before USB goes away */
+        reset_keyboard();
         return true;
     }
     return false;

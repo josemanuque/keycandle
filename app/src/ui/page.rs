@@ -36,6 +36,11 @@ impl Page {
         }
     }
 
+    /// The page for a command-line name (`--page lighting`).
+    pub fn from_name(name: &str) -> Option<Page> {
+        Page::ALL.into_iter().find(|p| p.title().to_lowercase().starts_with(&name.to_lowercase()))
+    }
+
     /// Lucide icon file (all of Lucide is embedded via gpui-kit-assets' AllAssets).
     pub fn icon(self) -> Icon {
         let file = match self {

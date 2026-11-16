@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+/* Firmware version, read by the configurator over VIA (id_firmware_version) to offer updates.
+ * 0x00MMmmpp = major, minor, patch: 0x00000700 is v0.7(.0). Bump it with every release tag. */
+#define VIA_FIRMWARE_VERSION 0x00000700
+
 /*
  * LED row pins, three per LED row in R, B, G order (the order the sn32f2xx driver expects).
  * Taken from stock firmware V1.12. Its LED step routine (0x5BFA) enables these pins together
