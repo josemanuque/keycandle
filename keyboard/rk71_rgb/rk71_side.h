@@ -41,6 +41,8 @@ void side_blank(void); /* colour lines off until the next frame (around a flash 
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue);
 /* Overall brightness 0..255 (side-light brightness x keyboard brightness). */
 void side_set_level(uint8_t level);
+/* Experimental: light one position (left + right pair) at a time instead of all together. */
+void side_set_scan(bool scan);
 
 /* USB cable present (C15, high when the cable supplies power). Call vbus_task() from the main
  * loop; vbus_present() is debounced. */

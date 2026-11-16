@@ -95,6 +95,15 @@
               ]
             },
             {
+              "label": "Experimental: light one position at a time",
+              "type": "toggle",
+              "content": [
+                "id_side_scan",
+                0,
+                27
+              ]
+            },
+            {
               "label": "Red",
               "type": "range",
               "options": [
