@@ -1,23 +1,30 @@
 //! Settings: the app's own preferences (language, appearance). The keyboard's settings are on the
 //! other pages.
 
-use gpui::{prelude::*, px, AnyElement, Context};
-use gpui_component::{v_flex, ActiveTheme as _, Theme};
+use gpui::{div, prelude::*, px, AnyElement, Context};
+use gpui_component::{h_flex, ActiveTheme as _, Theme};
 
 use super::app::Configurator;
 use super::appearance::Appearance;
-use super::layout::GAP;
+use super::layout::{columns, GAP};
+
+/// Narrowest a card gets before the two stack.
+const MIN_CARD: f32 = 440.0;
 use super::widgets::{card, card_title, muted, segment, segmented};
 use crate::{i18n, tr};
 
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
-    let width = app.layout.width.min(720.0);
-    v_flex()
-        .w(px(width))
+    // Side by side when there's room, like the settings pages.
+    let (n, _) = columns(app.layout.width, MIN_CARD, GAP);
+    let n = n.min(2);
+    let card_width = ((app.layout.width - GAP * (n - 1) as f32) / n as f32).floor();
+    h_flex()
+        .flex_wrap()
+        .items_start()
         .gap(px(GAP))
-        .child(language(&theme, cx))
-        .child(appearance(&theme, cx))
+        .child(div().w(px(card_width)).child(language(&theme, cx)))
+        .child(div().w(px(card_width)).child(appearance(&theme, cx)))
         .into_any_element()
 }
 

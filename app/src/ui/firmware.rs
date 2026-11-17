@@ -26,7 +26,7 @@ fn list_recent_count(total: usize) -> usize {
 
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
-    let width = app.layout.width.min(900.0);
+    let width = app.layout.width;
     v_flex()
         .w(px(width))
         .gap(px(GAP))
@@ -263,13 +263,23 @@ fn release_row(
         tr!("firmware.install")
     };
     let button = Button::new(("install", i)).label(action).disabled(busy);
-    let button = if is_newest && !is_installed { button.primary() } else { button.outline() };
+    // Install is the main action (blue); reinstalling or going back to stock are secondary.
+    let button = if is_installed || release.stock { button.outline() } else { button.primary() };
     let tag = release.tag.clone();
     let notes = release.notes.clone();
     let notes_view = view.clone();
-    let notes_button = Button::new(("notes", i))
-        .ghost()
-        .label(if notes_open { tr!("firmware.hide_notes") } else { tr!("firmware.whats_new") })
+    // A link under the version it describes: blue and bold so it reads as something to click.
+    let notes_link = h_flex()
+        .id(("notes", i))
+        .gap_1()
+        .items_center()
+        .cursor_pointer()
+        .text_xs()
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(theme.link)
+        .hover(|s| s.text_color(theme.link_hover))
+        .child(if notes_open { tr!("firmware.hide_notes") } else { tr!("firmware.whats_new") })
+        .child(Icon::empty().path(if notes_open { "icons/chevron-up.svg" } else { "icons/chevron-down.svg" }).size_3())
         .on_click(move |_, _, cx| {
             let tag = tag.clone();
             let _ = notes_view.update(cx, |this, cx| {
@@ -295,15 +305,20 @@ fn release_row(
                         .when(is_newest, |el| el.child(badge(theme, tr!("firmware.newest"))))
                         .when(is_installed, |el| el.child(badge(theme, tr!("firmware.installed")))),
                 )
-                .child(muted(theme, format!("{} · {}", release.date, release.file_name()))),
+                .child(
+                    h_flex()
+                        .gap_3()
+                        .items_center()
+                        .child(muted(theme, format!("{} · {}", release.date, release.file_name())))
+                        .child(notes_link),
+                ),
         )
-        .child(notes_button)
         .child(button.on_click(move |_, _, cx| {
             let source = Source::Release(release.clone());
             let _ = view.update(cx, |this, cx| this.request_install(source, cx));
         }));
     v_flex().border_t_1().border_color(theme.border).child(row).when(notes_open, |el| {
-        el.child(div().pb_3().px_1().child(if notes.is_empty() {
+        el.child(div().pb_4().child(if notes.is_empty() {
             muted(theme, tr!("firmware.no_notes")).into_any_element()
         } else {
             TextView::markdown(SharedString::from(format!("notes-{i}")), notes).into_any_element()

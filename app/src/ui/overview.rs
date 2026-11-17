@@ -24,7 +24,7 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
         (tr!("overview.caps_lock"), caps, Page::Keys),
         (tr!("overview.lights_off"), m.choice_label(value::LIGHTS_OFF_AFTER), Page::Power),
     ];
-    let width = app.layout.width.min(1100.0);
+    let width = app.layout.width;
     let (_, tile_width) = columns(width, MIN_TILE, TILE_GAP);
     let view = cx.entity().downgrade();
     v_flex()
