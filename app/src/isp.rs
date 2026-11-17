@@ -111,9 +111,19 @@ pub struct Bootloader {
 
 impl Bootloader {
     /// Open the bootloader and check it is the RK71's chip.
+    ///
+    /// Entered with Fn + Pause or the BOOT pad it has its own USB id (0C45:7040). Entered from the
+    /// stock firmware's command it keeps the stock id (05AC:024F, interface 0): the chip jumps into
+    /// the ROM without the computer seeing it reconnect.
     pub fn open() -> Result<Self> {
         let api = HidApi::new().context("cannot start HID access")?;
-        let dev = api.open(VID, PID).context(
+        let own = api.device_list().find(|d| d.vendor_id() == VID && d.product_id() == PID);
+        let via_stock = || {
+            api.device_list()
+                .find(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID && d.interface_number() == 0)
+        };
+        let info = own.or_else(via_stock).context("the keyboard is not in flash mode")?;
+        let dev = info.open_device(&api).context(
             "found the bootloader but could not open it. On Linux install tools/udev/50-rk71.rules",
         )?;
         let mut bl = Bootloader { dev, security: 0 };

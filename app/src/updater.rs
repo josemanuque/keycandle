@@ -147,11 +147,16 @@ fn run_install(source: &Source, keyboard: Option<Keyboard>, set: &impl Fn(Step))
     // Ask whatever firmware is running to restart into the bootloader: this one over VIA, the
     // original one with its own command. Older versions of this firmware can't; the user then
     // presses Fn + Pause.
+    let from_stock = keyboard.is_none() && !isp::is_present() && isp::stock_present();
     let restarted = match keyboard {
         Some(kb) => kb.enter_bootloader().is_ok(),
-        None => isp::stock_present() && isp::enter_from_stock().is_ok(),
+        None => from_stock && isp::enter_from_stock().is_ok(),
     };
-    if !isp::is_present() {
+    if from_stock && restarted {
+        // The stock firmware's jump keeps its USB id: no new device appears, the bootloader just
+        // answers on the same one (Bootloader::open finds it there).
+        thread::sleep(Duration::from_secs(1));
+    } else if !isp::is_present() {
         set(Step::WaitingForBootloader { manual: !restarted });
         let found = (restarted && isp::wait_for(AUTO_WAIT)) || {
             set(Step::WaitingForBootloader { manual: true });

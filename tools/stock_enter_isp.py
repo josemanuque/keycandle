@@ -13,8 +13,9 @@ when you click Start:
   3. send a feature report with report ID 0 + 64 bytes: AA 42 89 5A FF 71 62 CC, then zeros
 
 The stock firmware (USB EP0 handler @0x18C8 / @0x1818) checks those 8 bytes and jumps straight into the
-ROM bootloader at 0x1FFF0301. The keyboard re-enumerates as 0C45:7040 within a second, ready for
-`bash tools/flash_rk71.sh <image>.bin`.
+ROM bootloader at 0x1FFF0301. The lights go off, but the computer does NOT see a new 0C45:7040 device:
+the bootloader keeps answering on the same USB connection, still as 05AC:024F (tested 2026-11-16).
+Flash it there with `sonixflasher -v 05ac/024f -f <image>.bin` or the configurator app.
 
 SonixFlasher's `-r hfd` option sends the same packet, so `sonixflasher -v 05ac/024f -r hfd -f <bin>` is
 the one-step equivalent.
@@ -26,7 +27,6 @@ QMK (0C45:8071) uses Fn+Pause instead.
 
 import argparse
 import sys
-import time
 
 MAGIC = bytes([0xAA, 0x42, 0x89, 0x5A, 0xFF, 0x71, 0x62, 0xCC])
 REPORT_LEN = 65  # report ID 0 + 64 data bytes
@@ -186,14 +186,10 @@ def main():
         return 1
     if a.dry_run:
         return 0
-    print("Sent the ISP command. Waiting for the bootloader...")
-    for _ in range(50):
-        time.sleep(0.1)
-        if be.present(*BOOTLOADER):
-            print("Bootloader 0C45:7040 is up. Flash now: bash tools/flash_rk71.sh <image>.bin")
-            return 0
-    print("Bootloader did not appear within 5 s.")
-    return 2
+    print("Sent the ISP command. The lights should go off: the keyboard is now in the bootloader,")
+    print("still listed as 05AC:024F. Flash now: sonixflasher -v 05ac/024f -f <image>.bin (or the app).")
+    print("Unplug it (slide switch off) to go back to the stock firmware instead.")
+    return 0
 
 
 if __name__ == "__main__":
