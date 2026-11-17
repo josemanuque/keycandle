@@ -19,6 +19,8 @@ pub struct Model {
     firmware_version: Option<u32>,
     /// No keyboard, but its bootloader (flash mode) is on USB.
     in_flash_mode: bool,
+    /// No keyboard with this firmware, but one with the original Royal Kludge firmware.
+    on_stock_firmware: bool,
 }
 
 impl Model {
@@ -37,6 +39,10 @@ impl Model {
 
     pub fn in_flash_mode(&self) -> bool {
         self.in_flash_mode
+    }
+
+    pub fn on_stock_firmware(&self) -> bool {
+        self.on_stock_firmware
     }
 
     /// Hand the open keyboard over (to the updater, which restarts it into flash mode).
@@ -67,6 +73,7 @@ impl Model {
         match Keyboard::open() {
             Ok(kb) => {
                 self.in_flash_mode = false;
+                self.on_stock_firmware = false;
                 self.firmware_version = kb.firmware_version().ok();
                 self.status = format!("USB · VIA protocol {}", kb.protocol_version);
                 for setting in settings::all() {
@@ -79,7 +86,14 @@ impl Model {
             Err(e) => {
                 self.keyboard = None;
                 self.in_flash_mode = crate::isp::is_present();
-                self.status = if self.in_flash_mode { "In flash mode (bootloader)".into() } else { format!("{e:#}") };
+                self.on_stock_firmware = !self.in_flash_mode && crate::isp::stock_present();
+                self.status = if self.in_flash_mode {
+                    "In flash mode (bootloader)".into()
+                } else if self.on_stock_firmware {
+                    "Original Royal Kludge firmware".into()
+                } else {
+                    format!("{e:#}")
+                };
             }
         }
         self.is_connected()

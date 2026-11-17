@@ -162,6 +162,8 @@ impl Configurator {
         if !self.model.is_connected() {
             let text = if self.model.in_flash_mode() {
                 "The keyboard is in flash mode. Open Firmware to install an update or leave flash mode."
+            } else if self.model.on_stock_firmware() {
+                "The keyboard has its original Royal Kludge firmware, which this app can't configure. Open Firmware to install this project's firmware."
             } else {
                 "The keyboard isn't connected over USB."
             };

@@ -144,7 +144,13 @@ fn run_install(source: &Source, keyboard: Option<Keyboard>, set: &impl Fn(Step))
     let image = source.fetch()?;
     isp::check_image(&image)?;
 
-    let restarted = keyboard.is_some_and(|kb| kb.enter_bootloader().is_ok());
+    // Ask whatever firmware is running to restart into the bootloader: this one over VIA, the
+    // original one with its own command. Older versions of this firmware can't; the user then
+    // presses Fn + Pause.
+    let restarted = match keyboard {
+        Some(kb) => kb.enter_bootloader().is_ok(),
+        None => isp::stock_present() && isp::enter_from_stock().is_ok(),
+    };
     if !isp::is_present() {
         set(Step::WaitingForBootloader { manual: !restarted });
         let found = (restarted && isp::wait_for(AUTO_WAIT)) || {

@@ -35,6 +35,39 @@ pub const FLASH_SIZE: usize = 64 * 1024;
 const SECURITY_OFF: u16 = 0x0000;
 const SECURITY_OFF_ALT: u16 = 0xFFFF;
 
+/// The original Royal Kludge firmware shows up with an Apple keyboard's id.
+const STOCK_VID: u16 = 0x05AC;
+const STOCK_PID: u16 = 0x024F;
+/// The stock firmware jumps to the bootloader when it gets this feature report (what the vendor's
+/// updater sends; see tools/stock_enter_isp.py).
+const STOCK_ISP_MAGIC: [u8; 8] = [0xAA, 0x42, 0x89, 0x5A, 0xFF, 0x71, 0x62, 0xCC];
+
+/// Is an RK71 running the stock firmware connected? A real Apple keyboard shares the id, so this also
+/// requires the stock firmware's vendor-defined collection on interface 1.
+pub fn stock_present() -> bool {
+    HidApi::new().is_ok_and(|api| {
+        let mut devices = api.device_list().filter(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID);
+        devices.any(|d| d.interface_number() == 1 && d.usage_page() >= 0xFF00)
+    })
+}
+
+/// Restart a stock-firmware RK71 into its bootloader.
+pub fn enter_from_stock() -> Result<()> {
+    let api = HidApi::new().context("cannot start HID access")?;
+    let info = api
+        .device_list()
+        .find(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID && d.interface_number() == 0)
+        .context("no RK71 with the original firmware found on USB")?;
+    // hidapi falls back to opening without read/write access, which is all a feature report needs
+    // (Windows keeps keyboards open exclusively).
+    let dev = info.open_device(&api).context("could not open the keyboard")?;
+    let mut report = [0u8; REPORT + 1];
+    report[1..1 + STOCK_ISP_MAGIC.len()].copy_from_slice(&STOCK_ISP_MAGIC);
+    // The firmware jumps away during the transfer, so an error here is normal.
+    let _ = dev.send_feature_report(&report);
+    Ok(())
+}
+
 /// Is the keyboard in its bootloader right now?
 pub fn is_present() -> bool {
     HidApi::new().is_ok_and(|api| api.device_list().any(|d| d.vendor_id() == VID && d.product_id() == PID))

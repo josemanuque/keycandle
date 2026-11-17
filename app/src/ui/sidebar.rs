@@ -26,6 +26,8 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoEl
         (rgb(0x4ADE80), "Connected")
     } else if app.model.in_flash_mode() {
         (rgb(0xFBBF24), "Flash mode")
+    } else if app.model.on_stock_firmware() {
+        (rgb(0xFBBF24), "Original firmware")
     } else {
         (rgb(0xF87171), "Not connected")
     };

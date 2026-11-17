@@ -36,6 +36,10 @@ fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
         (true, Some(0), _) => ("Older than 0.7".into(), "This version can't restart itself for updates: you'll press Fn + Pause when asked."),
         (true, Some(v), _) => (format_version(v), "Connected over USB."),
         (true, None, _) => ("Unknown".into(), "Connected over USB."),
+        (false, _, false) if model.on_stock_firmware() => (
+            "Original firmware".into(),
+            "The Royal Kludge firmware is installed. Install a release below to switch to this project's firmware: the keyboard is put in flash mode for you.",
+        ),
         (false, _, true) => ("Flash mode".into(), "The keyboard is waiting for new firmware. Install one below, or leave flash mode to use it as it is."),
         (false, _, false) => ("Not connected".into(), "Connect the keyboard with the USB cable to update it."),
     };
