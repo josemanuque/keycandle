@@ -84,8 +84,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Every release is a pre-release until v1.0. Notes come from the README's versions table.
+          # Until v1.0: the newest version is the "Latest" release (GitHub gives that badge only to regular
+          # releases), titled as a beta; every older version is marked a pre-release.
           notes=$(grep -F "| \`$GITHUB_REF_NAME\` |" README.md | head -1 | cut -d'|' -f3 | sed 's/^ *//; s/ *$//')
           [ -n "$notes" ] || notes="See the README's versions table."
-          gh release create "$GITHUB_REF_NAME" out/* --prerelease --title "$GITHUB_REF_NAME" --notes "$notes" \
-            || gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME (beta)" --notes "$notes"             || gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^v'); do
+            [ "$tag" = "$GITHUB_REF_NAME" ] || gh release edit "$tag" --prerelease > /dev/null
+          done

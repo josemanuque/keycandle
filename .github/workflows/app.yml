@@ -1,0 +1,115 @@
+name: Build app
+
+# The RK71 Configurator for Windows, macOS (universal: Apple Silicon + Intel) and Linux.
+# Every push that touches the app builds and tests it and keeps the packages as artifacts.
+# A version tag also attaches them to that tag's release (created by build.yml).
+on:
+  push:
+    branches: [main, "feature/**", "fix/**"]
+    tags: ["v*"]
+    paths: ["app/**", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the packages to releases on tags
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+          - os: macos-latest
+            name: macos-universal
+          - os: ubuntu-22.04
+            name: linux-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux libraries (HID, windowing, fonts, GPU)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev \
+            libvulkan-dev libasound2-dev libzstd-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+
+      - name: Test
+        run: cargo test --release --locked
+
+      - name: Version
+        id: version
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          case "$GITHUB_REF" in refs/tags/v*) v="${GITHUB_REF_NAME#v}" ;; esac
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Build and package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release --locked
+          mkdir -p ../out
+          cp target/release/rk71-configurator.exe "../out/rk71-configurator-${{ matrix.name }}.exe"
+
+      - name: Build and package (macOS, universal)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          app="RK71 Configurator.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          lipo -create -output "$app/Contents/MacOS/rk71-configurator" \
+            target/aarch64-apple-darwin/release/rk71-configurator target/x86_64-apple-darwin/release/rk71-configurator
+          cp assets/icon/icon-light.icns "$app/Contents/Resources/AppIcon.icns"
+          sed "s/VERSION/${{ steps.version.outputs.version }}/" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          lipo -info "$app/Contents/MacOS/rk71-configurator"
+          mkdir -p ../out
+          ditto -c -k --keepParent "$app" "../out/rk71-configurator-${{ matrix.name }}.zip"
+
+      - name: Build and package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --release --locked
+          d=rk71-configurator
+          mkdir -p "$d"
+          cp target/release/rk71-configurator packaging/linux/rk71-configurator.desktop "$d/"
+          cp assets/icon/png/light-256.png "$d/rk71-configurator.png"
+          cp ../tools/udev/50-rk71.rules "$d/"
+          printf 'Run ./rk71-configurator. For USB access without root, first:\n  sudo cp 50-rk71.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger\n' > "$d/README.txt"
+          mkdir -p ../out
+          tar -czf "../out/rk71-configurator-${{ matrix.name }}.tar.gz" "$d"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rk71-configurator-${{ matrix.name }}
+          path: out/
+
+      - name: Attach to the release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: .
+        run: |
+          # build.yml creates the release; wait for it (up to 15 min).
+          for i in $(seq 1 90); do
+            gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 && break
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" out/* --clobber
