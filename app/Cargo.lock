@@ -3291,6 +3291,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "keycandle"
+version = "0.8.2"
+dependencies = [
+ "anyhow",
+ "dirs 6.0.0",
+ "gpui-component",
+ "gpui-kit-assets",
+ "gpui-pre",
+ "gpui-pre-platform",
+ "hidapi",
+ "rust-i18n",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sys-locale",
+ "ureq",
+ "winresource",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5253,26 +5273,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rk71-configurator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dirs 6.0.0",
- "gpui-component",
- "gpui-kit-assets",
- "gpui-pre",
- "gpui-pre-platform",
- "hidapi",
- "rust-i18n",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sys-locale",
- "ureq",
- "winresource",
 ]
 
 [[package]]

@@ -59,4 +59,5 @@ fn appearance(theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement
                 })
                 .child(choice.label())
         })))
+        .child(muted(theme, tr!("settings.appearance_help")))
 }

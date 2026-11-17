@@ -12,7 +12,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-pub const REPO: &str = "josemanuque/rk71-qmk-port";
+pub const REPO: &str = "josemanuque/keycandle";
 const SUMS_FILE: &str = "SHA256SUMS.txt";
 
 #[derive(Clone, Debug)]
@@ -130,7 +130,7 @@ fn get_bytes(url: &str) -> Result<Vec<u8>> {
     let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(30)).build();
     let response = agent
         .get(url)
-        .set("User-Agent", "rk71-configurator")
+        .set("User-Agent", "keycandle")
         .set("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| anyhow!("could not reach GitHub: {e}"))?;

@@ -1,12 +1,12 @@
 [package]
-name = "rk71-configurator"
-version = "0.1.0"
+name = "keycandle"
+version = "0.8.2"
 edition = "2021"
 description = "Configurator for the RK71 QMK firmware (Windows, macOS, Linux)"
 license = "GPL-2.0-or-later"
 
 [[bin]]
-name = "rk71-configurator"
+name = "keycandle"
 path = "src/main.rs"
 
 [dependencies]

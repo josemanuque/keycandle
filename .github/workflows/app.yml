@@ -1,6 +1,6 @@
 name: Build app
 
-# The RK71 Configurator for Windows, macOS (universal: Apple Silicon + Intel) and Linux.
+# The Keycandle for Windows, macOS (universal: Apple Silicon + Intel) and Linux.
 # Every push that touches the app builds and tests it and keeps the packages as artifacts.
 # A version tag also attaches them to that tag's release (created by build.yml).
 on:
@@ -66,39 +66,39 @@ jobs:
         run: |
           cargo build --release --locked
           mkdir -p ../out
-          cp target/release/rk71-configurator.exe "../out/rk71-configurator-${{ matrix.name }}.exe"
+          cp target/release/keycandle.exe "../out/keycandle-${{ matrix.name }}.exe"
 
       - name: Build and package (macOS, universal)
         if: runner.os == 'macOS'
         run: |
           cargo build --release --locked --target aarch64-apple-darwin
           cargo build --release --locked --target x86_64-apple-darwin
-          app="RK71 Configurator.app"
+          app="Keycandle.app"
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-          lipo -create -output "$app/Contents/MacOS/rk71-configurator" \
-            target/aarch64-apple-darwin/release/rk71-configurator target/x86_64-apple-darwin/release/rk71-configurator
+          lipo -create -output "$app/Contents/MacOS/keycandle" \
+            target/aarch64-apple-darwin/release/keycandle target/x86_64-apple-darwin/release/keycandle
           cp assets/icon/icon-light.icns "$app/Contents/Resources/AppIcon.icns"
           sed "s/VERSION/${{ steps.version.outputs.version }}/" packaging/macos/Info.plist > "$app/Contents/Info.plist"
-          lipo -info "$app/Contents/MacOS/rk71-configurator"
+          lipo -info "$app/Contents/MacOS/keycandle"
           mkdir -p ../out
-          ditto -c -k --keepParent "$app" "../out/rk71-configurator-${{ matrix.name }}.zip"
+          ditto -c -k --keepParent "$app" "../out/keycandle-${{ matrix.name }}.zip"
 
       - name: Build and package (Linux)
         if: runner.os == 'Linux'
         run: |
           cargo build --release --locked
-          d=rk71-configurator
+          d=keycandle
           mkdir -p "$d"
-          cp target/release/rk71-configurator packaging/linux/rk71-configurator.desktop "$d/"
-          cp assets/icon/png/light-256.png "$d/rk71-configurator.png"
+          cp target/release/keycandle packaging/linux/keycandle.desktop "$d/"
+          cp assets/icon/png/light-256.png "$d/keycandle.png"
           cp ../tools/udev/50-rk71.rules "$d/"
-          printf 'Run ./rk71-configurator. For USB access without root, first:\n  sudo cp 50-rk71.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger\n' > "$d/README.txt"
+          printf 'Run ./keycandle. For USB access without root, first:\n  sudo cp 50-rk71.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger\n' > "$d/README.txt"
           mkdir -p ../out
-          tar -czf "../out/rk71-configurator-${{ matrix.name }}.tar.gz" "$d"
+          tar -czf "../out/keycandle-${{ matrix.name }}.tar.gz" "$d"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rk71-configurator-${{ matrix.name }}
+          name: keycandle-${{ matrix.name }}
           path: out/
 
       - name: Attach to the release (tags only)

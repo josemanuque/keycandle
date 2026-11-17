@@ -2,8 +2,8 @@
 _version: 1
 
 app:
-  name: RK71 Configurator
-  subtitle: Firmware QMK
+  name: Keycandle
+  subtitle: para el RK71
   language: Idioma
 
 page:
@@ -247,6 +247,7 @@ settings:
   appearance_system: Sistema
   appearance_light: Claro
   appearance_dark: Oscuro
+  appearance_help: "Sistema sigue el modo claro u oscuro de tu computadora."
 
 power:
   charging: Cargando por USB

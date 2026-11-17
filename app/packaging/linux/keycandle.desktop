@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=RK71 Configurator
+Name=Keycandle
 Comment=Settings and firmware updates for the RK71 QMK firmware
-Exec=rk71-configurator
-Icon=rk71-configurator
+Exec=keycandle
+Icon=keycandle
 Terminal=false
 Categories=Utility;Settings;HardwareSettings;

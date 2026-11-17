@@ -1,6 +1,6 @@
 //! The app's own preferences (not the keyboard's), kept as JSON in the user's config folder:
-//! Windows %APPDATA%\rk71-configurator, macOS ~/Library/Application Support/rk71-configurator,
-//! Linux ~/.config/rk71-configurator.
+//! Windows %APPDATA%\keycandle, macOS ~/Library/Application Support/keycandle,
+//! Linux ~/.config/keycandle.
 
 use std::path::PathBuf;
 
@@ -16,7 +16,7 @@ pub struct Prefs {
 
 impl Prefs {
     fn path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("rk71-configurator").join("prefs.json"))
+        dirs::config_dir().map(|d| d.join("keycandle").join("prefs.json"))
     }
 
     /// The saved preferences, or defaults when there are none (or they can't be read).

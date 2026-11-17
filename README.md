@@ -1,4 +1,6 @@
-# RK71 mod: open QMK firmware for the Royal Kludge RK71 RGB
+# Keycandle: open firmware and app for the Royal Kludge RK71 RGB
+
+Keycandle is an independent project, not affiliated with Royal Kludge.
 
 Royal Kludge RK71 RGB: PCB `603-836/RGB-BT-HFD REV:01`, MCU SONiX SN32F248BF ([hardware and USB IDs](#hardware-and-usb-ids)).
 This repository has two parts:
@@ -29,6 +31,7 @@ Every push also builds the firmware on GitHub Actions. Open a run under **Action
 
 | Version | Changes |
 |---|---|
+| `v0.8.2b` | The project is now **Keycandle** (app, repo and icon with a "K" legend). App: fits narrow and short windows (collapsing sidebar, previews sized to the window), full-width pages, What's new as a link under each version, blue Install, no console window on Windows; built for Windows, macOS (universal) and Linux on every release |
 | `v0.8.1b` | Side lights: colours accurate at low brightness (all colour pins switch together; green and blue used to stay on longer than red, turning colours light blue), frames timed from the time really used (measured ~3.1 kHz, above IEEE 1789's 3 kHz "no observable effect"); key lights ~1.4 kHz with margin; "Same brightness as the keys" uses the keys' brightness and hides the side-light slider. App: verified settings restore after updates (answers matched to requests), "Show fewer" and per-version notes in the release list |
 | `v0.8b` | The keyboard reports its state (wired/Bluetooth, device, link, battery level, cable) and a change counter: the app follows changes made with Fn keys within half a second. VIA and the app keep working in Bluetooth mode with the cable plugged in. App: battery and connection on the Power page, Settings page (language, appearance), dropdowns past 4 options |
 | `v0.7b` | Key LEDs refresh at ~1430 Hz instead of 165 Hz (IEEE 1789 low-risk, no colour split, brighter); side-light effects and own brightness; Caps Lock / F-row lock indicators and status colours with colour pickers; power times, battery bar and dimming on battery in VIA; Win/Mac per device (Fn+A / Fn+S), Win key lock (Fn+Win), Fn highlight; side-light calibration; no flashing while VIA saves; no charge-LED glow; firmware version and app-driven updates |
@@ -57,7 +60,7 @@ Each version is a git tag. Check one out with `git checkout v0.4b`.
 
 Works from Windows (Git Bash), macOS and Linux.
 
-From v0.7b on, the RK71 Configurator app (`app/`) installs releases for you (Firmware page). By hand:
+From v0.7b on, the Keycandle app (`app/`) installs releases for you (Firmware page). By hand:
 
 1. Get [SonixFlasher](https://github.com/SonixQMK/SonixFlasherC/releases) for your OS. Put it in `sonixflasher/`
    in this repo, or anywhere on your PATH. On Linux, first allow access without root:
@@ -112,7 +115,7 @@ outputs.
 keyboard/      QMK keyboard source: rk71_rgb (copied into qmk_firmware/ at build time)
 via/           VIA definition: load it in usevia.app > Settings > Design tab
 docs/          QMK_FIRMWARE.md (user guide), BLUETOOTH.md (Bluetooth module protocol)
-app/           RK71 Configurator: desktop settings and firmware updater (Rust + GPUI)
+app/           Keycandle: desktop settings and firmware updater (Rust + GPUI)
 stock/         original firmware image, recovery guide, stock internals and key map
 tools/         build.sh, flash_rk71.sh, stock_enter_isp.py, gen_rk71.py, udev rule for Linux
 archive/       an earlier failed attempt, kept for history only

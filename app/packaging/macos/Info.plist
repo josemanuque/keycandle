@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>RK71 Configurator</string>
+    <string>Keycandle</string>
     <key>CFBundleDisplayName</key>
-    <string>RK71 Configurator</string>
+    <string>Keycandle</string>
     <key>CFBundleIdentifier</key>
-    <string>io.github.josemanuque.rk71-configurator</string>
+    <string>io.github.josemanuque.keycandle</string>
     <key>CFBundleExecutable</key>
-    <string>rk71-configurator</string>
+    <string>keycandle</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

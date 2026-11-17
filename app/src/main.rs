@@ -1,14 +1,14 @@
-//! RK71 Configurator: settings and firmware updates for the RK71 QMK firmware.
+//! Keycandle: settings and firmware updates for the RK71 QMK firmware.
 //!
-//!   rk71-configurator            open the app
-//!   rk71-configurator --page firmware    open on a page (overview, lighting, keys, power, firmware)
-//!   rk71-configurator --probe    print every keyboard setting in the terminal (USB test)
-//!   rk71-configurator --releases list the firmware releases on GitHub (download test)
-//!   rk71-configurator --isp-info read the bootloader's chip id and flash checksum (read-only)
-//!   rk71-configurator --leave-flash-mode   start the firmware from the bootloader
-//!   rk71-configurator --install <file.bin>  install firmware, like the Firmware page
-//!   rk71-configurator --set <channel> <id> <byte>…   write and save one VIA value
-//!   rk71-configurator --get <channel> <id> <length>   read one VIA value
+//!   keycandle            open the app
+//!   keycandle --page firmware    open on a page (overview, lighting, keys, power, firmware)
+//!   keycandle --probe    print every keyboard setting in the terminal (USB test)
+//!   keycandle --releases list the firmware releases on GitHub (download test)
+//!   keycandle --isp-info read the bootloader's chip id and flash checksum (read-only)
+//!   keycandle --leave-flash-mode   start the firmware from the bootloader
+//!   keycandle --install <file.bin>  install firmware, like the Firmware page
+//!   keycandle --set <channel> <id> <byte>…   write and save one VIA value
+//!   keycandle --get <channel> <id> <length>   read one VIA value
 
 // A windowed app on Windows (no console window when double-clicked); see attach_console() for the
 // command-line options.

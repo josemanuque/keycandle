@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the app icon (a blank keycap lifted on a ring of light, with a light line on the cap)
+"""Draw the Keycandle icon (a keycap lifted on a ring of light, with a light line and a "K" legend)
 in a light and a dark variant, and write every format the three systems need:
 
   icon-light.ico / icon-dark.ico     Windows (16-256 px)
@@ -11,7 +11,7 @@ Requires Pillow and numpy:  python make_icon.py
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = Path(__file__).resolve().parent
 SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024]
@@ -21,8 +21,8 @@ RING = ["#7C8CFF", "#C084FC", "#FF7AB6", "#FFB84D", "#4DE1FF", "#7C8CFF"]
 LINE = ["#7C8CFF", "#C084FC"]
 
 VARIANTS = {
-    "light": dict(tile="#E9ECF1", tile_edge="#D3D8E0", rim="#FFFFFF", cap_top="#F7F8FA", cap_bottom="#DADEE5", lip="#CDD2DA"),
-    "dark": dict(tile="#1E222A", tile_edge="#14171C", rim="#3A414D", cap_top="#323844", cap_bottom="#1F242C", lip="#171B21"),
+    "light": dict(legend="#7C8597", tile="#E9ECF1", tile_edge="#D3D8E0", rim="#FFFFFF", cap_top="#F7F8FA", cap_bottom="#DADEE5", lip="#CDD2DA"),
+    "dark": dict(legend="#B9C1CE", tile="#1E222A", tile_edge="#14171C", rim="#3A414D", cap_top="#323844", cap_bottom="#1F242C", lip="#171B21"),
 }
 
 
@@ -60,7 +60,10 @@ def over(dst, colour, alpha):
     dst[..., 3:] = out_a
 
 
-def draw(size, variant):
+LEGEND_FONT = "C:/Windows/Fonts/seguisb.ttf"  # Segoe UI Semibold; any bold sans works
+
+
+def draw(size, variant, legend=None):
     v = VARIANTS[variant]
     small = size <= 32
     ss = 8 if small else 2  # supersampling
@@ -118,6 +121,17 @@ def draw(size, variant):
         over(img, line_col, np.asarray(lg) / 255 * 0.6)
     over(img, line_col, coverage(d_line, px))
 
+    # Optional keycap legend under the light line, like a printed key.
+    if legend:
+        layer = Image.new("L", (n, n), 0)
+        font = ImageFont.truetype(LEGEND_FONT, int(n * cap_half * 0.62))
+        d = ImageDraw.Draw(layer)
+        box = d.textbbox((0, 0), legend, font=font)
+        w, h = box[2] - box[0], box[3] - box[1]
+        cy = (cap_half * 0.18 + 1) / 2 * n  # a little below the cap's centre
+        d.text(((n - w) / 2 - box[0], cy - h / 2 - box[1]), legend, font=font, fill=255)
+        over(img, rgb(v["legend"]), np.asarray(layer) / 255)
+
     out = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8), "RGBA")
     return out.resize((size, size), Image.LANCZOS)
 
@@ -125,7 +139,8 @@ def draw(size, variant):
 def main():
     (HERE / "png").mkdir(exist_ok=True)
     for variant in VARIANTS:
-        images = {s: draw(s, variant) for s in SIZES}
+        # The "K" legend only where it can be read: from 48 px up (smaller sizes keep just the light line).
+        images = {s: draw(s, variant, "K" if s >= 48 else None) for s in SIZES}
         for s, im in images.items():
             im.save(HERE / "png" / f"{variant}-{s}.png")
         ico_sizes = [16, 24, 32, 48, 64, 128, 256]

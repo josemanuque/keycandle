@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/longbridge/gpui-kit/raw/refs/heads/main/.theme-schema.json",
   "name": "RK71",
-  "author": "rk71-qmk-port",
+  "author": "keycandle",
   "themes": [
     {
       "name": "RK71 Dark",
