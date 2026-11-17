@@ -45,7 +45,7 @@ fn status_card(theme: &Theme, state: &KeyboardState, width: f32) -> impl IntoEle
     } else {
         tr!("power.mode_wired")
     };
-    card(theme).w(px(width.min(900.0))).p_5().child(
+    card(theme).w(px(width)).p_5().child(
         h_flex()
             .gap_4()
             .items_center()

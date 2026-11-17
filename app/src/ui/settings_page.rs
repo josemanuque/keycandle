@@ -15,7 +15,10 @@ const MIN_CARD: f32 = 440.0;
 
 pub fn render(app: &Configurator, sections: &'static [Section], width: f32, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
-    let (_, card_width) = columns(width, MIN_CARD, GAP);
+    // As many columns as fit, but no more than there are sections: one section gets the full width.
+    let (fit, _) = columns(width, MIN_CARD, GAP);
+    let n = fit.min(sections.len()).max(1);
+    let card_width = ((width - GAP * (n - 1) as f32) / n as f32).floor();
     h_flex()
         .flex_wrap()
         .items_start()

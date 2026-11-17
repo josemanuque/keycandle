@@ -61,7 +61,7 @@ impl EffectGroup {
 }
 
 /// Smallest gallery thumbnail.
-const MIN_THUMB: f32 = 120.0;
+const MIN_THUMB: f32 = 150.0;
 const THUMB_GAP: f32 = 10.0;
 /// Card padding (p_5) and border on both sides, and the preview card's (p_4).
 const CARD_PAD: f32 = 2.0 * (20.0 + 1.0);
