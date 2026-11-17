@@ -734,8 +734,32 @@ static void power_task(uint32_t now) {
     }
 }
 
+/* Key LED rows lit per second, measured once a second from the LED driver's counter (sn32f2xx.c). */
+extern volatile uint32_t sn32f2xx_rows_lit, sn32f2xx_wait_sum, sn32f2xx_switch_sum;
+extern volatile uint16_t sn32f2xx_switch_max;
+static uint16_t          led_row_rate, led_wait_avg, led_switch_avg;
+
+static void measure_led_rate(uint32_t now) {
+    static uint32_t since, rows_then;
+    if (TIMER_DIFF_32(now, since) < 1000) return;
+    static uint32_t sum_then, wait_then;
+    uint32_t        rows = sn32f2xx_rows_lit, sum = sn32f2xx_switch_sum, wait = sn32f2xx_wait_sum;
+    uint32_t        rate = (rows - rows_then) * 1000 / TIMER_DIFF_32(now, since);
+    led_row_rate         = rate > UINT16_MAX ? UINT16_MAX : rate;
+    if (rows != rows_then) {
+        led_switch_avg = (sum - sum_then) / (rows - rows_then);
+        led_wait_avg   = (wait - wait_then) / (rows - rows_then);
+    }
+    rows_then = rows;
+    sum_then  = sum;
+    wait_then = wait;
+    since                = now;
+}
+
 void housekeeping_task_kb(void) {
     uint32_t now = timer_read32();
+
+    measure_led_rate(now);
 
     vbus_task();
 
@@ -958,6 +982,8 @@ enum {
     ID_SIDE_TRIM_LAST = ID_SIDE_TRIM_FIRST + 17, /* light 6 blue */
     ID_PULSE_EXTRA_FIRST,                        /* red, green, blue */
     ID_PULSE_EXTRA_LAST = ID_PULSE_EXTRA_FIRST + 2,
+    ID_LED_ROW_RATE, /* read-only: key LED colour rows lit per second (refresh = this / 15) */
+    ID_LED_SWITCH,   /* read-only: row switch time, average and longest since last read (timer ticks) */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1064,6 +1090,19 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
             break;
         case id_custom_get_value:
             switch (value_id) {
+                case ID_LED_ROW_RATE:
+                    value[0] = led_row_rate >> 8;
+                    value[1] = led_row_rate & 0xFF;
+                    break;
+                case ID_LED_SWITCH:
+                    value[0] = led_switch_avg >> 8;
+                    value[1] = led_switch_avg & 0xFF;
+                    value[2] = sn32f2xx_switch_max >> 8;
+                    value[3] = sn32f2xx_switch_max & 0xFF;
+                    value[4] = led_wait_avg >> 8;
+                    value[5] = led_wait_avg & 0xFF;
+                    sn32f2xx_switch_max = 0;
+                    break;
                 case ID_SIDE_MODE: value[0] = kb_config.side_mode; break;
                 case ID_SIDE_STATUS: value[0] = !kb_config.side_no_status; break;
                 case ID_SIDE_RED: value[0] = SIDE_RED_V; break;
