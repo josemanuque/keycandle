@@ -3,8 +3,8 @@
 #pragma once
 
 /* Firmware version, read by the configurator over VIA (id_firmware_version) to offer updates.
- * 0x00MMmmpp = major, minor, patch: 0x00000800 is v0.8(.0). Bump it with every release tag. */
-#define VIA_FIRMWARE_VERSION 0x00000800
+ * 0x00MMmmpp = major, minor, patch: 0x00000801 is v0.8.1. Bump it with every release tag. */
+#define VIA_FIRMWARE_VERSION 0x00000801
 
 /*
  * LED row pins, three per LED row in R, B, G order (the order the sn32f2xx driver expects).
@@ -26,12 +26,12 @@
  * SPD_STEP * LED_PROCESS_LIMIT (= 32768 * the limit), rounded by the timer prescaler (48 MHz / n).
  *
  * IEEE 1789 rates flicker at full modulation (the LEDs go fully off between rows) as low-risk from
- * 1250 Hz. 200 asks for 6.55 MHz, which the prescaler makes 48 MHz / 7 = 6.86 MHz: 29 us lit + ~21 us
- * switch = ~50 us rows, ~1330 Hz per LED. (The default limit, 15, gave 165 Hz. Measure with
+ * 1250 Hz. 230 asks for 7.54 MHz, which the prescaler makes 48 MHz / 6 = 8 MHz: 25 us lit + ~21 us
+ * switch (the side lights' timer may delay it) = ~46 us rows, ~1450 Hz per LED. (The default limit, 15, gave 165 Hz. Measure with
  * `rk71-configurator --probe`. The limit itself only means the effects compute all 71 LEDs per pass
  * instead of a fifth at a time.)
  */
-#define RGB_MATRIX_LED_PROCESS_LIMIT 200
+#define RGB_MATRIX_LED_PROCESS_LIMIT 230
 
 /* Out-of-the-box lighting: solid white. Only used when the settings storage is reset
  * (first boot or an EEPROM clear); saved settings take priority. */

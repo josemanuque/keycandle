@@ -1,6 +1,7 @@
 # RK71 mod: open QMK firmware for the Royal Kludge RK71 RGB
 
-Royal Kludge RK71 RGB: PCB `603-836/RGB-BT-HFD REV:01`, MCU SONiX SN32F248BF. This repository has two parts:
+Royal Kludge RK71 RGB: PCB `603-836/RGB-BT-HFD REV:01`, MCU SONiX SN32F248BF ([hardware and USB IDs](#hardware-and-usb-ids)).
+This repository has two parts:
 
 * **a QMK port** (`keyboard/rk71_rgb`). Its pins come from disassembling the stock firmware, not from guesswork. It
   works with VIA on Windows, macOS and Linux, and supports per-key RGB, Bluetooth and the side lights.
@@ -28,6 +29,8 @@ Every push also builds the firmware on GitHub Actions. Open a run under **Action
 
 | Version | Changes |
 |---|---|
+| `v0.8.1b` | Side lights: colours accurate at low brightness (all colour pins switch together; green and blue used to stay on longer than red, turning colours light blue), frames timed from the time really used (measured ~3.1 kHz, above IEEE 1789's 3 kHz "no observable effect"); key lights ~1.4 kHz with margin; "Same brightness as the keys" uses the keys' brightness and hides the side-light slider. App: verified settings restore after updates (answers matched to requests), "Show fewer" and per-version notes in the release list |
+| `v0.8b` | The keyboard reports its state (wired/Bluetooth, device, link, battery level, cable) and a change counter: the app follows changes made with Fn keys within half a second. VIA and the app keep working in Bluetooth mode with the cable plugged in. App: battery and connection on the Power page, Settings page (language, appearance), dropdowns past 4 options |
 | `v0.7b` | Key LEDs refresh at ~1430 Hz instead of 165 Hz (IEEE 1789 low-risk, no colour split, brighter); side-light effects and own brightness; Caps Lock / F-row lock indicators and status colours with colour pickers; power times, battery bar and dimming on battery in VIA; Win/Mac per device (Fn+A / Fn+S), Win key lock (Fn+Win), Fn highlight; side-light calibration; no flashing while VIA saves; no charge-LED glow; firmware version and app-driven updates |
 | `v0.6b` | Deep sleep on battery (any key or the cable wakes it, the key is still typed; the Bluetooth module can wake it too), side lights cycle at ~3 kHz (no flicker or rainbow fringe), side-light defaults tuned on a real board, 416 bytes of RAM freed |
 | `v0.5.5b` | No keyboard blinking while dragging VIA side-light sliders (saves once settled) |
@@ -115,9 +118,38 @@ tools/         build.sh, flash_rk71.sh, stock_enter_isp.py, gen_rk71.py, udev ru
 archive/       an earlier failed attempt, kept for history only
 ```
 
+## Hardware and USB IDs
+
+| Name | What it is |
+|---|---|
+| SN32F248BF | The chip on the board (marking). |
+| SN32F240B | Its family, as in Sonix's datasheet and SonixQMK (`MCU = SN32F240B`). Same chip. |
+| SN32F24xB | SonixFlasher's name for that family. Same chip. |
+| `603-836/RGB-BT-HFD REV:01` | The PCB. HFD is the board maker; other Royal Kludge boards share the design. |
+
+| USB ID | Who uses it |
+|---|---|
+| `0C45:8071` | **This firmware** (wired). VIA and the configurator talk to it. |
+| `05AC:024F` | **The stock firmware** (an Apple keyboard's ID), and the Bluetooth module's ID when paired. |
+| `0C45:7040` | The chip's ROM bootloader (flash mode), entered with Fn+Pause or the BOOT pad. |
+| `05AC:0256`, `0C45:8006` | Other stock firmware variants the vendor updater also accepts; not this board. |
+
+From the stock firmware, the vendor command puts the chip in its bootloader **without** a new USB device: it keeps
+answering as `05AC:024F` (tested on the board). Fn+Pause and the BOOT pad give `0C45:7040`.
+
+## Roadmap
+
+* **v0.9:** settings over Bluetooth. Windows lets an ordinary app set a Bluetooth keyboard's lock-LED state through
+  the keyboard's own interface (no admin, no driver; tested on the board), and the module passes it on, so the app
+  can send short messages (lighting, effects, modes) one way. Plus Win/Mac per Bluetooth device in the app.
+* Firmware updates stay USB-only: the bootloader is USB-only and Bluetooth carries a few bits per message.
+
 ## Known limitations
 
-* VIA settings, keymaps and lighting are stored in flash. Flashing a new build resets them to defaults.
+* VIA settings, keymaps and lighting are stored in flash. Flashing a new build resets them to defaults (the
+  configurator saves and restores its settings around an update; not the keymap).
+* Side-light colours aren't exact, see the [user guide](docs/QMK_FIRMWARE.md#side-light-colour-limitations).
+* No battery percentage: the Bluetooth module reports only high / medium / low, and the chip has no battery sensing.
 
 ## License
 

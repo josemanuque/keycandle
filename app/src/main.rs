@@ -8,6 +8,7 @@
 //!   rk71-configurator --leave-flash-mode   start the firmware from the bootloader
 //!   rk71-configurator --install <file.bin>  install firmware, like the Firmware page
 //!   rk71-configurator --set <channel> <id> <byte>…   write and save one VIA value
+//!   rk71-configurator --get <channel> <id> <length>   read one VIA value
 
 mod color;
 mod device;
@@ -35,6 +36,7 @@ fn main() -> Result<()> {
         Some("--leave-flash-mode") => isp::Bootloader::open()?.start_firmware(),
         Some("--install") => install(std::env::args().nth(2).as_deref()),
         Some("--set") => set_value(&std::env::args().skip(2).collect::<Vec<_>>()),
+        Some("--get") => get_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
             Ok(())
@@ -142,8 +144,14 @@ fn install(path: Option<&str>) -> Result<()> {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
         if model.is_connected() {
-            model.restore(&saved);
-            println!("Settings put back.");
+            let wrong = model.restore(&saved);
+            if wrong.is_empty() {
+                println!("Settings put back (all read back correctly).");
+            } else {
+                for ((ch, id), want, got) in wrong {
+                    println!("Setting {ch}/{id}: wanted {want:?}, keyboard has {got:?}");
+                }
+            }
         } else {
             println!("The keyboard didn't come back in time; settings were not put back.");
         }
@@ -161,5 +169,16 @@ fn set_value(args: &[String]) -> Result<()> {
     kb.set(*channel, *id, value)?;
     kb.save(*channel)?;
     println!("Set {channel}/{id} = {value:?}");
+    Ok(())
+}
+
+/// Command-line read of one value (`--get 0 2 2` = side-light fixed colour).
+fn get_value(args: &[String]) -> Result<()> {
+    let numbers: Vec<usize> = args.iter().map(|a| a.parse()).collect::<Result<_, _>>()?;
+    let [channel, id, len] = numbers.as_slice() else {
+        anyhow::bail!("usage: --get <channel> <id> <length>");
+    };
+    let kb = Keyboard::open()?;
+    println!("{channel}/{id} = {:?}", kb.get(*channel as u8, *id as u8, *len)?);
     Ok(())
 }

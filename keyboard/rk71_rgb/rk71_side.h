@@ -53,3 +53,6 @@ void side_set_pulse_extra(uint8_t colour, uint8_t value);
 void vbus_task(void);
 bool vbus_present(void);
 bool vbus_known(void);
+
+/* Diagnostics (VIA value 53). */
+uint32_t side_loops_per_tick(void);

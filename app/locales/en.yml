@@ -88,8 +88,8 @@ setting:
   side_brightness:
     label: Brightness
   side_follow_brightness:
-    label: Follow the keyboard's brightness
-    help: "Off: the side lights keep their own brightness"
+    label: Same brightness as the keys
+    help: "Off: the side lights have their own brightness"
   side_red:
     label: Red balance
     help: Evens out the bluish diffuser
@@ -139,6 +139,7 @@ setting:
     label: Level on battery
 
 note:
+  side_brightness_follows: The side lights use the keys' brightness. Turn off “Same brightness as the keys” to set their own.
   color_unused: This effect makes its own colors, so the color isn't used. Effects under “Your color” use it.
   speed_unused: This effect doesn't move, so it has no speed.
 
@@ -208,6 +209,10 @@ firmware:
   asking_github: Asking GitHub…
   github_failed: "Couldn't get the list from GitHub: %{error}"
   show_older: Show %{count} older versions
+  show_fewer: Show fewer
+  whats_new: "What's new"
+  hide_notes: Hide notes
+  no_notes: No notes for this version.
   stock_release: Original firmware (Royal Kludge V1.12)
   install: Install
   reinstall: Reinstall

@@ -42,7 +42,8 @@ What happens when you click Start:
    * When the transfer's status stage finishes (@`0x1818`), it re-checks the magic, clears 64 words of USB buffer,
      and calls @`0x014C`. That writes `SYS0+0x24` and branches to **`0x1FFF0301`, the SN32 ROM bootloader**.
    * There's no reset and no magic RAM flag (an earlier note claiming "write 0xE5 to 0x2000013A" was wrong).
-4. The keyboard drops off USB and comes back as `0C45:7040` (ROM ISP). The updater then speaks the Sonix ISP
+4. The chip jumps into its ROM ISP **without** re-enumerating: the computer still sees `05AC:024F` (tested on the
+   board, 2026-11-16), and the ISP answers on that same interface. The updater then speaks the Sonix ISP
    protocol over feature reports (Get Firmware Version `0x01/0x21`, Compare ISP Password `0x02/0x22`, Enable Erase
    `0x04`, Enable Program `0x05`, Get Checksum `0x06`, Return User Mode `0x07`, Code Option `0x08/0x09`, …),
    writes `SN32F240B_32.hex`, and returns to user mode.

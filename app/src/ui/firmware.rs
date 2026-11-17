@@ -1,10 +1,11 @@
 //! Firmware: what is installed, updates from GitHub (or a file), and the install progress.
 
-use gpui::{div, prelude::*, px, AnyElement, Context, FontWeight, PathPromptOptions};
+use gpui::{div, prelude::*, px, AnyElement, Context, FontWeight, PathPromptOptions, SharedString};
 use gpui_component::{
     button::{Button, ButtonVariants as _},
     h_flex,
     progress::Progress,
+    text::TextView,
     v_flex, ActiveTheme as _, Disableable as _, Icon, Theme,
 };
 
@@ -17,6 +18,11 @@ use crate::updater::{Releases, Source, Step};
 
 /// Versions listed before "Show older versions".
 const RECENT: usize = 4;
+
+/// How many releases the short list shows (the newest few; the original firmware comes on top).
+fn list_recent_count(total: usize) -> usize {
+    total.min(RECENT + 1)
+}
 
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
@@ -211,16 +217,19 @@ fn available(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
                 list.into_iter().enumerate().filter(|(i, r)| *i < RECENT || r.stock).map(|(_, r)| r).collect()
             };
             let hidden = total - shown.len();
+            let older = total - list_recent_count(total);
             let toggle = view.clone();
+            let label = if app.show_all_releases { tr!("firmware.show_fewer") } else { tr!("firmware.show_older", count = hidden) };
             v_flex()
                 .children(shown.into_iter().enumerate().map(|(i, release)| {
-                    release_row(theme, i, release, newest.as_deref(), installed, busy, view.clone())
+                    let open = app.open_notes.contains(&release.tag);
+                    release_row(theme, i, release, newest.as_deref(), installed, busy, open, view.clone())
                 }))
-                .when(hidden > 0, |el| {
+                .when(older > 0, |el| {
                     el.child(h_flex().pt_2().border_t_1().border_color(theme.border).child(
-                        Button::new("show-all").ghost().label(tr!("firmware.show_older", count = hidden)).on_click(move |_, _, cx| {
+                        Button::new("show-all").ghost().label(label).on_click(move |_, _, cx| {
                             let _ = toggle.update(cx, |this, cx| {
-                                this.show_all_releases = true;
+                                this.show_all_releases = !this.show_all_releases;
                                 cx.notify();
                             });
                         }),
@@ -240,6 +249,7 @@ fn release_row(
     newest: Option<&str>,
     installed: Option<u32>,
     busy: bool,
+    notes_open: bool,
     view: gpui::WeakEntity<Configurator>,
 ) -> impl IntoElement {
     let is_installed = installed.is_some_and(|v| v != 0 && release.version() == Some(v));
@@ -254,12 +264,25 @@ fn release_row(
     };
     let button = Button::new(("install", i)).label(action).disabled(busy);
     let button = if is_newest && !is_installed { button.primary() } else { button.outline() };
-    h_flex()
+    let tag = release.tag.clone();
+    let notes = release.notes.clone();
+    let notes_view = view.clone();
+    let notes_button = Button::new(("notes", i))
+        .ghost()
+        .label(if notes_open { tr!("firmware.hide_notes") } else { tr!("firmware.whats_new") })
+        .on_click(move |_, _, cx| {
+            let tag = tag.clone();
+            let _ = notes_view.update(cx, |this, cx| {
+                if !this.open_notes.remove(&tag) {
+                    this.open_notes.insert(tag);
+                }
+                cx.notify();
+            });
+        });
+    let row = h_flex()
         .py_3()
         .gap_4()
         .items_center()
-        .border_t_1()
-        .border_color(theme.border)
         .child(
             v_flex()
                 .flex_1()
@@ -275,8 +298,16 @@ fn release_row(
                 )
                 .child(muted(theme, format!("{} · {}", release.date, release.file_name()))),
         )
+        .child(notes_button)
         .child(button.on_click(move |_, _, cx| {
             let source = Source::Release(release.clone());
             let _ = view.update(cx, |this, cx| this.request_install(source, cx));
+        }));
+    v_flex().border_t_1().border_color(theme.border).child(row).when(notes_open, |el| {
+        el.child(div().pb_3().px_1().child(if notes.is_empty() {
+            muted(theme, tr!("firmware.no_notes")).into_any_element()
+        } else {
+            TextView::markdown(SharedString::from(format!("notes-{i}")), notes).into_any_element()
         }))
+    })
 }

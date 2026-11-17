@@ -159,13 +159,31 @@ impl Model {
         self.values.clone()
     }
 
-    /// Write saved settings back (after a firmware update reset them).
-    pub fn restore(&mut self, saved: &Values) {
-        for setting in settings::all() {
-            if let Some(v) = saved.get(&setting.value_id()) {
-                self.write(setting, v);
+    /// Write saved settings back (after a firmware update reset them), then read them back and retry
+    /// any that didn't take. Returns the ones that still differ: (id, wanted, got).
+    pub fn restore(&mut self, saved: &Values) -> Vec<(value::Id, Vec<u8>, Vec<u8>)> {
+        let mut wrong = Vec::new();
+        for attempt in 0..2 {
+            for setting in settings::all() {
+                if let Some(v) = saved.get(&setting.value_id()) {
+                    if attempt > 0 {
+                        self.values.remove(&setting.value_id()); // force the write
+                    }
+                    self.write(setting, v);
+                }
+            }
+            let Some(kb) = &self.keyboard else { break };
+            let now = read_all(kb);
+            wrong = saved
+                .iter()
+                .filter_map(|(id, want)| now.get(id).filter(|got| *got != want).map(|got| (*id, want.clone(), got.clone())))
+                .collect();
+            self.values = now;
+            if wrong.is_empty() {
+                break;
             }
         }
+        wrong
     }
 
     /// Open the keyboard and read every setting. Returns whether it is connected.

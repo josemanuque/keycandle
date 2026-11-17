@@ -30,9 +30,10 @@ static const pin_t position_pins[6] = {B9, B10, B11, B12, C0, C1}; /* far … ne
  * (dithering showed as visible pulsing there). The busy-waits take at most ~30 us of each
  * 330 us frame (all three colours very dim), and only while the side lights are on.
  */
-#define FRAME_TICKS TIME_US2I(330)
+#define FRAME_TICKS TIME_US2I(310) /* ~3.2 kHz (measured ~3.1): above IEEE 1789's 3 kHz "no observable effect" */
 #define MIN_TICKS 2                               /* shortest delay the system timer allows */
-#define MAX_TICKS ((FRAME_TICKS - MIN_TICKS) / 3) /* one colour at full balance and brightness */
+#define SWITCH_TICKS 2 /* room per colour for switching pins and running this code (~9 us measured) */
+#define MAX_TICKS ((FRAME_TICKS - MIN_TICKS - 3 * SWITCH_TICKS) / 3) /* one colour at full balance and brightness */
 #define FRACTION 256                              /* on-times are kept in 1/256 tick */
 
 /*
@@ -46,6 +47,7 @@ typedef struct {
     uint8_t  positions; /* lights on during this step */
 } step_t;
 
+
 #define GROUPS 3                 /* main lights + 2 indicators */
 #define MAX_STEPS (3 * 6) /* per colour: one step per light (position) switching off */
 
@@ -53,6 +55,7 @@ static step_t          steps[MAX_STEPS];
 static uint8_t         n_steps, step_idx;
 static uint8_t         lit_colour = 3; /* colour line currently on, 3 = none */
 static uint8_t         frame_used;     /* timer ticks used by this frame's steps */
+static systime_t       frame_start;    /* when this frame's first step began */
 static uint32_t        tail_loops;     /* busy-wait that finishes the current step */
 static uint32_t        loops_per_tick = 1;
 static virtual_timer_t frame_timer;
@@ -98,13 +101,83 @@ static void calibrate_spin(void) {
     loops_per_tick = ticks ? loops / ticks : 1;
 }
 
+
+/*
+ * Pin switching in whole-port writes. Every colour pulse must end the instant its time is up: with
+ * one call per pin (~0.7 us each here), switching red, green, blue off one after another kept green
+ * ~0.7 us and blue ~1.4 us longer than red. At low brightness, where pulses are ~1 us, that turned
+ * colours toward light blue. All three colour pins share a port, so they now switch in one write;
+ * the positions take one write per port. Masks are worked out from the pin lists in side_init().
+ */
+static ioportid_t colour_port;
+static uint32_t   colour_bits[3], colour_mask;
+#define POSITION_PORTS 2
+static ioportid_t position_port[POSITION_PORTS];
+static uint32_t   position_all[POSITION_PORTS]; /* every position pin on each port */
+static uint32_t   position_bit[6];
+static uint8_t    position_port_of[6];
+
+static void map_pins(void) {
+    colour_port = PAL_PORT(colour_pins[0]);
+    for (uint8_t c = 0; c < 3; c++) {
+        colour_bits[c] = 1u << PAL_PAD(colour_pins[c]);
+        colour_mask |= colour_bits[c];
+    }
+    uint8_t ports = 0;
+    for (uint8_t p = 0; p < 6; p++) {
+        ioportid_t port = PAL_PORT(position_pins[p]);
+        uint8_t    i    = 0;
+        while (i < ports && position_port[i] != port) i++;
+        if (i == ports) position_port[ports++] = port;
+        position_port_of[p] = i;
+        position_bit[p]     = 1u << PAL_PAD(position_pins[p]);
+        position_all[i] |= position_bit[p];
+    }
+}
+
 static void colour_off(void) {
-    for (uint8_t i = 0; i < 3; i++) gpio_write_pin_low(colour_pins[i]);
+    palClearPort(colour_port, colour_mask);
     lit_colour = 3;
 }
 
+static void colour_on(uint8_t c) {
+    palSetPort(colour_port, colour_bits[c]);
+    lit_colour = c;
+}
+
+/* Position lines are active low: a lit position is driven low. Always called while no colour is lit
+ * or to switch positions off, so its own time never adds light. */
 static void set_positions(uint8_t positions) {
-    for (uint8_t i = 0; i < 6; i++) gpio_write_pin(position_pins[i], !((positions >> i) & 1));
+    uint32_t lit[POSITION_PORTS] = {0};
+    for (uint8_t p = 0; p < 6; p++) {
+        if ((positions >> p) & 1) lit[position_port_of[p]] |= position_bit[p];
+    }
+    for (uint8_t i = 0; i < POSITION_PORTS; i++) {
+        palSetPort(position_port[i], position_all[i] & ~lit[i]);
+        palClearPort(position_port[i], lit[i]);
+    }
+}
+
+/* Diagnostics: how long one colour switch (all colours off, positions set, one colour on) takes, in
+ * delay-loop units, measured the same way as calibrate_spin(). Read through VIA value 53. */
+uint32_t          side_switch_loops;
+volatile uint32_t side_frames; /* side-light frames completed (diagnostics: frames per second) */
+uint32_t side_loops_per_tick(void) {
+    return loops_per_tick;
+}
+
+static void measure_switch(void) {
+    const uint16_t n = 2000;
+    chSysLock();
+    systime_t start = chVTGetSystemTimeX();
+    for (uint16_t i = 0; i < n; i++) {
+        colour_off();
+        set_positions(0);
+        palClearPort(colour_port, colour_bits[i % 3]); /* stands in for the "on" write, kept dark */
+    }
+    sysinterval_t ticks = chTimeDiffX(start, chVTGetSystemTimeX());
+    chSysUnlock();
+    side_switch_loops = (uint32_t)ticks * loops_per_tick / n;
 }
 
 static void step_tick(virtual_timer_t *vtp, void *p) {
@@ -117,18 +190,23 @@ static void step_tick(virtual_timer_t *vtp, void *p) {
     }
     for (;;) {
         if (step_idx >= n_steps) { /* all colours done: dark for the rest of the frame */
+            side_frames++;
             colour_off();
             step_idx = 0;
-            chVTSetI(vtp, FRAME_TICKS - frame_used, step_tick, NULL); /* >= MIN_TICKS, see MAX_TICKS */
+            /* The rest of the frame, from the time really used: short steps are busy-waited and every
+             * switch takes a few microseconds, which counting timer ticks alone missed (the frames ran
+             * ~20 % long: 2.5 kHz instead of 3). */
+            sysinterval_t used = chTimeDiffX(frame_start, chVTGetSystemTimeX());
+            chVTSetI(vtp, used + MIN_TICKS < FRAME_TICKS ? FRAME_TICKS - used : MIN_TICKS, step_tick, NULL);
             frame_used = 0;
             return;
         }
+        if (step_idx == 0) frame_start = chVTGetSystemTimeX();
         const step_t *s = &steps[step_idx++];
         if (s->colour != lit_colour) {
             colour_off(); /* never show the new positions in the old colour */
             set_positions(s->positions);
-            gpio_write_pin_high(colour_pins[s->colour]);
-            lit_colour = s->colour;
+            colour_on(s->colour);
         } else {
             set_positions(s->positions); /* same colour: one group switches off */
         }
@@ -236,8 +314,10 @@ void side_init(void) {
     gpio_write_pin_high(B8);
     for (uint8_t i = 0; i < 3; i++) gpio_set_pin_output(colour_pins[i]);
     for (uint8_t i = 0; i < 6; i++) gpio_set_pin_output(position_pins[i]);
+    map_pins();
     chVTObjectInit(&frame_timer);
     calibrate_spin();
+    measure_switch();
     frame_timer_run(false);
 }
 

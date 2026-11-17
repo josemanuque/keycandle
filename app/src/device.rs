@@ -89,17 +89,26 @@ impl Keyboard {
         Ok(answer)
     }
 
-    /// Write a packet and read the answer, whatever it is.
+    /// Write a packet and read its answer. VIA answers echo the request (command, and for custom
+    /// values the channel and id), so an answer that doesn't match is a stale one left over from
+    /// an earlier request: skip it, or values end up filed under the wrong setting.
     fn exchange(&self, data: &[u8]) -> Result<[u8; PACKET]> {
         let mut out = [0u8; PACKET + 1]; // report id 0 + packet
         out[1..1 + data.len()].copy_from_slice(data);
         self.dev.write(&out).context("USB write failed")?;
-        let mut answer = [0u8; PACKET];
-        let n = self.dev.read_timeout(&mut answer, TIMEOUT_MS).context("USB read failed")?;
-        if n == 0 {
-            bail!("the keyboard did not answer");
+        let echoed = if matches!(data[0], cmd::CUSTOM_GET_VALUE | cmd::CUSTOM_SET_VALUE) { 3 } else { 1 };
+        for _ in 0..4 {
+            let mut answer = [0u8; PACKET];
+            let n = self.dev.read_timeout(&mut answer, TIMEOUT_MS).context("USB read failed")?;
+            if n == 0 {
+                bail!("the keyboard did not answer");
+            }
+            let matches = answer[0] == cmd::UNHANDLED || answer[..echoed] == data[..echoed.min(data.len())];
+            if matches {
+                return Ok(answer);
+            }
         }
-        Ok(answer)
+        bail!("the keyboard's answers are out of step")
     }
 
     /// Read a value: returns its bytes (1 for most settings, 2 for colors: hue, saturation).

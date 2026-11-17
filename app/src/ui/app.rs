@@ -34,6 +34,8 @@ pub struct Configurator {
     /// Chosen in the Firmware page, waiting for "Install".
     pub(super) pending_install: Option<Source>,
     pub(super) show_all_releases: bool,
+    /// Releases whose notes are open in the Firmware page.
+    pub(super) open_notes: std::collections::HashSet<String>,
     /// Settings to put back once the keyboard returns from a firmware update.
     restore_after_update: Option<Values>,
     started: Instant,
@@ -50,6 +52,7 @@ impl Configurator {
             updater: Updater::default(),
             pending_install: None,
             show_all_releases: false,
+            open_notes: Default::default(),
             restore_after_update: None,
             started: Instant::now(),
         };
@@ -66,7 +69,7 @@ impl Configurator {
             return;
         }
         if let Some(saved) = self.restore_after_update.take() {
-            self.model.restore(&saved);
+            let _ = self.model.restore(&saved);
         }
         self.effect_group = EffectGroup::of(self.model.byte(value::KEY_EFFECT));
         self.controls = Controls::build(&self.model, window, cx);

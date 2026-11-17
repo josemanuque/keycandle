@@ -84,7 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pre=""
-          case "$GITHUB_REF_NAME" in *b | *-beta* | *-rc*) pre="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" out/* $pre --title "$GITHUB_REF_NAME" --generate-notes \
+          # Every release is a pre-release until v1.0. Notes come from the README's versions table.
+          notes=$(grep -F "| \`$GITHUB_REF_NAME\` |" README.md | head -1 | cut -d'|' -f3 | sed 's/^ *//; s/ *$//')
+          [ -n "$notes" ] || notes="See the README's versions table."
+          gh release create "$GITHUB_REF_NAME" out/* --prerelease --title "$GITHUB_REF_NAME" --notes "$notes" \
             || gh release upload "$GITHUB_REF_NAME" out/* --clobber

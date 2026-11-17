@@ -87,8 +87,8 @@ setting:
   side_brightness:
     label: Brilho
   side_follow_brightness:
-    label: Seguir o brilho do teclado
-    help: "Desligado: as luzes laterais mantêm o próprio brilho"
+    label: Mesmo brilho das teclas
+    help: "Desligado: as luzes laterais têm brilho próprio"
   side_red:
     label: Balanço de vermelho
     help: Compensa o difusor azulado
@@ -138,6 +138,7 @@ setting:
     label: Nível na bateria
 
 note:
+  side_brightness_follows: As luzes laterais usam o brilho das teclas. Desligue “Mesmo brilho das teclas” para definir um próprio.
   color_unused: Este efeito cria as próprias cores, então a cor não é usada. Os efeitos de “Sua cor” usam.
   speed_unused: Este efeito não se move, então não tem velocidade.
 
@@ -207,6 +208,10 @@ firmware:
   asking_github: Consultando o GitHub…
   github_failed: "Não foi possível obter a lista do GitHub: %{error}"
   show_older: Mostrar %{count} versões anteriores
+  show_fewer: Mostrar menos
+  whats_new: "Novidades"
+  hide_notes: Ocultar notas
+  no_notes: Esta versão não tem notas.
   stock_release: Firmware original (Royal Kludge V1.12)
   install: Instalar
   reinstall: Reinstalar

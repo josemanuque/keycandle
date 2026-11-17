@@ -24,6 +24,8 @@ pub struct Release {
     pub stock: bool,
     /// YYYY-MM-DD
     pub date: String,
+    /// The release notes (Markdown), as written on GitHub.
+    pub notes: String,
     firmware: Asset,
     sums: Option<Asset>,
 }
@@ -40,6 +42,7 @@ struct ApiRelease {
     prerelease: bool,
     draft: bool,
     published_at: Option<String>,
+    body: Option<String>,
     assets: Vec<Asset>,
 }
 
@@ -89,6 +92,7 @@ pub fn fetch() -> Result<Vec<Release>> {
             let sums = r.assets.iter().find(|a| a.name == SUMS_FILE).cloned();
             Some(Release {
                 date: r.published_at.as_deref().unwrap_or("").chars().take(10).collect(),
+                notes: r.body.unwrap_or_default().trim().to_string(),
                 prerelease: r.prerelease,
                 stock,
                 tag: r.tag_name,

@@ -2,7 +2,8 @@
 
 Reverse-engineered from the stock firmware `rk71_fw.bin` (V1.12) on 2026-11-06, using
 static disassembly only. Register meanings were checked against the SN32F240B datasheet v2.4.
-Nothing here has been confirmed on the live board yet. See "Not yet confirmed" at the bottom.
+Since v0.4 the QMK port drives the module with exactly this protocol (`keyboard/rk71_rgb/rk71_bt.c`), which
+confirms everything below on the live board except what's listed under "Still unknown" at the bottom.
 
 ## Physical link
 
@@ -31,7 +32,7 @@ GPIO register offsets (datasheet): DATA 0x00, MODE 0x04, BSET **0x24**, BCLR **0
 
 ## Packets SN32 → module
 
-| Header | Payload | Meaning (inferred) | Source buffer | Builder |
+| Header | Payload | Meaning (confirmed) | Source buffer | Builder |
 |---|---|---|---|---|
 | `A1` | 8 bytes | Boot keyboard report: mods, reserved, 6 keys | 0x2000015E | @0x5180 |
 | `A2` | 15 bytes | NKRO key bitmap (120 bits) | 0x20000318 | @0x520E |
@@ -41,16 +42,16 @@ GPIO register offsets (datasheet): DATA 0x00, MODE 0x04, BSET **0x24**, BCLR **0
 
 ### `A6` control commands
 
-| Bytes | Sent from | Likely meaning |
+| Bytes | Sent from | Meaning (confirmed, see the ITON table below) |
 |---|---|---|
 | `51 81` … `51 85` | 0x56CA–0x571A, and key handlers @0x2948, 0x37DA… | Select BT host/channel 1–5. The value is picked from bitmask `0x20000175` (1, 2, 4, 8, 16). |
-| `51 89` | @0x04A8, @0x0646 | Sent at startup or mode change. Possibly "enter BT mode" or wake. |
-| `51 70` | @0x57A2 | Unknown. Possibly start pairing or clear pairings. |
-| `58 01` | @0x5638 | Unknown. Possibly sleep, power, or battery related. |
+| `51 89` | @0x04A8, @0x0646 | Enter pairing on the current slot. |
+| `51 70` | @0x57A2 | Forget all pairings. |
+| `58 01` | @0x5638 | Wired (USB) mode: the module goes idle. |
 
 ## Packets module → SN32 (parser @0x5410)
 
-| Bytes | Effect in firmware | Likely meaning |
+| Bytes | Effect in firmware | Meaning (confirmed) |
 |---|---|---|
 | `B1 xx` | Low 3 bits stored to `0x200002B0` | Host LED state (Num/Caps/Scroll Lock) |
 | `B6 5A 06` | Starts timers (600 / 300 ticks), calls 0x5138 | Status event, e.g. pairing started |
@@ -96,12 +97,27 @@ The protocol is small, which makes a QMK Bluetooth driver realistic:
 - `B1` parsed for the Caps Lock LED
 - `A6 51 8x` for host switching
 
-## Not yet confirmed
+## Battery
 
-- What `51 89`, `51 70`, `58 01` and the `B6 5A xx` events mean.
-- How the module is powered or reset, and how the wired/BT slide switch (K3) is read.
-- Battery reporting.
+The module reports the battery as `B6 5A 04` / `02` / `01` (high / medium / low), plus `06` (low), `07` (shutting
+down) and `0A` (OK again). That is all: no voltage or percentage. The SN32 chip has no battery wire either (the
+stock firmware never touches its ADC), so a percentage would need a hardware change.
+
+## What the computer sees over Bluetooth (tested on Windows, 2026-11-17)
+
+* Classic Bluetooth HID (profile `0x1124`), reported as `05AC:024F` (the module's own ID, not the QMK one).
+* Seven HID collections: 2 keyboards, 4 consumer (media keys), 1 system control. No vendor-defined collection
+  and no feature reports, so VIA's channel has no Bluetooth equivalent.
+* The only computer-to-keyboard data is the lock-LED output report (forwarded to the SN32 as `B1 xx`):
+  * `HidD_SetOutputReport` from an app: refused (Windows keeps keyboards for itself).
+  * `IOCTL_KEYBOARD_SET_INDICATORS` on the keyboard's own interface (`GUID_DEVINTERFACE_KEYBOARD`): **works**,
+    no admin rights, only that keyboard's LEDs change (not the Caps/Num/Scroll lock state). This is the basis
+    for one-way settings over Bluetooth in v0.9.
+* The media and system collections can be opened and read by apps, a possible keyboard-to-computer path (untested).
+* Firmware updates over Bluetooth: no. The ROM bootloader is USB-only.
+
+## Still unknown
+
+- How the module is powered or reset (A6/A7 are held low as on stock; their role isn't traced).
 - Whether P0.15 (configured as an input) is involved.
-
-To confirm all of this, capture P0.0–P0.5 with a cheap 8-channel logic analyzer while pairing,
-typing, switching hosts and toggling Caps Lock in Bluetooth mode.
+- Whether the module forwards more than the 3 lock bits of `B1 xx` (Compose, Kana).

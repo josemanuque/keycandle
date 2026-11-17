@@ -4,7 +4,7 @@ An open-source replacement for the Royal Kludge RK71 RGB's factory firmware, bui
 [QMK](https://qmk.fm) (SonixQMK fork). You configure it live from the browser with [VIA](https://usevia.app),
 on any OS, with no vendor software.
 
-This guide describes the latest version (`main`, currently **v0.7b**). The change history is in the
+This guide describes the latest version (`main`, currently **v0.8.1b**). The change history is in the
 [README](../README.md#branches-and-versions).
 
 * [Stock vs this firmware](#stock-vs-this-firmware)
@@ -27,7 +27,7 @@ This guide describes the latest version (`main`, currently **v0.7b**). The chang
 | Configuration | Royal Kludge's Windows app only | VIA in any Chromium browser (Windows, macOS, Linux), live, no install |
 | Remapping | What the RK app allows | Every key on every layer, 5 layers, macros, any QMK keycode |
 | Lighting | Built-in effects, custom per-key colours in the RK app | 19 QMK effects + solid colour, hue/saturation/speed in VIA |
-| Key light refresh | Not measured | ~1430 Hz, above the 1250 Hz that IEEE 1789 rates low-risk for flicker ([details](#lighting)) |
+| Light refresh | Not measured | Keys ~1.4 kHz, side lights ~3.1 kHz, measured; inside IEEE 1789's flicker guidance ([details](#lighting)) |
 | Bluetooth | 5 devices (Fn+Q…T) | Same keys, same 5 devices, plus automatic wired/Bluetooth from the cable |
 | Side lights | Status only | Follow keyboard colour / fixed colour / off, 5 effects, own brightness, Caps Lock and F-row lock indicators, status overlay, per-light calibration |
 | Battery level | – | Fn+Space shows a 1/3/6-light bar on the side lights |
@@ -115,7 +115,8 @@ modes.
 ## Wired and Bluetooth
 
 * **Unplugged:** always Bluetooth (slide switch on).
-* **Plugged in:** wired, unless you picked Bluetooth with Fn+P or Fn+Q…T. That choice is remembered.
+* **Plugged in:** wired, unless you picked Bluetooth with Fn+P or Fn+Q…T. That choice is remembered. In Bluetooth
+  mode with the cable plugged in, VIA and the configurator still work over the cable (since v0.8).
   Unplugging and plugging in switches automatically: the firmware senses the cable.
 * **Pair a new computer:**
   1. Hold Fn + Q (or W/E/R/T) for 3 s. The side lights blink blue quickly.
@@ -125,6 +126,14 @@ modes.
 * **Forget everything:** hold Fn+Backspace 3 s. The side lights flash red.
 
 The slide switch only connects the battery. With it off, the keyboard works over the cable only.
+
+**Battery level:** the Bluetooth module reports only high, medium or low (and "low" / "shutting down" warnings),
+shown with Fn+Space and on the configurator's Power page. There is no percentage: the module doesn't send one
+and the chip has no wire to the battery. Windows can't show one either (the keyboard uses classic Bluetooth).
+
+**Settings over Bluetooth** aren't possible yet: the module offers only keyboard and media interfaces, with no
+data channel like VIA's. Use the cable for VIA and the configurator; the keyboard keeps every setting when you
+unplug. A one-way way to send settings over Bluetooth is planned for v0.9 (see the README's roadmap).
 
 ## Lighting
 
@@ -141,9 +150,10 @@ with Fn+\\ or in VIA, where you also get hue, saturation, brightness and speed.
   with the next key press. It also turns off when the battery reports critically low. VIA can also dim it on
   battery.
 * **No visible flicker:** the keys are lit one colour row at a time (5 key rows x red/green/blue), so each LED is
-  switched fully on and off very fast. This firmware does it ~1430 times a second (QMK's driver managed 165), above
+  switched fully on and off very fast. This firmware does it ~1400 times a second (QMK's driver managed 165), above
   the 1250 Hz that IEEE 1789 rates as low-risk for full on/off flicker, so colours don't split apart when your eyes
-  move. `rk71-configurator --probe` shows the measured rate.
+  move. The side lights cycle at ~3100 Hz, above the 3000 Hz that IEEE 1789 rates as having no observable effect.
+  Both are measured on the board: `rk71-configurator --probe` (keys) and `--get 0 53 6` (side lights).
 
 ### Battery saving
 
@@ -171,8 +181,26 @@ The two edge strips have 6 lights each (light 1 = far end, 6 = nearest you). Bot
 thing.
 
 **Normally** they follow the keyboard's colour, at the keyboard's brightness, and go off when the lighting is off.
-In VIA you can pick a fixed colour or turn them off, give them their own brightness, and choose an effect:
-static, breathing, colour cycle, type pulse (brightens as you type) or wave, with its own speed.
+In VIA or the app you can pick a fixed colour or turn them off, and choose an effect: static, breathing, colour
+cycle, type pulse (brightens as you type) or wave, with its own speed. **Same brightness as the keys** (on by
+default) uses the keys' brightness; turn it off to give them their own (the slider appears then).
+
+**How they work:** each light has separate red, green and blue chips, and the left and right light at the same
+position share one switch. To show a colour, the firmware lights red, then green, then blue, each for a share of
+a ~0.32 ms frame, about 3100 times a second; the eye mixes them. The on-times set the colour and the brightness.
+
+### Side-light colour limitations
+
+The side lights can't show colours as exactly as the keys:
+
+* **Mixed colours are approximate**, most at low brightness. There a colour's share can be about a microsecond,
+  and LEDs don't light in exact proportion to such short pulses, so a colour can lean a little toward one hue.
+  Pure red, green or blue look the most accurate.
+* **Lights differ from each other**: some look brighter or whiter than others. Every LED's chips are slightly
+  different, and the diffuser in front of them is bluish. The per-light trims (VIA, *Calibration*) even this out
+  a little, but a left and right light share a switch, so they can't be trimmed separately.
+* **Colour balance is personal:** it depends on the board and your eyes. On the author's board, **Red 31, Green 3,
+  Blue 5** (with the low-brightness correction at 0 / 8 / 5) looked the most natural. The defaults are 31 / 15 / 23.
 
 **Indicators** (VIA, *Indicators*): Caps Lock on the nearest light and F-row lock on the farthest one, each in a
 colour you pick. They show while the lighting is on or you're typing.
@@ -221,8 +249,7 @@ You get:
 * **Side lights:**
   * **Colour:** Follow keyboard / Fixed colour / Off (and which fixed colour)
   * **Effect** and **Effect speed**
-  * **Brightness:** 0–31 (default 2, a soft glow). With *Brightness follows the keyboard* on, it is multiplied by
-    the keyboard's own brightness; off, it stays fixed.
+  * **Same brightness as the keys** (default on), or **Brightness** 0–31 of their own when it's off
   * **Red / Green / Blue:** 0–31 each. The side lights sit behind a bluish diffuser, and these sliders balance it
     out. Defaults are 31 / 15 / 23, tuned by eye on a real board.
   * **Show status**, **Status brightness**, **Status colour** (wired, Bluetooth)

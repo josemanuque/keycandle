@@ -547,11 +547,12 @@ static bool side_status(uint32_t now, uint8_t *pos, rgb_t *col) {
 
 static bool on_battery(void);
 
-/* Side-light brightness 0..255: the setting, times the keyboard's brightness unless the side lights
- * have their own. */
+/* Side-light brightness 0..255: the keys' brightness while "Same brightness as the keys" is on,
+ * otherwise their own setting. */
 static uint8_t side_level(void) {
-    uint32_t level = SIDE_BRIGHT_V * 255 / 31;
-    if (!(kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS)) level = level * rgb_matrix_get_val() / RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+    uint32_t level = (kb_extra.side_flags & SIDE_FLAG_OWN_BRIGHTNESS) ? SIDE_BRIGHT_V * 255 / 31
+                                                                      : (uint32_t)rgb_matrix_get_val() * 255 / RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+    if (level > 255) level = 255;
     if (on_battery() && (kb_extra.power_flags & POWER_FLAG_DIM_ON_BATTERY)) level = level * DIM_LEVEL_V / 31;
     return level > 255 ? 255 : level;
 }
@@ -738,11 +739,16 @@ static void power_task(uint32_t now) {
 extern volatile uint32_t sn32f2xx_rows_lit, sn32f2xx_wait_sum, sn32f2xx_switch_sum;
 extern volatile uint16_t sn32f2xx_switch_max;
 static uint16_t          led_row_rate, led_wait_avg, led_switch_avg;
+extern volatile uint32_t side_frames;
+static uint16_t          side_frame_rate; /* side-light frames per second (each lights every colour once) */
 
 static void measure_led_rate(uint32_t now) {
     static uint32_t since, rows_then;
     if (TIMER_DIFF_32(now, since) < 1000) return;
-    static uint32_t sum_then, wait_then;
+    static uint32_t sum_then, wait_then, frames_then;
+    uint32_t        frames = side_frames;
+    side_frame_rate        = (frames - frames_then) * 1000 / TIMER_DIFF_32(now, since);
+    frames_then            = frames;
     uint32_t        rows = sn32f2xx_rows_lit, sum = sn32f2xx_switch_sum, wait = sn32f2xx_wait_sum;
     uint32_t        rate = (rows - rows_then) * 1000 / TIMER_DIFF_32(now, since);
     led_row_rate         = rate > UINT16_MAX ? UINT16_MAX : rate;
@@ -1028,6 +1034,7 @@ enum {
     ID_LED_ROW_RATE = 50, /* key LED colour rows lit per second (refresh = this / 15) */
     ID_LED_SWITCH   = 51, /* row switch time, average and longest since last read (timer ticks) */
     ID_STATE        = 52, /* change counter, mode, device, link, battery, flags (see state_report) */
+    ID_SIDE_TIMING  = 53, /* diagnostics: side-light delay loops per tick, loops per colour switch */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1139,6 +1146,17 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     value[1] = led_row_rate & 0xFF;
                     break;
                 case ID_STATE: state_report(value); break;
+                case ID_SIDE_TIMING: {
+                    extern uint32_t side_switch_loops;
+                    uint32_t        lpt = side_loops_per_tick();
+                    value[0] = lpt >> 8;
+                    value[1] = lpt & 0xFF;
+                    value[2] = side_switch_loops >> 8;
+                    value[3] = side_switch_loops & 0xFF;
+                    value[4] = side_frame_rate >> 8;
+                    value[5] = side_frame_rate & 0xFF;
+                    break;
+                }
                 case ID_LED_SWITCH:
                     value[0] = led_switch_avg >> 8;
                     value[1] = led_switch_avg & 0xFF;
