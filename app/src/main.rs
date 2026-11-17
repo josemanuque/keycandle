@@ -68,16 +68,16 @@ fn probe() -> Result<()> {
             println!("Key LEDs: {rows} rows/s = {:.0} Hz refresh, {:.1} us per row", rows / 15.0, 1e6 / rows);
             if let Ok(s) = kb.get(CHANNEL_KEYBOARD, 51, 6) {
                 let ticks = |i: usize| u16::from_be_bytes([s[i], s[i + 1]]) as f32;
-                let (done, latest, start) = (ticks(0), ticks(2), ticks(4));
-                // A row is 200 timer ticks; the switch runs from `start` to `done` ticks into it.
-                let tick_us = 1e6 / rows / 200.0;
-                let dark = (done - start).max(0.0);
+                let (gap, max, wait) = (ticks(0), ticks(2), ticks(4));
+                // A row is 200 timer ticks lit, then the gap (the timer waits for the switch).
+                let tick_us = 1e6 / rows / (200.0 + gap);
                 println!(
-                    "Row switch: starts {:.1} us into the row, dark {:.1} us (latest end {:.1} us); lit {:.0}% of the time",
-                    start * tick_us,
-                    dark * tick_us,
-                    latest * tick_us,
-                    (200.0 - dark) / 200.0 * 100.0
+                    "Gap between rows: {:.1} us ({:.1} us until the switch starts, {:.1} us switching), longest {:.1} us; lit {:.0}% of the time",
+                    gap * tick_us,
+                    wait * tick_us,
+                    (gap - wait) * tick_us,
+                    max * tick_us,
+                    200.0 / (200.0 + gap) * 100.0
                 );
             }
         }

@@ -22,15 +22,16 @@
 /*
  * Key LED refresh rate. The LED driver (sn32f2xx.c) lights one colour row at a time (15 rows: 5 key
  * rows x R/G/B), each for one PWM period of max_brightness (200) timer ticks plus the switch to the
- * next row, and derives the tick rate from HUE_STEP * SAT_STEP * VAL_STEP * SPD_STEP *
- * LED_PROCESS_LIMIT (= 32768 * the limit), rounded by the 48 MHz timer prescaler.
+ * next row (~21 us measured), and derives the tick rate from HUE_STEP * SAT_STEP * VAL_STEP *
+ * SPD_STEP * LED_PROCESS_LIMIT (= 32768 * the limit), rounded by the timer prescaler (48 MHz / n).
  *
- * The default limit (15) gave 165 Hz. 120 gives a 4 MHz tick: 50 us rows plus the ~32 us switch,
- * measured on the RK71 at ~800 Hz with the keys lit ~61% of the time (`rk71-configurator --probe`).
- * IEEE 1789 rates full-modulation flicker as low-risk from 1250 Hz; getting there without dimming
- * needs a shorter switch (see sn32f2xx.c).
+ * IEEE 1789 rates flicker at full modulation (the LEDs go fully off between rows) as low-risk from
+ * 1250 Hz. 200 asks for 6.55 MHz, which the prescaler makes 48 MHz / 7 = 6.86 MHz: 29 us lit + ~21 us
+ * switch = ~50 us rows, ~1330 Hz per LED. (The default limit, 15, gave 165 Hz. Measure with
+ * `rk71-configurator --probe`. The limit itself only means the effects compute all 71 LEDs per pass
+ * instead of a fifth at a time.)
  */
-#define RGB_MATRIX_LED_PROCESS_LIMIT 120
+#define RGB_MATRIX_LED_PROCESS_LIMIT 200
 
 /* Out-of-the-box lighting: solid white. Only used when the settings storage is reset
  * (first boot or an EEPROM clear); saved settings take priority. */

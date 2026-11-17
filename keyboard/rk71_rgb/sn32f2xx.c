@@ -171,8 +171,10 @@ static void rgb_callback(PWMDriver *pwmp) {
         if (current_row % SN32F2XX_RGB_MATRIX_ROW_CHANNELS == 2) current_key_row++;
         if (current_key_row == SN32F2XX_RGB_MATRIX_ROWS) current_key_row = 0;
 
-        /* Key scan: hand the column pins back to the GPIO block for the read. */
-        if (!matrix_scanned) {
+        /* Key scan, once per key row (when it changes, every third colour row): hand the column pins
+         * back to the GPIO block for the read. A full pass still takes only ~1 ms. */
+        bool scanned = !matrix_scanned && current_key_row != last_key_row;
+        if (scanned) {
             SN32_CT16B1->pwm.PWMIOENB &= ~col_pwm_io_mask;
             scan_keys(current_key_row, last_key_row);
         }
@@ -182,7 +184,7 @@ static void rgb_callback(PWMDriver *pwmp) {
         for (uint8_t col = 0; col < SN32F2XX_RGB_MATRIX_COLS; col++) {
             *col_duty_reg[col] = duty[col];
         }
-        SN32_CT16B1->pwm.PWMIOENB |= col_pwm_io_mask;
+        if (scanned) SN32_CT16B1->pwm.PWMIOENB |= col_pwm_io_mask; /* columns back to the PWM */
 
         if (row_lit[current_row]) {
             gpio_write_pin_high(led_row_pins[current_row]);
@@ -197,6 +199,16 @@ static void rgb_callback(PWMDriver *pwmp) {
     pwm_lld_change_counter(pwmp, UINT16_MAX); /* wraps on the next tick: the new row starts now */
 }
 
+/* The timer's interrupt, handled here directly (SN32_CT16B1_SUPPRESS_ISR in mcuconf.h): the only
+ * source enabled on CT16B1 is the end-of-row match. */
+OSAL_IRQ_HANDLER(SN32_CT16B1_HANDLER) {
+    OSAL_IRQ_PROLOGUE();
+    uint32_t ris          = SN32_CT16B1->irq.RIS;
+    SN32_CT16B1->irq.IC   = ris;
+    if (ris & mskCT16_MRnIF(PWM_CHANNELS)) rgb_callback(&PWMD1);
+    OSAL_IRQ_EPILOGUE();
+}
+
 void sn32f2xx_init(void) {
     for (uint8_t x = 0; x < SN32F2XX_RGB_MATRIX_ROWS_HW; x++) {
         gpio_set_pin_output_push_pull(led_row_pins[x]);
@@ -205,6 +217,7 @@ void sn32f2xx_init(void) {
     rgb_ch_ctrl(&pwmcfg);
     memset(shared_matrix, 0, sizeof(shared_matrix));
     pwmStart(&PWMD1, &pwmcfg);
+    nvicEnableVector(SN32_CT16B1_NUMBER, SN32_PWM_CT16B1_IRQ_PRIORITY); /* ChibiOS leaves this to us */
     pwmcfg.callback = rgb_callback;
     pwmEnablePeriodicNotification(&PWMD1);
 }
