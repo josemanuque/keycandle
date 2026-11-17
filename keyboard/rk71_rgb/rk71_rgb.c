@@ -794,6 +794,7 @@ static void watch_state(uint32_t now) {
     }
 }
 
+#ifdef VIA_ENABLE /* read by the configurator over VIA */
 static void state_report(uint8_t *value) {
     value[0] = state_changes;
     value[1] = on_bluetooth();      /* 0 wired, 1 Bluetooth */
@@ -802,6 +803,7 @@ static void state_report(uint8_t *value) {
     value[4] = battery_level;       /* 0 unknown, 1 low, 2 medium, 3 high */
     value[5] = state_flags();
 }
+#endif
 
 void housekeeping_task_kb(void) {
     uint32_t now = timer_read32();

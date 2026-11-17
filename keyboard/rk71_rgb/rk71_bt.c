@@ -187,7 +187,9 @@ void rk71_bt_task(void) {
 /* VIA (and the configurator) talk to the keyboard over USB only: the Bluetooth module has no data
  * channel. In Bluetooth mode with the cable plugged in, QMK still routes the replies to the Bluetooth
  * host driver, where they were dropped and VIA stopped answering. Send them back over USB. */
+#ifdef RAW_ENABLE /* VIA keymap; the default keymap has no raw HID */
 void bluetooth_send_raw_hid(uint8_t *data, uint8_t length) {
     extern host_driver_t chibios_driver;
     chibios_driver.send_raw_hid(data, length);
 }
+#endif
