@@ -7,9 +7,11 @@
 //!   rk71-configurator --isp-info read the bootloader's chip id and flash checksum (read-only)
 //!   rk71-configurator --leave-flash-mode   start the firmware from the bootloader
 
-mod colour;
+mod color;
 mod device;
+mod i18n;
 mod isp;
+mod prefs;
 mod preview;
 mod releases;
 mod settings;
@@ -17,9 +19,13 @@ mod ui;
 mod updater;
 
 use anyhow::Result;
+
+// Translations in locales/*.yml, compiled in; see i18n.rs.
+rust_i18n::i18n!("locales", fallback = "en");
 use device::{Keyboard, CHANNEL_KEYBOARD, CHANNEL_RGB_MATRIX};
 
 fn main() -> Result<()> {
+    i18n::init();
     match std::env::args().nth(1).as_deref() {
         Some("--probe") => probe(),
         Some("--releases") => list_releases(),
@@ -46,7 +52,7 @@ fn probe() -> Result<()> {
         Err(e) => println!("Firmware version: ({e})"),
     }
     println!(
-        "Key lighting: brightness {:?} effect {:?} speed {:?} colour (hue, sat) {:?}",
+        "Key lighting: brightness {:?} effect {:?} speed {:?} color (hue, sat) {:?}",
         kb.get(CHANNEL_RGB_MATRIX, 1, 1)?,
         kb.get(CHANNEL_RGB_MATRIX, 2, 1)?,
         kb.get(CHANNEL_RGB_MATRIX, 3, 1)?,

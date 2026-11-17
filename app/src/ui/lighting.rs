@@ -12,48 +12,50 @@ use super::layout::{columns, keyboard_scale, GAP};
 use super::settings_page;
 use super::widgets::{badge, card, card_title, muted, segment, segmented};
 use crate::preview::{self, effects};
-use crate::settings::{self, value, COLOUR_EFFECTS, KEY_EFFECTS, LIGHTING, MULTICOLOUR_EFFECTS, TYPING_EFFECTS};
+use crate::settings::{self, effect_name, value, COLOR_EFFECTS, LIGHTING, MULTICOLOR_EFFECTS, TYPING_EFFECTS};
+use crate::tr;
 
 /// The two kinds of key effect.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum EffectGroup {
     #[default]
-    YourColour,
-    Multicolour,
+    YourColor,
+    Multicolor,
 }
 
 impl EffectGroup {
-    const ALL: [EffectGroup; 2] = [EffectGroup::YourColour, EffectGroup::Multicolour];
+    const ALL: [EffectGroup; 2] = [EffectGroup::YourColor, EffectGroup::Multicolor];
 
     pub fn of(effect: u8) -> Self {
-        if MULTICOLOUR_EFFECTS.contains(&effect) { EffectGroup::Multicolour } else { EffectGroup::YourColour }
+        if MULTICOLOR_EFFECTS.contains(&effect) { EffectGroup::Multicolor } else { EffectGroup::YourColor }
     }
 
     fn effects(self) -> &'static [u8] {
         match self {
-            EffectGroup::YourColour => COLOUR_EFFECTS,
-            EffectGroup::Multicolour => MULTICOLOUR_EFFECTS,
+            EffectGroup::YourColor => COLOR_EFFECTS,
+            EffectGroup::Multicolor => MULTICOLOR_EFFECTS,
         }
     }
 
-    fn label(self) -> &'static str {
+    fn key(self) -> &'static str {
         match self {
-            EffectGroup::YourColour => "Your colour",
-            EffectGroup::Multicolour => "Multicolour",
+            EffectGroup::YourColor => "your_color",
+            EffectGroup::Multicolor => "multicolor",
         }
     }
 
-    fn hint(self) -> &'static str {
-        match self {
-            EffectGroup::YourColour => "These use the colour you pick: solid, or shades and waves of it.",
-            EffectGroup::Multicolour => "These make their own colours (rainbows, rain, heat), so the colour isn't used.",
-        }
+    fn label(self) -> String {
+        crate::i18n::text(&format!("lighting.group.{}", self.key()))
+    }
+
+    fn hint(self) -> String {
+        crate::i18n::text(&format!("lighting.group.{}_hint", self.key()))
     }
 
     fn icon(self) -> Icon {
         Icon::empty().path(match self {
-            EffectGroup::YourColour => "icons/palette.svg",
-            EffectGroup::Multicolour => "icons/rainbow.svg",
+            EffectGroup::YourColor => "icons/palette.svg",
+            EffectGroup::Multicolor => "icons/rainbow.svg",
         })
     }
 }
@@ -61,9 +63,11 @@ impl EffectGroup {
 /// Smallest gallery thumbnail.
 const MIN_THUMB: f32 = 150.0;
 const THUMB_GAP: f32 = 10.0;
-/// Card padding (p_5) on both sides, and the preview card's (p_4).
-const CARD_PAD: f32 = 2.0 * 20.0;
-const PREVIEW_PAD: f32 = 2.0 * 16.0;
+/// Card padding (p_5) and border on both sides, and the preview card's (p_4).
+const CARD_PAD: f32 = 2.0 * (20.0 + 1.0);
+const PREVIEW_PAD: f32 = 2.0 * (16.0 + 1.0);
+/// Thumbnail padding (p_2) and border on both sides.
+const THUMB_PAD: f32 = 2.0 * (8.0 + 1.0);
 
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
@@ -97,8 +101,8 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
 pub fn live_preview(app: &Configurator, theme: &Theme, width: f32, caption: bool) -> Div {
     let t = app.clock_ms();
     let effect = app.model.byte(value::KEY_EFFECT);
-    let keys = effects::key_colours(effect as usize, &app.model.key_scene(t));
-    let side = effects::side_colours(&app.model.side_scene(t));
+    let keys = effects::key_colors(effect as usize, &app.model.key_scene(t));
+    let side = effects::side_colors(&app.model.side_scene(t));
     let scale = keyboard_scale(width - PREVIEW_PAD, 1.4);
     card(theme)
         .w(px(width))
@@ -111,9 +115,9 @@ pub fn live_preview(app: &Configurator, theme: &Theme, width: f32, caption: bool
                 h_flex()
                     .gap_2()
                     .text_sm()
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(KEY_EFFECTS.get(effect as usize).copied().unwrap_or("?")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).child(effect_name(effect as usize)))
                     .child(div().text_color(theme.muted_foreground).child(if effect == 0 {
-                        "Lighting off".to_string()
+                        tr!("lighting.lighting_off")
                     } else {
                         format!("· {}", EffectGroup::of(effect).label())
                     })),
@@ -124,7 +128,7 @@ pub fn live_preview(app: &Configurator, theme: &Theme, width: f32, caption: bool
 fn effect_picker(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context<Configurator>) -> Div {
     let t = app.clock_ms();
     let scene = app.model.key_scene(t);
-    let side = effects::side_colours(&app.model.side_scene(t));
+    let side = effects::side_colors(&app.model.side_scene(t));
     let current = app.model.byte(value::KEY_EFFECT);
     let group = app.effect_group;
     let view = cx.entity().downgrade();
@@ -144,7 +148,7 @@ fn effect_picker(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context
     }));
 
     let (_, thumb_width) = columns(width - CARD_PAD, MIN_THUMB, THUMB_GAP);
-    let thumb_scale = keyboard_scale(thumb_width - 16.0, 1.0);
+    let thumb_scale = keyboard_scale(thumb_width - THUMB_PAD, 1.0);
     let thumbs = group.effects().iter().map(|&effect| {
         let view = view.clone();
         let chosen = effect == current;
@@ -162,21 +166,28 @@ fn effect_picker(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context
             .on_click(move |_, window, cx| {
                 let _ = view.update(cx, |this, cx| this.choose(&settings::KEY_EFFECT, effect as usize, window, cx));
             })
-            .child(preview::keyboard(thumb_scale, &effects::key_colours(effect as usize, &scene), &side))
+            .child(preview::keyboard(thumb_scale, &effects::key_colors(effect as usize, &scene), &side))
             .child(
                 h_flex()
-                    .justify_between()
+                    .w_full()
                     .gap_1()
-                    .child(div().text_xs().font_weight(FontWeight::MEDIUM).child(KEY_EFFECTS[effect as usize]))
-                    .when(TYPING_EFFECTS.contains(&effect), |el| el.child(badge(theme, "Typing"))),
+                    .child(div().flex_1().min_w_0().truncate().text_xs().font_weight(FontWeight::MEDIUM).child(effect_name(effect as usize)))
+                    .when(TYPING_EFFECTS.contains(&effect), |el| el.child(badge(theme, tr!("lighting.typing")))),
             )
     });
 
     card(theme)
         .w(px(width))
         .gap_3()
-        .child(h_flex().justify_between().items_center().child(card_title("Effects")).child(muted(theme, "Shown with your colour and speed")))
+        .child(
+            h_flex()
+                .justify_between()
+                .items_center()
+                .gap_3()
+                .child(card_title(tr!("lighting.effects")))
+                .child(muted(theme, tr!("lighting.effects_hint")).truncate()),
+        )
         .child(tabs)
         .child(muted(theme, group.hint()))
-        .child(h_flex().flex_wrap().gap(px(THUMB_GAP)).children(thumbs.collect::<Vec<_>>()))
+        .child(h_flex().w_full().flex_wrap().gap(px(THUMB_GAP)).children(thumbs.collect::<Vec<_>>()))
 }

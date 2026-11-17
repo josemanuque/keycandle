@@ -3,17 +3,18 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{div, prelude::*, px, AnyElement, Context, FontWeight, Window};
+use gpui::{canvas, div, prelude::*, px, AnyElement, Context, FontWeight, Window};
 use gpui_component::{h_flex, v_flex, ActiveTheme as _};
 
 use super::controls::Controls;
-use super::layout::Layout;
+use super::layout::{Layout, MAX_CONTENT};
 use super::lighting::EffectGroup;
-use super::model::{Model, Values};
+use super::model::{Connection, Model, Values};
 use super::page::Page;
 use super::widgets::muted;
 use super::{firmware, lighting, overview, settings_page, sidebar};
 use crate::settings::{value, Setting};
+use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
 
 /// How often the connection is checked.
@@ -135,6 +136,15 @@ impl Configurator {
         self.controls.show_choice(setting, index, window, cx);
     }
 
+    /// Switch the app's language; controls are rebuilt so their option lists follow.
+    pub fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
+        i18n::set(code);
+        if self.model.is_connected() {
+            self.controls = Controls::build(&self.model, window, cx);
+        }
+        cx.notify();
+    }
+
     /// Ask before installing firmware.
     pub fn request_install(&mut self, source: Source, cx: &mut Context<Self>) {
         self.pending_install = Some(source);
@@ -160,17 +170,16 @@ impl Configurator {
             return firmware::render(self, cx); // works without a connection too
         }
         if !self.model.is_connected() {
-            let text = if self.model.in_flash_mode() {
-                "The keyboard is in flash mode. Open Firmware to install an update or leave flash mode."
-            } else if self.model.on_stock_firmware() {
-                "The keyboard has its original Royal Kludge firmware, which this app can't configure. Open Firmware to install this project's firmware."
-            } else {
-                "The keyboard isn't connected over USB."
+            let (text, detail) = match self.model.connection() {
+                Connection::FlashMode => (tr!("connection.page_flash_mode"), None),
+                Connection::Stock => (tr!("connection.page_stock"), None),
+                Connection::Missing(reason) => (tr!("connection.page_not_connected"), Some(reason.clone())),
+                _ => (tr!("connection.page_not_connected"), None),
             };
             return v_flex()
                 .gap_3()
                 .child(div().child(text))
-                .child(muted(&theme, self.model.status().to_string()))
+                .when_some(detail, |el, detail| el.child(muted(&theme, detail)))
                 .into_any_element();
         }
         match self.page {
@@ -183,10 +192,26 @@ impl Configurator {
 }
 
 impl Render for Configurator {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.layout = Layout::for_window(f32::from(window.viewport_size().width));
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let page = self.render_page(cx);
+        // Measure the room the page really gets; pages size their columns and previews from it.
+        let view = cx.entity().downgrade();
+        let measure = canvas(
+            move |bounds, _, cx| {
+                let width = f32::from(bounds.size.width);
+                cx.defer(move |cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        if this.layout.set_width(width) {
+                            cx.notify();
+                        }
+                    });
+                });
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
         h_flex()
             .size_full()
             .bg(theme.background)
@@ -201,8 +226,8 @@ impl Render for Configurator {
                     .p_8()
                     .gap_2()
                     .child(div().text_3xl().font_weight(FontWeight::SEMIBOLD).child(self.page.title()))
-                    .child(div().pb_4().max_w(px(self.layout.width)).text_color(theme.muted_foreground).child(self.page.subtitle()))
-                    .child(page),
+                    .child(div().pb_4().text_color(theme.muted_foreground).child(self.page.subtitle()))
+                    .child(div().relative().w_full().max_w(px(MAX_CONTENT)).child(measure).child(page)),
             )
     }
 }

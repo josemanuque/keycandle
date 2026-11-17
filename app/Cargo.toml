@@ -11,10 +11,13 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+dirs = "6"
 hidapi = "2.6"
+rust-i18n = "4.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+sys-locale = "0.3"
 ureq = "2"
 # GPUI (Zed's UI framework) as packaged for gpui-component, which provides the widgets
 gpui = { package = "gpui-pre", version = "=0.3.12" }

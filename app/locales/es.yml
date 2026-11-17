@@ -1,0 +1,233 @@
+# Español. Mirrors en.yml key for key.
+_version: 1
+
+app:
+  name: RK71 Configurator
+  subtitle: Firmware QMK
+  language: Idioma
+
+page:
+  overview:
+    title: Resumen
+    subtitle: Todo el teclado en un solo lugar. Los cambios se aplican al instante y se guardan en el teclado.
+  lighting:
+    title: Iluminación
+    subtitle: Elige un efecto para verlo aquí y en el teclado. Los cambios se guardan cuando dejas de ajustar.
+  keys:
+    title: Teclas e indicadores
+    subtitle: Cómo se muestran los bloqueos y qué resalta Fn. Windows/Mac se recuerda por dispositivo (Fn + A / Fn + S).
+  power:
+    title: Energía
+    subtitle: El ahorro de batería aplica en Bluetooth sin el cable. Conectado, el teclado nunca se duerme.
+  firmware:
+    title: Firmware
+    subtitle: Actualiza el firmware del teclado o vuelve al original.
+
+connection:
+  connected: Conectado
+  flash_mode: Modo de flasheo
+  stock: Firmware original
+  not_connected: Desconectado
+  usb: USB · protocolo VIA %{version}
+  unplugged: Desconectado. Esperando el teclado…
+  flash_mode_detail: En modo de flasheo (bootloader)
+  stock_detail: Firmware original de Royal Kludge
+  write_failed: "No se pudo escribir: %{error}"
+  page_not_connected: El teclado no está conectado por USB.
+  page_flash_mode: El teclado está en modo de flasheo. Abre Firmware para instalar una actualización o salir del modo de flasheo.
+  page_stock: El teclado tiene su firmware original de Royal Kludge, que esta app no puede configurar. Abre Firmware para instalar el firmware de este proyecto.
+
+overview:
+  key_lighting: Iluminación de teclas
+  side_lights: Luces laterales
+  caps_lock: Indicador de Bloq Mayús
+  lights_off: Luces apagadas con batería
+  caps_key_and_side: Tecla + luz lateral
+  caps_key_only: En la tecla
+
+lighting:
+  effects: Efectos
+  effects_hint: Con tu color y velocidad
+  lighting_off: Iluminación apagada
+  typing: Al escribir
+  group:
+    your_color: Tu color
+    multicolor: Multicolor
+    your_color_hint: "Usan el color que elijas: sólido, o tonos y ondas de él."
+    multicolor_hint: Crean sus propios colores (arcoíris, lluvia, calor), así que el color no se usa.
+
+section:
+  keys: Teclas
+  side_lights: Luces laterales
+  status: Estado en las luces laterales
+  caps_lock: Bloq Mayús
+  other_indicators: Otros indicadores
+  on_battery: Con batería
+
+setting:
+  key_effect:
+    label: Efecto
+  key_color:
+    label: Color
+  key_brightness:
+    label: Brillo
+  key_speed:
+    label: Velocidad del efecto
+  side_mode:
+    label: Color
+  side_color:
+    label: Color fijo
+  side_effect:
+    label: Efecto
+  side_speed:
+    label: Velocidad del efecto
+  side_brightness:
+    label: Brillo
+  side_follow_brightness:
+    label: Seguir el brillo del teclado
+    help: "Apagado: las luces laterales mantienen su propio brillo"
+  side_red:
+    label: Balance de rojo
+    help: Compensa el difusor azulado
+  side_green:
+    label: Balance de verde
+  side_blue:
+    label: Balance de azul
+  status_show:
+    label: Mostrar estado
+    help: Emparejamiento, cambios cable/Bluetooth, batería
+  status_brightness:
+    label: Brillo del estado
+  status_wired_color:
+    label: Color con cable
+  status_bluetooth_color:
+    label: Color Bluetooth
+  caps_key:
+    label: Tecla Bloq Mayús
+    help: "Auto: blanco frío, o tecla oscura cuando la iluminación es blanca"
+  caps_key_color:
+    label: Color de la tecla Bloq Mayús
+  caps_side:
+    label: Mostrar en la luz lateral más cercana
+    help: Solo mientras la iluminación está encendida o escribes
+  caps_side_color:
+    label: Color de la luz lateral
+  frow_side:
+    label: Bloqueo de fila F en la luz lateral más lejana
+    help: Fn + Ctrl convierte 1…= en F1…F12
+  frow_side_color:
+    label: Color del bloqueo de fila F
+  fn_highlight:
+    label: Resaltar con Fn
+    help: Mientras mantienes Fn, solo quedan encendidas las teclas con función Fn
+  lights_off_after:
+    label: Apagar la iluminación tras
+  sleep_after:
+    label: Suspensión profunda, ya apagado, tras
+    help: Cualquier tecla lo despierta al instante y se escribe igual. Conectar el cable también lo despierta.
+  battery_bar:
+    label: Barra de batería en las luces laterales
+    help: Al desconectar y con batería baja
+  dim_on_battery:
+    label: Atenuar la iluminación con batería
+    help: Teclas y luces laterales; el brillo completo vuelve al conectar
+  dim_level:
+    label: Nivel con batería
+
+note:
+  color_unused: Este efecto crea sus propios colores, así que el color no se usa. Los efectos de “Tu color” sí lo usan.
+  speed_unused: Este efecto no se mueve, así que no tiene velocidad.
+
+option:
+  follow_keyboard: Seguir el teclado
+  fixed_color: Color fijo
+  "off": Apagado
+  static: Fijo
+  breathing: Respiración
+  color_cycle: Ciclo de color
+  type_pulse: Pulso al escribir
+  wave: Ola
+  auto: Auto
+  custom_color: Color propio
+  sec_5: 5 s
+  sec_10: 10 s
+  sec_30: 30 s
+  min_1: 1 min
+  min_2: 2 min
+  min_5: 5 min
+  min_10: 10 min
+  min_30: 30 min
+  never: Nunca
+
+effect:
+  "off": Apagado
+  solid: Color sólido
+  gradient_up_down: Degradado vertical
+  gradient_left_right: Degradado horizontal
+  breathing: Respiración
+  band: Banda de brillo
+  cycle_all: Ciclo completo
+  cycle_left_right: Ciclo horizontal
+  cycle_up_down: Ciclo vertical
+  chevron: Chevrón arcoíris
+  pinwheel: Molinete
+  spiral: Espiral
+  raindrops: Gotas de lluvia
+  jellybean: Gotas de gominola
+  pixel_rain: Lluvia de píxeles
+  heatmap: Mapa de calor
+  digital_rain: Lluvia digital
+  reactive: Reactivo
+  reactive_wide: Reactivo (amplio, múltiple)
+  splash: Salpicadura
+  multi_splash: Salpicadura múltiple
+
+controls:
+  not_available: no disponible
+
+firmware:
+  on_keyboard: En el teclado
+  older: Anterior a 0.7
+  older_detail: "Esta versión no puede reiniciarse sola para actualizar: pulsarás Fn + Pausa cuando se te pida."
+  connected_detail: Conectado por USB.
+  unknown: Desconocida
+  stock: Firmware original
+  stock_detail: "Está instalado el firmware de Royal Kludge. Instala una versión de abajo para cambiar al firmware de este proyecto: el teclado se pone en modo de flasheo solo."
+  flash_mode: Modo de flasheo
+  flash_mode_detail: El teclado espera un firmware nuevo. Instala uno de abajo, o sal del modo de flasheo para usarlo tal cual.
+  not_connected: Desconectado
+  not_connected_detail: Conecta el teclado con el cable USB para actualizarlo.
+  leave_flash_mode: Salir del modo de flasheo
+  available: Disponibles
+  from_file: Desde un archivo…
+  check_again: Buscar de nuevo
+  asking_github: Consultando GitHub…
+  github_failed: "No se pudo obtener la lista de GitHub: %{error}"
+  show_older: Mostrar %{count} versiones anteriores
+  stock_release: Firmware original (Royal Kludge V1.12)
+  install: Instalar
+  reinstall: Reinstalar
+  go_back: Volver
+  cancel: Cancelar
+  ok: Aceptar
+  newest: Más reciente
+  installed: Instalada
+  test_build: Versión de prueba
+  confirm_title: ¿Instalar %{name}?
+  confirm_update: El teclado se reinicia en modo de flasheo, se escribe el firmware (unos 10 segundos) y arranca de nuevo. Tus ajustes de esta app se restauran después; un mapa de teclas cambiado en VIA vuelve al predeterminado.
+  confirm_stock: Esto restaura el firmware original de Royal Kludge. Esta app y VIA no funcionan con él; para volver más tarde, instala una versión desde aquí (la app lo pone en modo de flasheo).
+  step:
+    downloading: Obteniendo el firmware…
+    downloading_detail: Descargándolo y verificándolo.
+    restarting: Reiniciando en modo de flasheo…
+    restarting_detail: El teclado se reinicia solo.
+    press_keys: Pulsa Fn + Pausa en el teclado
+    press_keys_detail: Eso lo pone en modo de flasheo; la instalación sigue sola. (Esperando hasta 2 minutos.)
+    writing: Escribiendo el firmware…
+    writing_detail: Mantén el cable conectado.
+    starting: Arrancando el teclado…
+    done: Listo
+    installed: "%{name} está instalado."
+    left_flash_mode: Se salió del modo de flasheo; el teclado está arrancando.
+    failed: La actualización no terminó
+    failed_detail: "%{error}. El teclado siempre se puede volver a actualizar: su modo de flasheo está integrado en el chip."

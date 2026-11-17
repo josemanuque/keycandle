@@ -102,7 +102,7 @@ impl Keyboard {
         Ok(answer)
     }
 
-    /// Read a value: returns its bytes (1 for most settings, 2 for colours: hue, saturation).
+    /// Read a value: returns its bytes (1 for most settings, 2 for colors: hue, saturation).
     pub fn get(&self, channel: u8, id: u8, len: usize) -> Result<Vec<u8>> {
         let r = self.transfer(&[cmd::CUSTOM_GET_VALUE, channel, id])?;
         Ok(r[3..3 + len].to_vec())

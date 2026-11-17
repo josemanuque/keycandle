@@ -5260,14 +5260,17 @@ name = "rk71-configurator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dirs 6.0.0",
  "gpui-component",
  "gpui-kit-assets",
  "gpui-pre",
  "gpui-pre-platform",
  "hidapi",
+ "rust-i18n",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sys-locale",
  "ureq",
  "winresource",
 ]

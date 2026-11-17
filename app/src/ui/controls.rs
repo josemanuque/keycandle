@@ -17,10 +17,11 @@ use gpui_component::{
 use super::app::Configurator;
 use super::model::Model;
 use super::widgets::{muted, segment, segmented};
-use crate::colour;
+use crate::color;
 use crate::settings::{self, value, Kind, Setting};
+use crate::tr;
 
-type ChoiceState = SelectState<Vec<&'static str>>;
+type ChoiceState = SelectState<Vec<SharedString>>;
 
 /// Choices with at most this many options show as a segmented control; longer ones as a dropdown.
 const MAX_SEGMENTS: usize = 6;
@@ -29,10 +30,10 @@ const MAX_SEGMENTS: usize = 6;
 /// value).
 enum Control {
     Toggle,
-    Segments(&'static [&'static str]),
+    Segments,
     Range(Entity<SliderState>),
     Choice(Entity<ChoiceState>),
-    Colour(Entity<ColorPickerState>),
+    Color(Entity<ColorPickerState>),
 }
 
 #[derive(Default)]
@@ -72,11 +73,12 @@ fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &
             .detach();
             Control::Range(state)
         }
-        Kind::Choice(options) if options.len() <= MAX_SEGMENTS => Control::Segments(options),
-        Kind::Choice(options) => {
+        Kind::Choice(keys) if keys.len() <= MAX_SEGMENTS => Control::Segments,
+        Kind::Choice(_) => {
+            let options: Vec<SharedString> = setting.options().into_iter().map(Into::into).collect();
             let selected = (current[0] as usize).min(options.len() - 1);
-            let state = cx.new(|cx| SelectState::new(options.to_vec(), Some(IndexPath::new(selected)), window, cx));
-            cx.subscribe(&state, move |this, _, event: &SelectEvent<Vec<&'static str>>, cx| {
+            let state = cx.new(|cx| SelectState::new(options.clone(), Some(IndexPath::new(selected)), window, cx));
+            cx.subscribe(&state, move |this, _, event: &SelectEvent<Vec<SharedString>>, cx| {
                 let SelectEvent::Confirm(Some(choice)) = event else { return };
                 if let Some(i) = options.iter().position(|o| o == choice) {
                     this.write(setting, &[i as u8], cx);
@@ -85,14 +87,14 @@ fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &
             .detach();
             Control::Choice(state)
         }
-        Kind::Colour => {
-            let state = cx.new(|cx| ColorPickerState::new(window, cx).default_value(colour::from_stored(current)));
+        Kind::Color => {
+            let state = cx.new(|cx| ColorPickerState::new(window, cx).default_value(color::from_stored(current)));
             cx.subscribe(&state, move |this, _, event: &ColorPickerEvent, cx| {
                 let ColorPickerEvent::Change(Some(picked)) = event else { return };
-                this.write(setting, &colour::to_stored(*picked), cx);
+                this.write(setting, &color::to_stored(*picked), cx);
             })
             .detach();
-            Control::Colour(state)
+            Control::Color(state)
         }
     }
 }
@@ -101,26 +103,35 @@ fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &
 pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Configurator>) -> AnyElement {
     let id = setting.value_id();
     let theme = cx.theme().clone();
-    let label = v_flex()
-        .gap_0p5()
-        .flex_1()
-        .child(div().child(setting.label))
-        .when(!setting.help.is_empty(), |el| el.child(muted(&theme, setting.help)));
+    let help = setting.help();
 
-    if let Some(Control::Segments(options)) = app.controls.0.get(&id) {
-        // Label above, the options across the full width (as in the design).
+    if let Some(Control::Segments) = app.controls.0.get(&id) {
+        // As in the design: label above, the options across the full width, help below.
         let current = app.model.byte(id) as usize;
         let view = cx.entity().downgrade();
-        let segments = options.iter().enumerate().map(|(i, option)| {
+        let segments = setting.options().into_iter().enumerate().map(|(i, option)| {
             let view = view.clone();
             segment(&theme, SharedString::from(format!("seg-{}-{}-{i}", id.0, id.1)), i == current)
                 .on_click(move |_, _, cx| {
                     let _ = view.update(cx, |this, cx| this.write(setting, &[i as u8], cx));
                 })
-                .child(*option)
+                .child(option)
         });
-        return v_flex().gap_2().py_3().child(label).child(segmented(&theme).children(segments)).into_any_element();
+        return v_flex()
+            .gap_2()
+            .py_3()
+            .child(div().child(setting.label()))
+            .child(segmented(&theme).children(segments))
+            .when_some(help, |el, help| el.child(muted(&theme, help)))
+            .into_any_element();
     }
+
+    let label = v_flex()
+        .gap_0p5()
+        .flex_1()
+        .min_w_0()
+        .child(div().child(setting.label()))
+        .when_some(help, |el, help| el.child(muted(&theme, help)));
 
     let control: AnyElement = match app.controls.0.get(&id) {
         Some(Control::Toggle) => {
@@ -135,13 +146,15 @@ pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Confi
         Some(Control::Range(state)) => h_flex()
             .gap_3()
             .w(px(300.))
+            .flex_shrink(1.)
+            .min_w(px(160.))
             .child(div().flex_1().child(Slider::new(state)))
             .child(div().w(px(32.)).text_right().text_color(theme.muted_foreground).child(app.model.byte(id).to_string()))
             .into_any_element(),
         Some(Control::Choice(state)) => div().w(px(300.)).child(Select::new(state)).into_any_element(),
-        Some(Control::Colour(state)) => ColorPicker::new(state).into_any_element(),
-        Some(Control::Segments(_)) => unreachable!("drawn above"),
-        None => muted(&theme, "not available").into_any_element(),
+        Some(Control::Color(state)) => ColorPicker::new(state).into_any_element(),
+        Some(Control::Segments) => unreachable!("drawn above"),
+        None => muted(&theme, tr!("controls.not_available")).into_any_element(),
     };
     h_flex().gap_6().py_3().items_center().child(label).child(control).into_any_element()
 }

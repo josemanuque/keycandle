@@ -5,22 +5,38 @@ use std::collections::HashMap;
 
 use crate::device::Keyboard;
 use crate::preview::effects::{Scene, SideScene};
-use crate::settings::{self, value, Kind, Setting};
+use crate::settings::{self, value, Setting};
 
 /// Every setting's value, keyed by (channel, id).
 pub type Values = HashMap<value::Id, Vec<u8>>;
+
+/// What is on USB (as data; the UI words it in the current language).
+#[derive(Clone, Default, PartialEq)]
+pub enum Connection {
+    /// This firmware, over VIA.
+    Usb { protocol: u16 },
+    /// Not looked for yet.
+    #[default]
+    NotFound,
+    /// Not found; the reason (a technical message).
+    Missing(String),
+    /// It was connected and went away.
+    Unplugged,
+    /// Its bootloader is waiting for firmware.
+    FlashMode,
+    /// It runs the original Royal Kludge firmware.
+    Stock,
+}
 
 #[derive(Default)]
 pub struct Model {
     keyboard: Option<Keyboard>,
     values: Values,
-    status: String,
+    connection: Connection,
+    /// The last failed write, if any (technical message).
+    write_error: Option<String>,
     /// 0x00MMmmpp; 0 = older than v0.7 (did not report it).
     firmware_version: Option<u32>,
-    /// No keyboard, but its bootloader (flash mode) is on USB.
-    in_flash_mode: bool,
-    /// No keyboard with this firmware, but one with the original Royal Kludge firmware.
-    on_stock_firmware: bool,
 }
 
 impl Model {
@@ -28,9 +44,12 @@ impl Model {
         self.keyboard.is_some()
     }
 
-    /// One line about the connection (or why there is none).
-    pub fn status(&self) -> &str {
-        &self.status
+    pub fn connection(&self) -> &Connection {
+        &self.connection
+    }
+
+    pub fn write_error(&self) -> Option<&str> {
+        self.write_error.as_deref()
     }
 
     pub fn firmware_version(&self) -> Option<u32> {
@@ -38,11 +57,11 @@ impl Model {
     }
 
     pub fn in_flash_mode(&self) -> bool {
-        self.in_flash_mode
+        self.connection == Connection::FlashMode
     }
 
     pub fn on_stock_firmware(&self) -> bool {
-        self.on_stock_firmware
+        self.connection == Connection::Stock
     }
 
     /// Hand the open keyboard over (to the updater, which restarts it into flash mode).
@@ -72,10 +91,9 @@ impl Model {
         self.firmware_version = None;
         match Keyboard::open() {
             Ok(kb) => {
-                self.in_flash_mode = false;
-                self.on_stock_firmware = false;
                 self.firmware_version = kb.firmware_version().ok();
-                self.status = format!("USB · VIA protocol {}", kb.protocol_version);
+                self.connection = Connection::Usb { protocol: kb.protocol_version };
+                self.write_error = None;
                 for setting in settings::all() {
                     if let Ok(v) = kb.get(setting.channel, setting.id, setting.len()) {
                         self.values.insert(setting.value_id(), v);
@@ -85,14 +103,14 @@ impl Model {
             }
             Err(e) => {
                 self.keyboard = None;
-                self.in_flash_mode = crate::isp::is_present();
-                self.on_stock_firmware = !self.in_flash_mode && crate::isp::stock_present();
-                self.status = if self.in_flash_mode {
-                    "In flash mode (bootloader)".into()
-                } else if self.on_stock_firmware {
-                    "Original Royal Kludge firmware".into()
+                self.connection = if crate::isp::is_present() {
+                    Connection::FlashMode
+                } else if crate::isp::stock_present() {
+                    Connection::Stock
+                } else if self.connection == Connection::Unplugged {
+                    Connection::Unplugged
                 } else {
-                    format!("{e:#}")
+                    Connection::Missing(format!("{e:#}"))
                 };
             }
         }
@@ -105,7 +123,7 @@ impl Model {
         if lost {
             self.keyboard = None;
             self.values.clear();
-            self.status = "Unplugged. Waiting for the keyboard…".into();
+            self.connection = Connection::Unplugged;
         }
         lost
     }
@@ -119,17 +137,16 @@ impl Model {
         self.get(id).map_or(0, |v| v[0])
     }
 
-    /// Hue and saturation of a colour value (white when unknown).
+    /// Hue and saturation of a color value (white when unknown).
     pub fn hue_sat(&self, id: value::Id) -> (u8, u8) {
         self.get(id).filter(|v| v.len() >= 2).map_or((0, 0), |v| (v[0], v[1]))
     }
 
-    /// The option currently chosen for a Choice setting, as shown in the app.
-    pub fn choice_label(&self, id: value::Id) -> &'static str {
-        match settings::find(id).map(|s| s.kind) {
-            Some(Kind::Choice(options)) => options.get(self.byte(id) as usize).copied().unwrap_or("?"),
-            _ => "?",
-        }
+    /// The option currently chosen for a Choice setting, in the current language.
+    pub fn choice_label(&self, id: value::Id) -> String {
+        settings::find(id)
+            .and_then(|s| s.options().into_iter().nth(self.byte(id) as usize))
+            .unwrap_or_else(|| "?".into())
     }
 
     /// Send a new value to the keyboard and ask it to save once things settle.
@@ -141,7 +158,7 @@ impl Model {
         }
         if let Some(kb) = &self.keyboard {
             if let Err(e) = kb.set(setting.channel, setting.id, value).and_then(|_| kb.save(setting.channel)) {
-                self.status = format!("Write failed: {e:#}");
+                self.write_error = Some(format!("{e:#}"));
             }
         }
         self.values.insert(id, value.to_vec());
@@ -158,7 +175,7 @@ impl Model {
 
     /// Key lighting as set, for the preview. Brightness is lifted so a dim setting still reads.
     pub fn key_scene(&self, time_ms: f32) -> Scene {
-        let (hue, sat) = self.hue_sat(value::KEY_COLOUR);
+        let (hue, sat) = self.hue_sat(value::KEY_COLOR);
         let brightness = self.byte(value::KEY_BRIGHTNESS) as u16;
         Scene {
             time_ms,
@@ -173,7 +190,7 @@ impl Model {
     pub fn side_scene(&self, time_ms: f32) -> SideScene {
         let mode = self.byte(value::SIDE_MODE);
         let follows_dark_keys = mode == 0 && self.byte(value::KEY_EFFECT) == 0;
-        let (hue, sat) = self.hue_sat(if mode == 1 { value::SIDE_COLOUR } else { value::KEY_COLOUR });
+        let (hue, sat) = self.hue_sat(if mode == 1 { value::SIDE_COLOR } else { value::KEY_COLOR });
         SideScene {
             time_ms,
             mode: if follows_dark_keys { 2 } else { mode },

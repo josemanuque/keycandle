@@ -25,10 +25,10 @@ pub fn render(app: &Configurator, sections: &'static [Section], width: f32, cx: 
                 if app.model.is_shown(s) {
                     Some(controls::row(app, s, cx))
                 } else {
-                    s.note_when_hidden.map(|text| div().py_3().child(note(&theme, text)).into_any_element())
+                    s.note().map(|text| div().py_3().child(note(&theme, text)).into_any_element())
                 }
             });
-            card(&theme).w(px(card_width)).child(card_title(section.title)).children(rows.collect::<Vec<_>>())
+            card(&theme).w(px(card_width)).child(card_title(section.title())).children(rows.collect::<Vec<_>>())
         }))
         .into_any_element()
 }

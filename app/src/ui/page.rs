@@ -1,6 +1,7 @@
-//! The app's sections, as listed in the sidebar.
+﻿//! The app's sections, as listed in the sidebar.
 
 use gpui_component::Icon;
+
 
 use crate::settings::{Section, KEYS, LIGHTING, POWER};
 
@@ -16,29 +17,28 @@ pub enum Page {
 impl Page {
     pub const ALL: [Page; 5] = [Page::Overview, Page::Lighting, Page::Keys, Page::Power, Page::Firmware];
 
-    pub fn title(self) -> &'static str {
+    /// Stable name: the translation key part and the `--page` argument.
+    pub fn name(self) -> &'static str {
         match self {
-            Page::Overview => "Overview",
-            Page::Lighting => "Lighting",
-            Page::Keys => "Keys & indicators",
-            Page::Power => "Power",
-            Page::Firmware => "Firmware",
+            Page::Overview => "overview",
+            Page::Lighting => "lighting",
+            Page::Keys => "keys",
+            Page::Power => "power",
+            Page::Firmware => "firmware",
         }
     }
 
-    pub fn subtitle(self) -> &'static str {
-        match self {
-            Page::Overview => "Everything on the keyboard, in one place. Changes apply live and are saved on the keyboard.",
-            Page::Lighting => "Pick an effect to see it here and on the keyboard. Changes are saved once you stop adjusting.",
-            Page::Keys => "How locks show and what Fn highlights. Windows/Mac is remembered per device (Fn + A / Fn + S).",
-            Page::Power => "Battery saving applies on Bluetooth without the cable. Plugged in, the keyboard never sleeps.",
-            Page::Firmware => "Update the keyboard's firmware or go back to the original.",
-        }
+    pub fn title(self) -> String {
+        crate::i18n::text(&format!("page.{}.title", self.name()))
+    }
+
+    pub fn subtitle(self) -> String {
+        crate::i18n::text(&format!("page.{}.subtitle", self.name()))
     }
 
     /// The page for a command-line name (`--page lighting`).
     pub fn from_name(name: &str) -> Option<Page> {
-        Page::ALL.into_iter().find(|p| p.title().to_lowercase().starts_with(&name.to_lowercase()))
+        Page::ALL.into_iter().find(|p| p.name().starts_with(&name.to_lowercase()))
     }
 
     /// Lucide icon file (all of Lucide is embedded via gpui-kit-assets' AllAssets).

@@ -5,8 +5,8 @@ pub mod geometry;
 
 use gpui::{div, prelude::*, px, rgb, Hsla, IntoElement, Pixels};
 
-use crate::colour::as_light;
-use effects::{KeyColours, SideColours};
+use crate::color::as_light;
+use effects::{KeyColors, SideColors};
 use geometry::{KEYS, ROWS, SIDE_LIGHTS, WIDTH_UNITS};
 
 /// Full-size key unit in px; `scale` multiplies everything.
@@ -14,8 +14,8 @@ const UNIT: f32 = 40.0;
 /// How much of the key's light shows through the keycap's top face.
 const FACE_TINT: f32 = 0.35;
 
-/// Draw the keyboard with these key and side-light colours (`None` = unlit).
-pub fn keyboard(scale: f32, keys: &KeyColours, side: &SideColours) -> impl IntoElement {
+/// Draw the keyboard with these key and side-light colors (`None` = unlit).
+pub fn keyboard(scale: f32, keys: &KeyColors, side: &SideColors) -> impl IntoElement {
     let u = UNIT * scale;
     let at = |v: f32| -> Pixels { px(v * scale) };
     let unlit: Hsla = rgb(0xC9CDD4).into();
@@ -25,8 +25,8 @@ pub fn keyboard(scale: f32, keys: &KeyColours, side: &SideColours) -> impl IntoE
     let width = WIDTH_UNITS * u;
     let height = ROWS as f32 * u;
 
-    let caps = KEYS.iter().zip(keys.iter()).map(move |(key, colour)| {
-        let light = colour.map(as_light);
+    let caps = KEYS.iter().zip(keys.iter()).map(move |(key, color)| {
+        let light = color.map(as_light);
         div()
             .absolute()
             .left(px(key.x * u))
@@ -58,7 +58,7 @@ pub fn keyboard(scale: f32, keys: &KeyColours, side: &SideColours) -> impl IntoE
             })
     });
 
-    let side_light = move |left: f32, i: usize, colour: Option<Hsla>| {
+    let side_light = move |left: f32, i: usize, color: Option<Hsla>| {
         div()
             .absolute()
             .left(at(left))
@@ -67,7 +67,7 @@ pub fn keyboard(scale: f32, keys: &KeyColours, side: &SideColours) -> impl IntoE
             .h(at(18.0))
             .rounded(at(3.0))
             .bg(rgb(0x3A3F48))
-            .when_some(colour.map(as_light), |el, light| el.child(div().size_full().rounded(at(3.0)).bg(light)))
+            .when_some(color.map(as_light), |el, light| el.child(div().size_full().rounded(at(3.0)).bg(light)))
     };
     let lights = (0..SIDE_LIGHTS).flat_map(move |i| [side_light(11.0, i, side[i]), side_light(744.0, i, side[i])]);
 

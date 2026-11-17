@@ -108,7 +108,7 @@ def draw(size, variant):
 
     # The light line on the cap (like the keycap's homing bar)
     line_w, line_h = cap_half * (0.62 if small else 0.52), max(cap_half * (0.13 if small else 0.085), 1.6 / size)
-    line_y = cap_half * 0.30
+    line_y = -cap_half * (0.40 if small else 0.46)  # near the top of the cap, like a keycap's legend bar
     lx, ly = x / line_w, (y - line_y)
     d_line = np.maximum(np.abs(x) - line_w + line_h, 0)
     d_line = np.hypot(d_line, ly) - line_h

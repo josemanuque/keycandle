@@ -21,7 +21,7 @@ mod sidebar;
 mod widgets;
 
 use gpui::{prelude::*, px, size, App, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
-use gpui_component::{Root, Theme};
+use gpui_component::{Root, Theme, ThemeRegistry};
 
 /// Open the window, on `page` (or the Overview).
 pub fn run(page: Option<&str>) {
@@ -29,10 +29,11 @@ pub fn run(page: Option<&str>) {
     let app = gpui::Application::with_platform(gpui_platform::current_platform(false)).with_assets(gpui_kit_assets::AllAssets);
     app.run(move |cx: &mut App| {
         gpui_component::init(cx);
+        install_theme(cx);
         let bounds = Bounds::centered(None, size(px(1180.), px(800.)), cx);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
-            titlebar: Some(TitlebarOptions { title: Some("RK71 Configurator".into()), ..Default::default() }),
+            titlebar: Some(TitlebarOptions { title: Some(crate::tr!("app.name").into()), ..Default::default() }),
             ..Default::default()
         };
         cx.open_window(options, |window, cx| {
@@ -44,5 +45,22 @@ pub fn run(page: Option<&str>) {
         })
         .expect("could not open the window");
         cx.activate(true);
+    });
+}
+
+/// The design's colors (assets/theme.json), as the light and dark theme; the system's appearance
+/// picks between them.
+fn install_theme(cx: &mut App) {
+    let registry = ThemeRegistry::global_mut(cx);
+    registry.load_themes_from_str(include_str!("../../assets/theme.json")).expect("assets/theme.json is valid");
+    let light = registry.themes().get("RK71 Light").cloned();
+    let dark = registry.themes().get("RK71 Dark").cloned();
+    Theme::update(cx, |theme| {
+        if let Some(light) = light {
+            theme.light_theme = light;
+        }
+        if let Some(dark) = dark {
+            theme.dark_theme = dark;
+        }
     });
 }

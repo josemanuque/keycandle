@@ -1,14 +1,13 @@
 //! Responsive sizing: how much room the page has, and how to split it.
 //!
-//! GPUI lays out with flexbox but has no media queries, so pages ask this for their widths: the
-//! window's width minus the sidebar, capped so lines stay readable on very wide screens.
+//! GPUI lays out with flexbox but has no media queries, so pages ask this for their widths. The
+//! width is measured from the page's content area after each layout (see app.rs), so it is exact
+//! whatever the window, sidebar or scrollbar do; it is capped so lines stay readable on very wide
+//! screens.
 
-/// gpui-component's sidebar width.
-const SIDEBAR: f32 = 255.0;
-/// Page padding (both sides) and room for the scrollbar.
-const CHROME: f32 = 2.0 * 32.0 + 12.0;
-const MAX_CONTENT: f32 = 1480.0;
-const MIN_CONTENT: f32 = 320.0;
+/// Widest the content gets.
+pub const MAX_CONTENT: f32 = 1480.0;
+const MIN_CONTENT: f32 = 280.0;
 /// From this content width on, pages use two columns.
 const WIDE: f32 = 980.0;
 pub const GAP: f32 = 20.0;
@@ -26,8 +25,12 @@ impl Default for Layout {
 }
 
 impl Layout {
-    pub fn for_window(window_width: f32) -> Self {
-        Self { width: (window_width - SIDEBAR - CHROME).clamp(MIN_CONTENT, MAX_CONTENT) }
+    /// Take a measured content width. Returns whether it changed (then the page lays out again).
+    pub fn set_width(&mut self, measured: f32) -> bool {
+        let width = measured.clamp(MIN_CONTENT, MAX_CONTENT).floor();
+        let changed = (width - self.width).abs() >= 1.0;
+        self.width = width;
+        changed
     }
 
     pub fn is_wide(&self) -> bool {
@@ -45,7 +48,7 @@ impl Layout {
 /// each one is.
 pub fn columns(width: f32, min: f32, gap: f32) -> (usize, f32) {
     let n = (((width + gap) / (min + gap)).floor() as usize).max(1);
-    (n, (width - gap * (n - 1) as f32) / n as f32)
+    (n, ((width - gap * (n - 1) as f32) / n as f32).floor())
 }
 
 /// Scale for the drawn keyboard (760 px at 1.0) to fill `width`, never larger than `max`.

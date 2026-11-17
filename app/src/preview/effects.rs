@@ -8,22 +8,22 @@
 use gpui::Hsla;
 
 use super::geometry::{Key, KEYS, SIDE_LIGHTS};
-use crate::colour::hsv;
+use crate::color::hsv;
 
 /// What the keyboard is set to, plus the clock.
 #[derive(Clone, Copy)]
 pub struct Scene {
     pub time_ms: f32,
-    /// Base colour and brightness, QMK units 0..255.
+    /// Base color and brightness, QMK units 0..255.
     pub hue: u8,
     pub sat: u8,
     pub val: u8,
     pub speed: u8,
 }
 
-pub type KeyColours = [Option<Hsla>; KEYS.len()];
+pub type KeyColors = [Option<Hsla>; KEYS.len()];
 
-/// Colour in QMK units (hue wraps).
+/// Color in QMK units (hue wraps).
 fn c(h: f32, s: f32, v: f32) -> Option<Hsla> {
     let v = v.clamp(0.0, 255.0);
     (v > 0.5).then(|| hsv(h.rem_euclid(256.0) / 256.0, (s / 255.0).clamp(0.0, 1.0), v / 255.0))
@@ -63,13 +63,13 @@ fn distance(a: &Key, b: &Key) -> f32 {
     ((ax - bx).powi(2) + (ay - by).powi(2)).sqrt()
 }
 
-/// Key colours for one effect (index into settings::KEY_EFFECTS; 0 = off).
-pub fn key_colours(effect: usize, s: &Scene) -> KeyColours {
+/// Key colors for one effect (index into settings::KEY_EFFECTS; 0 = off).
+pub fn key_colors(effect: usize, s: &Scene) -> KeyColors {
     let (h, sat, v) = (s.hue as f32, s.sat as f32, s.val as f32);
     // QMK: time = scale16by8(timer, speed/4 + 1), used modulo 256
     let time = s.time_ms * (s.speed as f32 / 4.0 + 1.0) / 256.0;
     let scale = 64.0 * s.speed as f32 / 255.0;
-    let mut out: KeyColours = [None; KEYS.len()];
+    let mut out: KeyColors = [None; KEYS.len()];
 
     for (i, key) in KEYS.iter().enumerate() {
         let (x, y) = key.led_point();
@@ -100,7 +100,7 @@ pub fn key_colours(effect: usize, s: &Scene) -> KeyColours {
                 c((r % 256) as f32, 128.0 + ((r >> 8) % 128) as f32, v)
             }
             14 => {
-                // pixel rain: a few random keys lit in random colours
+                // pixel rain: a few random keys lit in random colors
                 let bucket = ((s.time_ms + hash(i as u32, 3) as f32 % 3000.0) / 900.0) as u32;
                 let r = hash(i as u32, bucket);
                 (r % 5 == 0).then(|| c((r >> 8) as f32 % 256.0, 255.0, v)).flatten()
@@ -161,20 +161,20 @@ pub fn key_colours(effect: usize, s: &Scene) -> KeyColours {
 #[derive(Clone, Copy)]
 pub struct SideScene {
     pub time_ms: f32,
-    /// 0 follow keyboard, 1 fixed colour, 2 off
+    /// 0 follow keyboard, 1 fixed color, 2 off
     pub mode: u8,
-    /// Colour shown before the effect (keyboard colour or fixed), QMK units.
+    /// Color shown before the effect (keyboard color or fixed), QMK units.
     pub hue: u8,
     pub sat: u8,
-    /// 0 static, 1 breathing, 2 colour cycle, 3 type pulse, 4 wave
+    /// 0 static, 1 breathing, 2 color cycle, 3 type pulse, 4 wave
     pub effect: u8,
     /// 0..31
     pub speed: u8,
 }
 
-pub type SideColours = [Option<Hsla>; SIDE_LIGHTS];
+pub type SideColors = [Option<Hsla>; SIDE_LIGHTS];
 
-pub fn side_colours(s: &SideScene) -> SideColours {
+pub fn side_colors(s: &SideScene) -> SideColors {
     if s.mode == 2 {
         return [None; SIDE_LIGHTS];
     }

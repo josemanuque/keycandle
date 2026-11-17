@@ -43,13 +43,17 @@ pub enum Step {
     WaitingForBootloader { manual: bool },
     Writing(f32),
     Starting,
+    /// Installed; what (a tag or file name).
     Done(String),
+    /// Left flash mode without writing.
+    LeftFlashMode,
+    /// The technical reason.
     Failed(String),
 }
 
 impl Step {
     pub fn is_busy(&self) -> bool {
-        !matches!(self, Step::Idle | Step::Done(_) | Step::Failed(_))
+        !matches!(self, Step::Idle | Step::Done(_) | Step::LeftFlashMode | Step::Failed(_))
     }
 }
 
@@ -112,7 +116,7 @@ impl Updater {
         thread::spawn(move || {
             let result = run_install(&source, keyboard, &set);
             set(match result {
-                Ok(()) => Step::Done(format!("{} is installed.", source.describe())),
+                Ok(()) => Step::Done(source.describe()),
                 Err(e) => Step::Failed(format!("{e:#}")),
             });
         });
@@ -125,7 +129,7 @@ impl Updater {
         thread::spawn(move || {
             let result = Bootloader::open().and_then(|bl| bl.start_firmware());
             *step.lock().unwrap() = match result {
-                Ok(()) => Step::Done("Left flash mode; the keyboard is starting.".into()),
+                Ok(()) => Step::LeftFlashMode,
                 Err(e) => Step::Failed(format!("{e:#}")),
             };
         });

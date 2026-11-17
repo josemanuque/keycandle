@@ -39,7 +39,7 @@ pub fn badge(theme: &Theme, text: impl Into<SharedString>) -> Div {
 
 /// The outlined strip that holds a segmented control's options (see `segment`).
 pub fn segmented(theme: &Theme) -> Div {
-    h_flex().w_full().p_1().gap_1().rounded_lg().bg(theme.background).border_1().border_color(theme.border)
+    h_flex().w_full().p_1().gap_1().rounded_lg().bg(theme.muted).border_1().border_color(theme.input)
 }
 
 /// One option of a segmented control: a clickable pill, filled when chosen.

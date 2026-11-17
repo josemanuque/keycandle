@@ -2,28 +2,34 @@
 //!
 //! Channel 0 values are the keyboard's own settings (keyboard/rk71_rgb/rk71_rgb.c,
 //! via_custom_value_command_kb). Channel 3 is QMK's RGB matrix (key lighting).
+//!
+//! No text lives here: settings, sections, options and notes carry translation keys
+//! (locales/*.yml): `setting.<key>.label`, `setting.<key>.help` (optional), `section.<key>`,
+//! `option.<key>`, `effect.<key>`, `note.<key>`.
 
 use crate::device::{CHANNEL_KEYBOARD as KB, CHANNEL_RGB_MATRIX as RGB};
+use crate::i18n;
 
 #[derive(Clone, Copy)]
 pub enum Kind {
     Toggle,
     Range { min: u8, max: u8 },
+    /// Option keys, in the firmware's value order.
     Choice(&'static [&'static str]),
     /// Hue and saturation, as two bytes.
-    Colour,
+    Color,
 }
 
 #[derive(Clone, Copy)]
 pub struct Setting {
     pub channel: u8,
     pub id: u8,
-    pub label: &'static str,
-    pub help: &'static str,
+    /// Translation key.
+    pub key: &'static str,
     pub kind: Kind,
     /// Shown only while another setting (same channel) has one of these values.
     pub shown_when: Option<(u8, &'static [u8])>,
-    /// Shown in the setting's place while it is hidden (says why).
+    /// Note key, shown in the setting's place while it is hidden (says why).
     pub note_when_hidden: Option<&'static str>,
 }
 
@@ -33,17 +39,45 @@ impl Setting {
     }
 
     pub fn len(&self) -> usize {
-        if matches!(self.kind, Kind::Colour) { 2 } else { 1 }
+        if matches!(self.kind, Kind::Color) { 2 } else { 1 }
+    }
+
+    pub fn label(&self) -> String {
+        i18n::text(&format!("setting.{}.label", self.key))
+    }
+
+    pub fn help(&self) -> Option<String> {
+        i18n::optional(&format!("setting.{}.help", self.key))
+    }
+
+    pub fn note(&self) -> Option<String> {
+        self.note_when_hidden.map(|key| i18n::text(&format!("note.{key}")))
+    }
+
+    /// The options of a Choice setting, translated (empty for other kinds).
+    pub fn options(&self) -> Vec<String> {
+        match self.kind {
+            Kind::Choice(keys) if std::ptr::eq(keys, KEY_EFFECTS) => (0..keys.len()).map(effect_name).collect(),
+            Kind::Choice(keys) => keys.iter().map(|k| i18n::text(&format!("option.{k}"))).collect(),
+            _ => Vec::new(),
+        }
     }
 }
 
 pub struct Section {
-    pub title: &'static str,
+    /// Translation key.
+    pub key: &'static str,
     pub settings: &'static [Setting],
 }
 
-const fn s(channel: u8, id: u8, label: &'static str, help: &'static str, kind: Kind) -> Setting {
-    Setting { channel, id, label, help, kind, shown_when: None, note_when_hidden: None }
+impl Section {
+    pub fn title(&self) -> String {
+        i18n::text(&format!("section.{}", self.key))
+    }
+}
+
+const fn s(channel: u8, id: u8, key: &'static str, kind: Kind) -> Setting {
+    Setting { channel, id, key, kind, shown_when: None, note_when_hidden: None }
 }
 
 const fn when(mut setting: Setting, id: u8, values: &'static [u8]) -> Setting {
@@ -59,87 +93,96 @@ const fn else_note(mut setting: Setting, note: &'static str) -> Setting {
 /// Key-lighting effects in the firmware's mode order (0 = lighting off). Only the effects enabled in
 /// keyboard/rk71_rgb/keyboard.json exist, in QMK's rgb_matrix_effects.inc order.
 pub const KEY_EFFECTS: &[&str] = &[
-    "Off", "Solid colour", "Gradient up/down", "Gradient left/right", "Breathing", "Band brightness",
-    "Cycle all", "Cycle left/right", "Cycle up/down", "Rainbow chevron", "Cycle pinwheel", "Cycle spiral",
-    "Raindrops", "Jellybean raindrops", "Pixel rain", "Typing heatmap", "Digital rain", "Reactive",
-    "Reactive (wide, multi)", "Splash", "Multi splash",
+    "off", "solid", "gradient_up_down", "gradient_left_right", "breathing", "band", "cycle_all",
+    "cycle_left_right", "cycle_up_down", "chevron", "pinwheel", "spiral", "raindrops", "jellybean",
+    "pixel_rain", "heatmap", "digital_rain", "reactive", "reactive_wide", "splash", "multi_splash",
 ];
 
-/// Effects that use the colour you pick (solid, or shades and waves of it), in gallery order.
-pub const COLOUR_EFFECTS: &[u8] = &[1, 4, 5, 2, 3, 12, 17, 18, 19, 20];
-/// Effects that make their own colours, in gallery order.
-pub const MULTICOLOUR_EFFECTS: &[u8] = &[6, 7, 8, 9, 10, 11, 13, 14, 15, 16];
+/// An effect's name in the current language.
+pub fn effect_name(effect: usize) -> String {
+    KEY_EFFECTS.get(effect).map_or_else(|| "?".into(), |k| i18n::text(&format!("effect.{k}")))
+}
+
+/// Effects that use the color you pick (solid, or shades and waves of it), in gallery order.
+pub const COLOR_EFFECTS: &[u8] = &[1, 4, 5, 2, 3, 12, 17, 18, 19, 20];
+/// Effects that make their own colors, in gallery order.
+pub const MULTICOLOR_EFFECTS: &[u8] = &[6, 7, 8, 9, 10, 11, 13, 14, 15, 16];
 /// Effects that react to typing.
 pub const TYPING_EFFECTS: &[u8] = &[15, 17, 18, 19, 20];
+/// Effects that move, so their speed matters (all but off and solid).
+pub const ANIMATED_EFFECTS: &[u8] = &[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
 /// The key-lighting effect. Chosen in the Lighting page's effect gallery rather than in a card.
-pub static KEY_EFFECT: Setting = s(RGB, 2, "Effect", "", Kind::Choice(KEY_EFFECTS));
+pub static KEY_EFFECT: Setting = s(RGB, 2, "key_effect", Kind::Choice(KEY_EFFECTS));
+
+const SIDE_MODES: &[&str] = &["follow_keyboard", "fixed_color", "off"];
+const SIDE_EFFECTS: &[&str] = &["static", "breathing", "color_cycle", "type_pulse", "wave"];
+const CAPS_KEY_MODES: &[&str] = &["auto", "off", "custom_color"];
+const LIGHTS_OFF_TIMES: &[&str] = &["min_1", "min_2", "min_5", "min_10", "min_30", "never"];
+const SLEEP_TIMES: &[&str] = &["sec_5", "sec_10", "sec_30", "min_1", "min_5", "never"];
 
 pub const LIGHTING: &[Section] = &[
     Section {
-        title: "Keys",
+        key: "keys",
         settings: &[
-            else_note(
-                when(s(RGB, 4, "Colour", "", Kind::Colour), 2, COLOUR_EFFECTS),
-                "This effect makes its own colours, so the colour isn't used. Effects under “Your colour” use it.",
-            ),
-            s(RGB, 1, "Brightness", "", Kind::Range { min: 0, max: 255 }),
-            s(RGB, 3, "Effect speed", "", Kind::Range { min: 0, max: 255 }),
+            else_note(when(s(RGB, 4, "key_color", Kind::Color), 2, COLOR_EFFECTS), "color_unused"),
+            s(RGB, 1, "key_brightness", Kind::Range { min: 0, max: 255 }),
+            else_note(when(s(RGB, 3, "key_speed", Kind::Range { min: 0, max: 255 }), 2, ANIMATED_EFFECTS), "speed_unused"),
         ],
     },
     Section {
-        title: "Side lights",
+        key: "side_lights",
         settings: &[
-            s(KB, 1, "Colour", "", Kind::Choice(&["Follow keyboard", "Fixed colour", "Off"])),
-            when(s(KB, 2, "Fixed colour", "", Kind::Colour), 1, &[1]),
-            when(s(KB, 17, "Effect", "", Kind::Choice(&["Static", "Breathing", "Colour cycle", "Type pulse", "Wave"])), 1, &[0, 1]),
-            when(s(KB, 18, "Effect speed", "", Kind::Range { min: 0, max: 31 }), 1, &[0, 1]),
-            s(KB, 8, "Brightness", "", Kind::Range { min: 0, max: 31 }),
-            s(KB, 9, "Follow the keyboard's brightness", "Off: the side lights keep their own brightness", Kind::Toggle),
-            s(KB, 5, "Red balance", "Evens out the bluish diffuser", Kind::Range { min: 0, max: 31 }),
-            s(KB, 6, "Green balance", "", Kind::Range { min: 0, max: 31 }),
-            s(KB, 7, "Blue balance", "", Kind::Range { min: 0, max: 31 }),
+            s(KB, 1, "side_mode", Kind::Choice(SIDE_MODES)),
+            when(s(KB, 2, "side_color", Kind::Color), 1, &[1]),
+            when(s(KB, 17, "side_effect", Kind::Choice(SIDE_EFFECTS)), 1, &[0, 1]),
+            when(s(KB, 18, "side_speed", Kind::Range { min: 0, max: 31 }), 1, &[0, 1]),
+            s(KB, 8, "side_brightness", Kind::Range { min: 0, max: 31 }),
+            s(KB, 9, "side_follow_brightness", Kind::Toggle),
+            s(KB, 5, "side_red", Kind::Range { min: 0, max: 31 }),
+            s(KB, 6, "side_green", Kind::Range { min: 0, max: 31 }),
+            s(KB, 7, "side_blue", Kind::Range { min: 0, max: 31 }),
         ],
     },
     Section {
-        title: "Status on the side lights",
+        key: "status",
         settings: &[
-            s(KB, 3, "Show status", "Pairing, wired/Bluetooth switches, battery", Kind::Toggle),
-            when(s(KB, 10, "Status brightness", "", Kind::Range { min: 0, max: 31 }), 3, &[1]),
-            when(s(KB, 19, "Wired colour", "", Kind::Colour), 3, &[1]),
-            when(s(KB, 20, "Bluetooth colour", "", Kind::Colour), 3, &[1]),
+            s(KB, 3, "status_show", Kind::Toggle),
+            when(s(KB, 10, "status_brightness", Kind::Range { min: 0, max: 31 }), 3, &[1]),
+            when(s(KB, 19, "status_wired_color", Kind::Color), 3, &[1]),
+            when(s(KB, 20, "status_bluetooth_color", Kind::Color), 3, &[1]),
         ],
     },
 ];
 
 pub const KEYS: &[Section] = &[
     Section {
-        title: "Caps Lock",
+        key: "caps_lock",
         settings: &[
-            s(KB, 15, "Caps key", "Auto: cool white, or a dark key when the lighting is white", Kind::Choice(&["Auto", "Off", "Custom colour"])),
-            when(s(KB, 21, "Caps key colour", "", Kind::Colour), 15, &[2]),
-            s(KB, 11, "Show on the nearest side light", "Only while the lighting is on or you're typing", Kind::Toggle),
-            when(s(KB, 12, "Side light colour", "", Kind::Colour), 11, &[1]),
+            s(KB, 15, "caps_key", Kind::Choice(CAPS_KEY_MODES)),
+            when(s(KB, 21, "caps_key_color", Kind::Color), 15, &[2]),
+            s(KB, 11, "caps_side", Kind::Toggle),
+            when(s(KB, 12, "caps_side_color", Kind::Color), 11, &[1]),
         ],
     },
     Section {
-        title: "Other indicators",
+        key: "other_indicators",
         settings: &[
-            s(KB, 13, "F-row lock on the farthest side light", "Fn + Ctrl turns 1…= into F1…F12", Kind::Toggle),
-            when(s(KB, 14, "F-row lock colour", "", Kind::Colour), 13, &[1]),
-            s(KB, 16, "Fn highlight", "While Fn is held, only keys with an Fn function stay lit", Kind::Toggle),
+            s(KB, 13, "frow_side", Kind::Toggle),
+            when(s(KB, 14, "frow_side_color", Kind::Color), 13, &[1]),
+            s(KB, 16, "fn_highlight", Kind::Toggle),
         ],
     },
 ];
 
 pub const POWER: &[Section] = &[Section {
-    title: "On battery",
+    key: "on_battery",
     settings: &[
-        s(KB, 22, "Lighting off after", "", Kind::Choice(&["1 minute", "2 minutes", "5 minutes", "10 minutes", "30 minutes", "Never"])),
-        s(KB, 23, "Deep sleep once dark, after", "Any key wakes it at once and is still typed", Kind::Choice(&["5 seconds", "10 seconds", "30 seconds", "1 minute", "5 minutes", "Never"])),
-        s(KB, 24, "Battery bar when unplugging or low", "", Kind::Toggle),
-        s(KB, 25, "Dim the lighting on battery", "Full brightness returns when plugged in", Kind::Toggle),
-        when(s(KB, 26, "Brightness on battery", "", Kind::Range { min: 0, max: 31 }), 25, &[1]),
+        s(KB, 22, "lights_off_after", Kind::Choice(LIGHTS_OFF_TIMES)),
+        s(KB, 23, "sleep_after", Kind::Choice(SLEEP_TIMES)),
+        s(KB, 24, "battery_bar", Kind::Toggle),
+        s(KB, 25, "dim_on_battery", Kind::Toggle),
+        when(s(KB, 26, "dim_level", Kind::Range { min: 0, max: 31 }), 25, &[1]),
     ],
 }];
 
@@ -150,9 +193,9 @@ pub mod value {
     pub const KEY_BRIGHTNESS: Id = (RGB, 1);
     pub const KEY_EFFECT: Id = (RGB, 2);
     pub const KEY_SPEED: Id = (RGB, 3);
-    pub const KEY_COLOUR: Id = (RGB, 4);
+    pub const KEY_COLOR: Id = (RGB, 4);
     pub const SIDE_MODE: Id = (KB, 1);
-    pub const SIDE_COLOUR: Id = (KB, 2);
+    pub const SIDE_COLOR: Id = (KB, 2);
     pub const SIDE_EFFECT: Id = (KB, 17);
     pub const SIDE_SPEED: Id = (KB, 18);
     pub const CAPS_SIDE_LIGHT: Id = (KB, 11);

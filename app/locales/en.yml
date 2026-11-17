@@ -1,0 +1,234 @@
+# English (the fallback: every key must exist here). Other languages mirror this file;
+# `cargo test` checks none of them misses a key. %{name} is filled in by the app.
+_version: 1
+
+app:
+  name: RK71 Configurator
+  subtitle: QMK firmware
+  language: Language
+
+page:
+  overview:
+    title: Overview
+    subtitle: Everything on the keyboard, in one place. Changes apply live and are saved on the keyboard.
+  lighting:
+    title: Lighting
+    subtitle: Pick an effect to see it here and on the keyboard. Changes are saved once you stop adjusting.
+  keys:
+    title: Keys & indicators
+    subtitle: How locks show and what Fn highlights. Windows/Mac is remembered per device (Fn + A / Fn + S).
+  power:
+    title: Power
+    subtitle: Battery saving applies on Bluetooth without the cable. Plugged in, the keyboard never sleeps.
+  firmware:
+    title: Firmware
+    subtitle: Update the keyboard's firmware or go back to the original.
+
+connection:
+  connected: Connected
+  flash_mode: Flash mode
+  stock: Original firmware
+  not_connected: Not connected
+  usb: USB · VIA protocol %{version}
+  unplugged: Unplugged. Waiting for the keyboard…
+  flash_mode_detail: In flash mode (bootloader)
+  stock_detail: Original Royal Kludge firmware
+  write_failed: "Write failed: %{error}"
+  page_not_connected: The keyboard isn't connected over USB.
+  page_flash_mode: The keyboard is in flash mode. Open Firmware to install an update or leave flash mode.
+  page_stock: The keyboard has its original Royal Kludge firmware, which this app can't configure. Open Firmware to install this project's firmware.
+
+overview:
+  key_lighting: Key lighting
+  side_lights: Side lights
+  caps_lock: Caps Lock indicator
+  lights_off: Lighting off on battery
+  caps_key_and_side: Key + side light
+  caps_key_only: On the key
+
+lighting:
+  effects: Effects
+  effects_hint: Shown with your color and speed
+  lighting_off: Lighting off
+  typing: Typing
+  group:
+    your_color: Your color
+    multicolor: Multicolor
+    your_color_hint: "These use the color you pick: solid, or shades and waves of it."
+    multicolor_hint: These make their own colors (rainbows, rain, heat), so the color isn't used.
+
+section:
+  keys: Keys
+  side_lights: Side lights
+  status: Status on the side lights
+  caps_lock: Caps Lock
+  other_indicators: Other indicators
+  on_battery: On battery
+
+setting:
+  key_effect:
+    label: Effect
+  key_color:
+    label: Color
+  key_brightness:
+    label: Brightness
+  key_speed:
+    label: Effect speed
+  side_mode:
+    label: Color
+  side_color:
+    label: Fixed color
+  side_effect:
+    label: Effect
+  side_speed:
+    label: Effect speed
+  side_brightness:
+    label: Brightness
+  side_follow_brightness:
+    label: Follow the keyboard's brightness
+    help: "Off: the side lights keep their own brightness"
+  side_red:
+    label: Red balance
+    help: Evens out the bluish diffuser
+  side_green:
+    label: Green balance
+  side_blue:
+    label: Blue balance
+  status_show:
+    label: Show status
+    help: Pairing, wired/Bluetooth switches, battery
+  status_brightness:
+    label: Status brightness
+  status_wired_color:
+    label: Wired color
+  status_bluetooth_color:
+    label: Bluetooth color
+  caps_key:
+    label: Caps key
+    help: "Auto: cool white, or a dark key when the lighting is white"
+  caps_key_color:
+    label: Caps key color
+  caps_side:
+    label: Show on the nearest side light
+    help: Only while the lighting is on or you're typing
+  caps_side_color:
+    label: Side light color
+  frow_side:
+    label: F-row lock on the farthest side light
+    help: Fn + Ctrl turns 1…= into F1…F12
+  frow_side_color:
+    label: F-row lock color
+  fn_highlight:
+    label: Fn highlight
+    help: While Fn is held, only keys with an Fn function stay lit
+  lights_off_after:
+    label: Lighting off after
+  sleep_after:
+    label: Deep sleep once nothing is lit, after
+    help: Any key wakes it at once and is still typed. Plugging in the cable wakes it too.
+  battery_bar:
+    label: Battery bar on the side lights
+    help: When unplugging and when low
+  dim_on_battery:
+    label: Dim the lighting on battery
+    help: Keys and side lights; full brightness returns when plugged in
+  dim_level:
+    label: Level on battery
+
+note:
+  color_unused: This effect makes its own colors, so the color isn't used. Effects under “Your color” use it.
+  speed_unused: This effect doesn't move, so it has no speed.
+
+option:
+  follow_keyboard: Follow keyboard
+  fixed_color: Fixed color
+  "off": "Off"
+  static: Static
+  breathing: Breathing
+  color_cycle: Color cycle
+  type_pulse: Type pulse
+  wave: Wave
+  auto: Auto
+  custom_color: Custom color
+  sec_5: 5 s
+  sec_10: 10 s
+  sec_30: 30 s
+  min_1: 1 min
+  min_2: 2 min
+  min_5: 5 min
+  min_10: 10 min
+  min_30: 30 min
+  never: Never
+
+effect:
+  "off": "Off"
+  solid: Solid color
+  gradient_up_down: Gradient up/down
+  gradient_left_right: Gradient left/right
+  breathing: Breathing
+  band: Band brightness
+  cycle_all: Cycle all
+  cycle_left_right: Cycle left/right
+  cycle_up_down: Cycle up/down
+  chevron: Rainbow chevron
+  pinwheel: Cycle pinwheel
+  spiral: Cycle spiral
+  raindrops: Raindrops
+  jellybean: Jellybean raindrops
+  pixel_rain: Pixel rain
+  heatmap: Typing heatmap
+  digital_rain: Digital rain
+  reactive: Reactive
+  reactive_wide: Reactive (wide, multi)
+  splash: Splash
+  multi_splash: Multi splash
+
+controls:
+  not_available: not available
+
+firmware:
+  on_keyboard: On the keyboard
+  older: Older than 0.7
+  older_detail: "This version can't restart itself for updates: you'll press Fn + Pause when asked."
+  connected_detail: Connected over USB.
+  unknown: Unknown
+  stock: Original firmware
+  stock_detail: "The Royal Kludge firmware is installed. Install a release below to switch to this project's firmware: the keyboard is put in flash mode for you."
+  flash_mode: Flash mode
+  flash_mode_detail: The keyboard is waiting for new firmware. Install one below, or leave flash mode to use it as it is.
+  not_connected: Not connected
+  not_connected_detail: Connect the keyboard with the USB cable to update it.
+  leave_flash_mode: Leave flash mode
+  available: Available
+  from_file: From a file…
+  check_again: Check again
+  asking_github: Asking GitHub…
+  github_failed: "Couldn't get the list from GitHub: %{error}"
+  show_older: Show %{count} older versions
+  stock_release: Original firmware (Royal Kludge V1.12)
+  install: Install
+  reinstall: Reinstall
+  go_back: Go back
+  cancel: Cancel
+  ok: OK
+  newest: Newest
+  installed: Installed
+  test_build: Test build
+  confirm_title: Install %{name}?
+  confirm_update: The keyboard restarts into flash mode, the firmware is written (about 10 seconds), and it starts again. Your settings from this app are put back afterwards; a keymap changed in VIA goes back to the default.
+  confirm_stock: This puts back the original Royal Kludge firmware. This app and VIA don't work with it; to come back later, install a release from here (the app puts it in flash mode).
+  step:
+    downloading: Getting the firmware…
+    downloading_detail: Downloading and checking it.
+    restarting: Restarting into flash mode…
+    restarting_detail: The keyboard restarts itself.
+    press_keys: Press Fn + Pause on the keyboard
+    press_keys_detail: That puts it in flash mode; the install continues by itself. (Waiting up to 2 minutes.)
+    writing: Writing the firmware…
+    writing_detail: Keep the cable plugged in.
+    starting: Starting the keyboard…
+    done: Done
+    installed: "%{name} is installed."
+    left_flash_mode: Left flash mode; the keyboard is starting.
+    failed: The update didn't finish
+    failed_detail: "%{error}. The keyboard can always be updated again: its flash mode is built into the chip."

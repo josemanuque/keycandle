@@ -9,6 +9,7 @@ use super::lighting::live_preview;
 use super::page::Page;
 use super::widgets::{card, muted};
 use crate::settings::value;
+use crate::tr;
 
 const MIN_TILE: f32 = 190.0;
 const TILE_GAP: f32 = 16.0;
@@ -16,12 +17,12 @@ const TILE_GAP: f32 = 16.0;
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
     let m = &app.model;
-    let caps = if m.byte(value::CAPS_SIDE_LIGHT) != 0 { "Key + side light" } else { "On the key" };
+    let caps = if m.byte(value::CAPS_SIDE_LIGHT) != 0 { tr!("overview.caps_key_and_side") } else { tr!("overview.caps_key_only") };
     let tiles = [
-        ("Key lighting", m.choice_label(value::KEY_EFFECT), Page::Lighting),
-        ("Side lights", m.choice_label(value::SIDE_MODE), Page::Lighting),
-        ("Caps Lock indicator", caps, Page::Keys),
-        ("Lighting off on battery", m.choice_label(value::LIGHTS_OFF_AFTER), Page::Power),
+        (tr!("overview.key_lighting"), m.choice_label(value::KEY_EFFECT), Page::Lighting),
+        (tr!("overview.side_lights"), m.choice_label(value::SIDE_MODE), Page::Lighting),
+        (tr!("overview.caps_lock"), caps, Page::Keys),
+        (tr!("overview.lights_off"), m.choice_label(value::LIGHTS_OFF_AFTER), Page::Power),
     ];
     let width = app.layout.width.min(1100.0);
     let (_, tile_width) = columns(width, MIN_TILE, TILE_GAP);
