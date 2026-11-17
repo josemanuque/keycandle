@@ -28,6 +28,7 @@ Every push also builds the firmware on GitHub Actions. Open a run under **Action
 
 | Version | Changes |
 |---|---|
+| `v0.7b` | Key LEDs refresh at ~1430 Hz instead of 165 Hz (IEEE 1789 low-risk, no colour split, brighter); side-light effects and own brightness; Caps Lock / F-row lock indicators and status colours with colour pickers; power times, battery bar and dimming on battery in VIA; Win/Mac per device (Fn+A / Fn+S), Win key lock (Fn+Win), Fn highlight; side-light calibration; no flashing while VIA saves; no charge-LED glow; firmware version and app-driven updates |
 | `v0.6b` | Deep sleep on battery (any key or the cable wakes it, the key is still typed; the Bluetooth module can wake it too), side lights cycle at ~3 kHz (no flicker or rainbow fringe), side-light defaults tuned on a real board, 416 bytes of RAM freed |
 | `v0.5.5b` | No keyboard blinking while dragging VIA side-light sliders (saves once settled) |
 | `v0.5.4b` | Side lights: Red/Green/Blue balance and Brightness sliders in VIA (0–31); follow keyboard brightness |
@@ -52,6 +53,8 @@ Each version is a git tag. Check one out with `git checkout v0.4b`.
 ## Flashing
 
 Works from Windows (Git Bash), macOS and Linux.
+
+From v0.7b on, the RK71 Configurator app (`app/`) installs releases for you (Firmware page). By hand:
 
 1. Get [SonixFlasher](https://github.com/SonixQMK/SonixFlasherC/releases) for your OS. Put it in `sonixflasher/`
    in this repo, or anywhere on your PATH. On Linux, first allow access without root:
@@ -106,6 +109,7 @@ outputs.
 keyboard/      QMK keyboard source: rk71_rgb (copied into qmk_firmware/ at build time)
 via/           VIA definition: load it in usevia.app > Settings > Design tab
 docs/          QMK_FIRMWARE.md (user guide), BLUETOOTH.md (Bluetooth module protocol)
+app/           RK71 Configurator: desktop settings and firmware updater (Rust + GPUI)
 stock/         original firmware image, recovery guide, stock internals and key map
 tools/         build.sh, flash_rk71.sh, stock_enter_isp.py, gen_rk71.py, udev rule for Linux
 archive/       an earlier failed attempt, kept for history only

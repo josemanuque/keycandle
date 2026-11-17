@@ -4,7 +4,7 @@ An open-source replacement for the Royal Kludge RK71 RGB's factory firmware, bui
 [QMK](https://qmk.fm) (SonixQMK fork). You configure it live from the browser with [VIA](https://usevia.app),
 on any OS, with no vendor software.
 
-This guide describes the latest version (`main`, currently **v0.5.5b**). The change history is in the
+This guide describes the latest version (`main`, currently **v0.7b**). The change history is in the
 [README](../README.md#branches-and-versions).
 
 * [Stock vs this firmware](#stock-vs-this-firmware)
@@ -27,19 +27,26 @@ This guide describes the latest version (`main`, currently **v0.5.5b**). The cha
 | Configuration | Royal Kludge's Windows app only | VIA in any Chromium browser (Windows, macOS, Linux), live, no install |
 | Remapping | What the RK app allows | Every key on every layer, 5 layers, macros, any QMK keycode |
 | Lighting | Built-in effects, custom per-key colours in the RK app | 19 QMK effects + solid colour, hue/saturation/speed in VIA |
+| Key light refresh | Not measured | ~1430 Hz, above the 1250 Hz that IEEE 1789 rates low-risk for flicker ([details](#lighting)) |
 | Bluetooth | 5 devices (Fn+Q…T) | Same keys, same 5 devices, plus automatic wired/Bluetooth from the cable |
-| Side lights | Status only | Follow keyboard colour / fixed colour / off, colour balance and brightness, status overlay |
+| Side lights | Status only | Follow keyboard colour / fixed colour / off, 5 effects, own brightness, Caps Lock and F-row lock indicators, status overlay, per-light calibration |
 | Battery level | – | Fn+Space shows a 1/3/6-light bar on the side lights |
 | Debounce | Vendor default | 10 ms per key (fixes chattering switches without slowing the others) |
 | USB ID | `05AC:024F` (pretends to be an Apple keyboard) | `0C45:8071` (its own ID) |
-| Sleep on battery | Deep sleep | Deep sleep: instant wake on any key, and that key is typed ([details](#battery-saving)) |
+| Sleep on battery | Deep sleep | Deep sleep: instant wake on any key, and that key is typed; all times set in VIA ([details](#battery-saving)) |
+| Updates | RK's Windows updater | The RK71 Configurator app (`app/`), or the flash script below |
 
 The RK configuration app doesn't work with this firmware, and VIA doesn't work with the stock firmware. To go
 back to stock at any time, see [stock/README.md](../stock/README.md).
 
 ## Installing
 
-Works from Windows (Git Bash), macOS and Linux.
+**Already on v0.7b or later:** the RK71 Configurator app (`app/`) installs releases from its Firmware page: the
+keyboard restarts into the bootloader by itself, the image is checked against the release's SHA-256 list, and
+your settings are put back afterwards. It can also switch from the stock firmware. From a terminal:
+`rk71-configurator --install rk71_rgb_<version>.bin`.
+
+**By hand**, from Windows (Git Bash), macOS and Linux:
 
 1. Download `rk71_rgb_<version>.bin` from the [Releases](../../../releases) page, and
    [SonixFlasher](https://github.com/SonixQMK/SonixFlasherC/releases) for your OS into `sonixflasher/` (or your PATH).
@@ -49,7 +56,7 @@ Works from Windows (Git Bash), macOS and Linux.
    * **from this firmware:** **Fn + Pause**
    * **from stock firmware:** `python3 tools/stock_enter_isp.py` (Linux/macOS: `pip install hidapi` first)
    * **if nothing works:** the BOOT-pad short in [stock/README.md](../stock/README.md#if-it-is-bricked-no-keys-no-lights-fnpause-does-nothing)
-3. `bash tools/flash_rk71.sh rk71_rgb_v0.5.5b.bin`
+3. `bash tools/flash_rk71.sh rk71_rgb_v0.7b.bin`
 
    Tip: start the script first. It waits for the bootloader, so you can then press Fn+Pause and it flashes
    straight away.
@@ -78,7 +85,8 @@ Esc, and with Shift it gives `~`.
 | H | Lighting hue (colour) |
 | ↑ / ↓ | Lighting brighter / dimmer |
 | ← / → | Effect slower / faster |
-| Win / Alt | Mac mode / Windows mode (remembered) |
+| A / S | Windows mode / Mac mode (remembered for each Bluetooth device and for the cable) |
+| Win | Win key lock on/off (stops the Win key, e.g. while gaming) |
 | Ctrl (either) | **F-row lock** on/off (remembered). The Fn key glows orange while it's on. |
 | Q W E R T | Bluetooth device 1–5. Hold 3 s: pair a new device in that slot. |
 | P | Switch wired ↔ Bluetooth. Hold 3 s: pair the current slot again. |
@@ -99,8 +107,10 @@ With the lock on (Fn+Ctrl), the number row types F1…F12 without Fn. Fn then tu
 
 ### Mac mode
 
-Fn+Win switches to the Mac layer: the key next to Space becomes Cmd and the next one out becomes Option, on both
-sides. Fn+Alt goes back to Windows. The Fn combinations use the physical keys, so they're the same in both modes.
+Fn+S switches to the Mac layer: the key next to Space becomes Cmd and the next one out becomes Option, on both
+sides. Fn+A goes back to Windows. The choice is remembered separately for each Bluetooth device and for the cable,
+so a Mac and a PC can share the keyboard. The Fn combinations use the physical keys, so they're the same in both
+modes.
 
 ## Wired and Bluetooth
 
@@ -123,10 +133,17 @@ gradients, chevron, rain effects, reactive (lights up on key press), splash, typ
 with Fn+\\ or in VIA, where you also get hue, saturation, brightness and speed.
 
 * **Caps Lock:** the Caps key turns cool white (as on stock). On white or pale lighting, where that wouldn't
-  stand out, it turns dark instead.
+  stand out, it turns dark instead. In VIA (*Indicators*) you can turn this off or pick your own colour, and
+  show Caps Lock on the nearest side light too.
+* **Fn highlight** (VIA, *Indicators*): while Fn is held, only keys that do something with Fn stay lit.
 * **Computer asleep:** all lighting goes off.
-* **On battery:** lighting turns off after 5 minutes without typing, and comes back with the next key press. It
-  also turns off when the battery reports critically low.
+* **On battery:** lighting turns off after 5 minutes without typing (adjustable in VIA, *Power*), and comes back
+  with the next key press. It also turns off when the battery reports critically low. VIA can also dim it on
+  battery.
+* **No visible flicker:** the keys are lit one colour row at a time (5 key rows x red/green/blue), so each LED is
+  switched fully on and off very fast. This firmware does it ~1430 times a second (QMK's driver managed 165), above
+  the 1250 Hz that IEEE 1789 rates as low-risk for full on/off flicker, so colours don't split apart when your eyes
+  move. `rk71-configurator --probe` shows the measured rate.
 
 ### Battery saving
 
@@ -140,16 +157,25 @@ lights-off otherwise. Asleep, the chip draws almost nothing, like the stock firm
   is showing.
 * The low-battery blink only shows while you're typing, so it can't keep a nearly flat keyboard awake.
 
-Both times are set in `keyboard/rk71_rgb/config.h` (`RK71_LIGHTS_OFF_IDLE_MS`, `RK71_SLEEP_IDLE_MS`).
+Set both times in VIA under *Power*: lighting off after 1, 2, 5 (default), 10 or 30 minutes or never; deep sleep
+5 s, 10 s (default), 30 s, 1 min or 5 min after that, or never. Also there:
+
+* **Battery bar when unplugging or low:** the side lights show the battery level when you unplug, and when it
+  gets low.
+* **Dim the lighting on battery:** keys and side lights at a lower level (*Brightness on battery*) without the
+  cable; full brightness returns when you plug in.
 
 ## Side lights and status
 
 The two edge strips have 6 lights each (light 1 = far end, 6 = nearest you). Both strips always show the same
 thing.
 
-**Normally** they follow the keyboard: the nearest of 7 colours (white, red, yellow, green, cyan, blue, magenta)
-to the current lighting colour, at the keyboard's brightness. They go off when the lighting is off. In VIA you
-can pick a fixed colour or turn them off instead.
+**Normally** they follow the keyboard's colour, at the keyboard's brightness, and go off when the lighting is off.
+In VIA you can pick a fixed colour or turn them off, give them their own brightness, and choose an effect:
+static, breathing, colour cycle, type pulse (brightens as you type) or wave, with its own speed.
+
+**Indicators** (VIA, *Indicators*): Caps Lock on the nearest light and F-row lock on the farthest one, each in a
+colour you pick. They show while the lighting is on or you're typing.
 
 **Status** takes over for a moment when something happens (unless turned off in VIA):
 
@@ -166,6 +192,8 @@ can pick a fixed colour or turn them off instead.
 | Fn+Space: 1 red (nearest) | Battery low |
 | Fn+Space: nearest blinks red | No answer from the Bluetooth module (slide switch off?) |
 | Nearest light slow red blink | Battery low, charge soon |
+
+The wired and Bluetooth status colours and the status brightness can be changed in VIA.
 
 The connect/pair indication only shows after you press a Bluetooth key. Automatic reconnects (after waking up,
 for example) are silent.
@@ -192,10 +220,18 @@ You get:
 * **Lighting:** effect, brightness, speed, colour.
 * **Side lights:**
   * **Colour:** Follow keyboard / Fixed colour / Off (and which fixed colour)
-  * **Brightness:** 0–31 (default 2, a soft glow). This is multiplied by the keyboard's own brightness.
+  * **Effect** and **Effect speed**
+  * **Brightness:** 0–31 (default 2, a soft glow). With *Brightness follows the keyboard* on, it is multiplied by
+    the keyboard's own brightness; off, it stays fixed.
   * **Red / Green / Blue:** 0–31 each. The side lights sit behind a bluish diffuser, and these sliders balance it
     out. Defaults are 31 / 15 / 23, tuned by eye on a real board.
-  * **Show status:** status on the side lights (on) or on the keys (off)
+  * **Show status**, **Status brightness**, **Status colour** (wired, Bluetooth)
+  * **Calibration:** per-light red/green/blue trims (with all lights held plain white while you adjust), and a
+    low-brightness correction per colour. Each LED's chips differ a little, so this evens them out.
+* **Indicators:** Caps Lock and F-row lock on the side lights, Caps Lock key colour, Fn highlight.
+* **Power:** lighting-off and sleep times, battery bar, dim on battery.
+
+The RK71 Configurator app (`app/`) shows the same settings with live previews of every effect.
 
 VIA has to be connected over USB. Settings are saved about 2 seconds after you stop moving a slider.
 
@@ -206,11 +242,12 @@ different from light to light. That's normal for these LEDs. Pure red, green or 
 
 Kept across unplugging and power-off:
 
-* Keymap, macros, lighting effect and colour, side-light settings
-* Win/Mac mode, F-row lock, wired/Bluetooth choice, current device slot
+* Keymap, macros, lighting effect and colour, side-light, indicator and power settings
+* Win/Mac mode (per device), Win key lock, F-row lock, wired/Bluetooth choice, current device slot
 
 Bluetooth pairings are stored in the Bluetooth module itself, so they survive reflashing. Everything else resets
-to defaults when you flash a new image or switch to stock and back.
+to defaults when you flash a new image or switch to stock and back. The Configurator app saves its settings before
+an update and puts them back afterwards (not the keymap).
 
 ## Limitations
 
@@ -227,7 +264,7 @@ to defaults when you flash a new image or switch to stock and back.
 | Problem | Try |
 |---|---|
 | Keys don't work, lights off after flashing | Recovery via the BOOT pad: [stock/README.md](../stock/README.md#if-it-is-bricked-no-keys-no-lights-fnpause-does-nothing) |
-| Fn+Pause and the keyboard seems dead | It's in the bootloader, waiting for a flash. Run the flash script, or unplug/replug to restart normally (with the slide switch off). |
+| Fn+Pause and the keyboard seems dead | It's in the bootloader, waiting for a flash. Install from the app or the flash script; or click *Leave flash mode* in the app; or unplug, slide switch off, plug in again. |
 | VIA doesn't find the keyboard | Use the cable, use Chrome/Edge, and load `via/rk71_rgb_via.json` in the Design tab. On Linux, install `tools/udev/50-rk71.rules`. |
 | Bluetooth computer won't connect | Remove the keyboard from the computer's Bluetooth list, then hold Fn + slot key 3 s to pair again |
 | Fn+Space blinks red | The Bluetooth module isn't answering: slide switch off, or the battery is completely flat |
@@ -239,7 +276,11 @@ to defaults when you flash a new image or switch to stock and back.
   * `rk71_rgb.c`: modes, Bluetooth keys, status, VIA menu
   * `rk71_bt.c`: SPI driver for the Bluetooth module
   * `rk71_side.c`: side lights and cable detection
+  * `rk71_sleep.c`: deep sleep and wake-up; `rk71_keyled.c`: dimming on battery
+  * `sn32f2xx.c`: the key LED driver (replaces SonixQMK's: a short row switch, so the keys refresh at ~1430 Hz)
   * `keymaps/via`: the keymap
+* VIA values 50 and 51 (read-only) report the key LEDs' measured refresh and row-switch time;
+  `rk71-configurator --probe` prints them.
 * `keyboard.json` and the VIA definition are generated by `tools/gen_rk71.py`. Edit that, not the outputs.
 * Build: `bash tools/build.sh` (setup in the [README](../README.md#building)).
 * Hardware findings: [BLUETOOTH.md](BLUETOOTH.md) (module protocol), [stock/FIRMWARE_NOTES.md](../stock/FIRMWARE_NOTES.md)
