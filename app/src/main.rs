@@ -10,6 +10,10 @@
 //!   rk71-configurator --set <channel> <id> <byte>…   write and save one VIA value
 //!   rk71-configurator --get <channel> <id> <length>   read one VIA value
 
+// A windowed app on Windows (no console window when double-clicked); see attach_console() for the
+// command-line options.
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod color;
 mod device;
 mod i18n;
@@ -28,6 +32,9 @@ rust_i18n::i18n!("locales", fallback = "en");
 use device::{Keyboard, CHANNEL_KEYBOARD, CHANNEL_RGB_MATRIX};
 
 fn main() -> Result<()> {
+    if std::env::args().nth(1).is_some_and(|a| a.starts_with("--") && a != "--page") {
+        attach_console();
+    }
     i18n::init();
     match std::env::args().nth(1).as_deref() {
         Some("--probe") => probe(),
@@ -181,4 +188,21 @@ fn get_value(args: &[String]) -> Result<()> {
     let kb = Keyboard::open()?;
     println!("{channel}/{id} = {:?}", kb.get(*channel as u8, *id as u8, *len)?);
     Ok(())
+}
+
+/// Windows: a windowed app has no console, so the command-line options print into the terminal
+/// they were started from. Elsewhere there's nothing to do.
+fn attach_console() {
+    #[cfg(windows)]
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn AttachConsole(process: u32) -> i32;
+        }
+        const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+        // SAFETY: plain Win32 call; failure (no parent console) just means output goes nowhere.
+        unsafe {
+            AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+    }
 }

@@ -293,8 +293,7 @@ fn release_row(
                         .items_center()
                         .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
                         .when(is_newest, |el| el.child(badge(theme, tr!("firmware.newest"))))
-                        .when(is_installed, |el| el.child(badge(theme, tr!("firmware.installed"))))
-                        .when(release.prerelease, |el| el.child(badge(theme, tr!("firmware.test_build")))),
+                        .when(is_installed, |el| el.child(badge(theme, tr!("firmware.installed")))),
                 )
                 .child(muted(theme, format!("{} · {}", release.date, release.file_name()))),
         )

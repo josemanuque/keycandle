@@ -21,6 +21,8 @@ use crate::updater::{Releases, Source, Updater};
 const WATCH_EVERY: Duration = Duration::from_millis(500);
 /// How often to look for a keyboard while none is connected.
 const SEARCH_EVERY: Duration = Duration::from_secs(2);
+/// Window width under which the sidebar shows only icons.
+const COMPACT_BELOW: f32 = 980.0;
 /// Preview frame time (~30 fps: smooth enough, light on the CPU).
 const FRAME: Duration = Duration::from_millis(33);
 
@@ -214,8 +216,12 @@ impl Configurator {
 }
 
 impl Render for Configurator {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        // Narrow windows: the sidebar shrinks to its icons so the page keeps its room.
+        let viewport = window.viewport_size();
+        let compact = f32::from(viewport.width) < COMPACT_BELOW;
+        self.layout.window_height = f32::from(viewport.height);
         let page = self.render_page(cx);
         // Measure the room the page really gets; pages size their columns and previews from it.
         let view = cx.entity().downgrade();
@@ -238,18 +244,19 @@ impl Render for Configurator {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
-            .child(sidebar::render(self, cx))
+            .child(sidebar::render(self, compact, cx))
             .child(
                 v_flex()
                     .id("page")
                     .flex_1()
+                    .min_w_0() // shrink to the window, not grow with the content (the width is measured below)
                     .h_full()
                     .overflow_y_scroll()
                     .p_8()
                     .gap_2()
                     .child(div().text_3xl().font_weight(FontWeight::SEMIBOLD).child(self.page.title()))
                     .child(div().pb_4().text_color(theme.muted_foreground).child(self.page.subtitle()))
-                    .child(div().relative().w_full().max_w(px(MAX_CONTENT)).child(measure).child(page)),
+                    .child(div().relative().w_full().min_w_0().max_w(px(MAX_CONTENT)).child(measure).child(page)),
             )
     }
 }

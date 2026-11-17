@@ -16,11 +16,13 @@ pub const GAP: f32 = 20.0;
 pub struct Layout {
     /// Width available to the page's content, in px.
     pub width: f32,
+    /// The window's height, in px (previews keep to a share of it).
+    pub window_height: f32,
 }
 
 impl Default for Layout {
     fn default() -> Self {
-        Self { width: 860.0 }
+        Self { width: 860.0, window_height: 800.0 }
     }
 }
 
@@ -51,7 +53,15 @@ pub fn columns(width: f32, min: f32, gap: f32) -> (usize, f32) {
     (n, ((width - gap * (n - 1) as f32) / n as f32).floor())
 }
 
-/// Scale for the drawn keyboard (760 px at 1.0) to fill `width`, never larger than `max`.
+/// Scale for the drawn keyboard (760 × 300 px at 1.0) to fill `width`, never larger than `max`.
 pub fn keyboard_scale(width: f32, max: f32) -> f32 {
     (width / 760.0).min(max)
+}
+
+impl Layout {
+    /// Scale for a page's main keyboard preview: as wide as `width`, but at most ~40 % of the window's
+    /// height, so short windows still show what's below it.
+    pub fn preview_scale(&self, width: f32) -> f32 {
+        keyboard_scale(width, 1.4).min(self.window_height * 0.4 / 300.0)
+    }
 }

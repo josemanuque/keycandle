@@ -13,7 +13,8 @@ use super::page::Page;
 use super::widgets::muted;
 use crate::tr;
 
-pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoElement {
+/// `compact`: icons only (narrow windows).
+pub fn render(app: &Configurator, compact: bool, cx: &mut Context<Configurator>) -> impl IntoElement {
     let theme = cx.theme().clone();
     let view = cx.entity().downgrade();
     let menu = SidebarMenu::new().children(Page::ALL.map(|page| {
@@ -24,19 +25,27 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoEl
     }));
 
     let (dot, state, detail) = connection_text(app.model.connection(), app.model.write_error());
+    let status_dot = div().size_2().flex_none().rounded_full().bg(dot);
     Sidebar::new("sections")
-        .header(SidebarHeader::new().child(
-            v_flex()
-                .child(div().font_weight(FontWeight::SEMIBOLD).child(tr!("app.name")))
-                .child(muted(&theme, tr!("app.subtitle"))),
-        ))
+        .collapsible(true)
+        .collapsed(compact)
+        .when(!compact, |el| {
+            el.header(SidebarHeader::new().child(
+                v_flex()
+                    .child(div().font_weight(FontWeight::SEMIBOLD).child(tr!("app.name")))
+                    .child(muted(&theme, tr!("app.subtitle"))),
+            ))
+        })
         .child(menu)
-        .footer(SidebarFooter::new().child(
+        .footer(SidebarFooter::new().child(if compact {
+            h_flex().w_full().justify_center().child(status_dot).into_any_element()
+        } else {
             v_flex()
                 .gap_1()
-                .child(h_flex().gap_2().items_center().child(div().size_2().rounded_full().bg(dot)).child(state))
-                .when_some(detail, |el, detail| el.child(muted(&theme, detail))),
-        ))
+                .child(h_flex().gap_2().items_center().child(status_dot).child(state))
+                .when_some(detail, |el, detail| el.child(muted(&theme, detail)))
+                .into_any_element()
+        }))
 }
 
 /// Status dot, headline and detail for the connection.

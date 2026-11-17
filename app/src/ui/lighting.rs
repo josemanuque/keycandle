@@ -61,7 +61,7 @@ impl EffectGroup {
 }
 
 /// Smallest gallery thumbnail.
-const MIN_THUMB: f32 = 150.0;
+const MIN_THUMB: f32 = 120.0;
 const THUMB_GAP: f32 = 10.0;
 /// Card padding (p_5) and border on both sides, and the preview card's (p_4).
 const CARD_PAD: f32 = 2.0 * (20.0 + 1.0);
@@ -103,7 +103,7 @@ pub fn live_preview(app: &Configurator, theme: &Theme, width: f32, caption: bool
     let effect = app.model.byte(value::KEY_EFFECT);
     let keys = effects::key_colors(effect as usize, &app.model.key_scene(t));
     let side = effects::side_colors(&app.model.side_scene(t));
-    let scale = keyboard_scale(width - PREVIEW_PAD, 1.4);
+    let scale = app.layout.preview_scale(width - PREVIEW_PAD);
     card(theme)
         .w(px(width))
         .items_center()

@@ -36,6 +36,7 @@ pub fn run(page: Option<&str>) {
         let bounds = Bounds::centered(None, size(px(1180.), px(800.)), cx);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_min_size: Some(size(px(640.), px(480.))),
             titlebar: Some(TitlebarOptions { title: Some(crate::tr!("app.name").into()), ..Default::default() }),
             ..Default::default()
         };
