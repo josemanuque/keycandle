@@ -23,6 +23,9 @@ page:
   firmware:
     title: Firmware
     subtitle: Update the keyboard's firmware or go back to the original.
+  settings:
+    title: Settings
+    subtitle: The app's own preferences. The keyboard's settings are on the other pages.
 
 connection:
   connected: Connected
@@ -232,3 +235,24 @@ firmware:
     left_flash_mode: Left flash mode; the keyboard is starting.
     failed: The update didn't finish
     failed_detail: "%{error}. The keyboard can always be updated again: its flash mode is built into the chip."
+
+settings:
+  language: Language
+  language_help: Follows your system until you pick one.
+  appearance: Appearance
+  appearance_system: System
+  appearance_light: Light
+  appearance_dark: Dark
+
+power:
+  charging: Charging over USB
+  battery_high: Battery high
+  battery_medium: Battery medium
+  battery_low: Battery low, charge soon
+  battery_unknown: Battery level unknown
+  mode_wired: Wired (USB)
+  mode_bluetooth: "Bluetooth, device %{slot}: %{link}"
+  link_connected: connected
+  link_connecting: connecting…
+  link_pairing: pairing…
+  link_idle: not connected

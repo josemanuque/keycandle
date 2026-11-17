@@ -14,6 +14,7 @@
 #include "gpio.h"
 #include "timer.h"
 #include "config.h"
+#include "host_driver.h"
 
 #define STUCK_TIMEOUT_MS 200 /* as the stock firmware (200-tick countdown @0x5816) */
 #define GAP_MS 2
@@ -181,4 +182,12 @@ void rk71_bt_task(void) {
     chSysUnlock();
 
     if (n) rk71_bt_received(packet, n);
+}
+
+/* VIA (and the configurator) talk to the keyboard over USB only: the Bluetooth module has no data
+ * channel. In Bluetooth mode with the cable plugged in, QMK still routes the replies to the Bluetooth
+ * host driver, where they were dropped and VIA stopped answering. Send them back over USB. */
+void bluetooth_send_raw_hid(uint8_t *data, uint8_t length) {
+    extern host_driver_t chibios_driver;
+    chibios_driver.send_raw_hid(data, length);
 }

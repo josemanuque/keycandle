@@ -1,17 +1,17 @@
-//! The sidebar: app name, the sections, the connection state and the language.
+//! The sidebar: app name, the sections, and the connection state.
 
-use gpui::{div, prelude::*, px, rgb, Context, FontWeight, Rgba};
+use gpui::{div, prelude::*, rgb, Context, FontWeight, Rgba};
 use gpui_component::{
     h_flex,
     sidebar::{Sidebar, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuItem},
-    v_flex, ActiveTheme as _, Theme,
+    v_flex, ActiveTheme as _,
 };
 
 use super::app::Configurator;
 use super::model::Connection;
 use super::page::Page;
-use super::widgets::{muted, segment, segmented};
-use crate::{i18n, tr};
+use super::widgets::muted;
+use crate::tr;
 
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoElement {
     let theme = cx.theme().clone();
@@ -33,15 +33,9 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> impl IntoEl
         .child(menu)
         .footer(SidebarFooter::new().child(
             v_flex()
-                .w_full()
-                .gap_3()
-                .child(
-                    v_flex()
-                        .gap_1()
-                        .child(h_flex().gap_2().items_center().child(div().size_2().rounded_full().bg(dot)).child(state))
-                        .when_some(detail, |el, detail| el.child(muted(&theme, detail))),
-                )
-                .child(language_picker(&theme, cx)),
+                .gap_1()
+                .child(h_flex().gap_2().items_center().child(div().size_2().rounded_full().bg(dot)).child(state))
+                .when_some(detail, |el, detail| el.child(muted(&theme, detail))),
         ))
 }
 
@@ -62,23 +56,4 @@ fn connection_text(connection: &Connection, write_error: Option<&str>) -> (Rgba,
         Connection::Missing(reason) => (red, tr!("connection.not_connected"), Some(reason.clone())),
         Connection::NotFound => (red, tr!("connection.not_connected"), None),
     }
-}
-
-/// EN / ES / PT: switches every text at once and is remembered.
-fn language_picker(theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement {
-    let current = i18n::current();
-    let view = cx.entity().downgrade();
-    segmented(theme).children(i18n::LANGUAGES.iter().enumerate().map(|(i, &(code, _name))| {
-        let view = view.clone();
-        let short = code[..2].to_uppercase();
-        segment(theme, ("lang", i), code == current)
-            .min_w(px(0.))
-            .px_1()
-            .py_1()
-            .text_xs()
-            .on_click(move |_, window, cx| {
-                let _ = view.update(cx, |this, cx| this.set_language(code, window, cx));
-            })
-            .child(short)
-    }))
 }

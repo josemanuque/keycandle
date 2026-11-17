@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::device::Keyboard;
+use crate::device::{Keyboard, CHANNEL_KEYBOARD};
 use crate::preview::effects::{Scene, SideScene};
 use crate::settings::{self, value, Setting};
 
@@ -28,6 +28,82 @@ pub enum Connection {
     Stock,
 }
 
+/// What the keyboard reports about itself (firmware v0.8+, VIA value 52).
+#[derive(Clone, Copy, Default, PartialEq)]
+pub struct KeyboardState {
+    /// Goes up whenever something changed on the keyboard itself.
+    changes: u8,
+    pub bluetooth: bool,
+    /// Bluetooth device slot, 0..4.
+    pub slot: u8,
+    pub link: Link,
+    pub battery: Battery,
+    pub cable: bool,
+    pub battery_low: bool,
+    pub lighting_on: bool,
+    pub mac: bool,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum Link {
+    #[default]
+    Idle,
+    Connecting,
+    Pairing,
+    Connected,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum Battery {
+    #[default]
+    Unknown,
+    Low,
+    Medium,
+    High,
+}
+
+impl KeyboardState {
+    fn from_bytes(v: &[u8]) -> Self {
+        Self {
+            changes: v[0],
+            bluetooth: v[1] != 0,
+            slot: v[2],
+            link: match v[3] {
+                1 => Link::Connecting,
+                2 => Link::Pairing,
+                3 => Link::Connected,
+                _ => Link::Idle,
+            },
+            battery: match v[4] {
+                1 => Battery::Low,
+                2 => Battery::Medium,
+                3 => Battery::High,
+                _ => Battery::Unknown,
+            },
+            cable: v[5] & 1 != 0,
+            battery_low: v[5] & 2 != 0,
+            lighting_on: v[5] & 4 != 0,
+            mac: v[5] & 8 != 0,
+        }
+    }
+}
+
+/// The keyboard's state value id and length.
+const STATE_ID: u8 = 52;
+const STATE_LEN: usize = 6;
+
+/// What a poll found.
+pub enum Poll {
+    /// Still there, nothing changed.
+    Same,
+    /// Settings changed on the keyboard (Fn keys, …): these values differ from before.
+    Changed(Vec<value::Id>),
+    /// Only its state changed (mode, battery, …).
+    StateChanged,
+    /// It went away.
+    Lost,
+}
+
 #[derive(Default)]
 pub struct Model {
     keyboard: Option<Keyboard>,
@@ -37,6 +113,8 @@ pub struct Model {
     write_error: Option<String>,
     /// 0x00MMmmpp; 0 = older than v0.7 (did not report it).
     firmware_version: Option<u32>,
+    /// None for firmware older than v0.8, which doesn't report it.
+    state: Option<KeyboardState>,
 }
 
 impl Model {
@@ -56,6 +134,10 @@ impl Model {
         self.firmware_version
     }
 
+    pub fn state(&self) -> Option<&KeyboardState> {
+        self.state.as_ref()
+    }
+
     pub fn in_flash_mode(&self) -> bool {
         self.connection == Connection::FlashMode
     }
@@ -68,6 +150,7 @@ impl Model {
     pub fn take_keyboard(&mut self) -> Option<Keyboard> {
         self.firmware_version = None;
         self.values.clear();
+        self.state = None;
         self.keyboard.take()
     }
 
@@ -94,11 +177,8 @@ impl Model {
                 self.firmware_version = kb.firmware_version().ok();
                 self.connection = Connection::Usb { protocol: kb.protocol_version };
                 self.write_error = None;
-                for setting in settings::all() {
-                    if let Ok(v) = kb.get(setting.channel, setting.id, setting.len()) {
-                        self.values.insert(setting.value_id(), v);
-                    }
-                }
+                self.state = kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).ok().map(|v| KeyboardState::from_bytes(&v));
+                self.values = read_all(&kb);
                 self.keyboard = Some(kb);
             }
             Err(e) => {
@@ -117,15 +197,33 @@ impl Model {
         self.is_connected()
     }
 
-    /// Ping the keyboard; if it stopped answering, forget it. Returns true when it was just lost.
-    pub fn check_lost(&mut self) -> bool {
-        let lost = self.keyboard.as_ref().is_some_and(|kb| kb.ping().is_err());
-        if lost {
+    /// Check on the keyboard: still there? Changed anything on its own? Settings are re-read only
+    /// when its change counter moved (firmware v0.8+; older firmware is just pinged).
+    pub fn poll(&mut self) -> Poll {
+        let Some(kb) = &self.keyboard else { return Poll::Same };
+        let fresh = match self.state {
+            Some(_) => kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).map(|v| Some(KeyboardState::from_bytes(&v))),
+            None => kb.ping().map(|_| None),
+        };
+        let Ok(fresh) = fresh else {
             self.keyboard = None;
             self.values.clear();
+            self.state = None;
             self.connection = Connection::Unplugged;
+            return Poll::Lost;
+        };
+        let (Some(old), Some(new)) = (self.state, fresh) else { return Poll::Same };
+        if old == new {
+            return Poll::Same;
         }
-        lost
+        self.state = Some(new);
+        if old.changes == new.changes {
+            return Poll::StateChanged;
+        }
+        let now = read_all(kb);
+        let changed: Vec<value::Id> = now.iter().filter(|(id, v)| self.values.get(id) != Some(v)).map(|(id, _)| *id).collect();
+        self.values = now;
+        if changed.is_empty() { Poll::StateChanged } else { Poll::Changed(changed) }
     }
 
     pub fn get(&self, id: value::Id) -> Option<&[u8]> {
@@ -200,4 +298,11 @@ impl Model {
             speed: self.byte(value::SIDE_SPEED),
         }
     }
+}
+
+/// Every setting's current value.
+fn read_all(kb: &Keyboard) -> Values {
+    settings::all()
+        .filter_map(|setting| kb.get(setting.channel, setting.id, setting.len()).ok().map(|v| (setting.value_id(), v)))
+        .collect()
 }

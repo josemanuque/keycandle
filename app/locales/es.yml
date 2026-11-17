@@ -22,6 +22,9 @@ page:
   firmware:
     title: Firmware
     subtitle: Actualiza el firmware del teclado o vuelve al original.
+  settings:
+    title: Ajustes
+    subtitle: Preferencias de la propia app. Los ajustes del teclado están en las otras páginas.
 
 connection:
   connected: Conectado
@@ -231,3 +234,24 @@ firmware:
     left_flash_mode: Se salió del modo de flasheo; el teclado está arrancando.
     failed: La actualización no terminó
     failed_detail: "%{error}. El teclado siempre se puede volver a actualizar: su modo de flasheo está integrado en el chip."
+
+settings:
+  language: Idioma
+  language_help: Sigue el idioma del sistema hasta que elijas uno.
+  appearance: Apariencia
+  appearance_system: Sistema
+  appearance_light: Claro
+  appearance_dark: Oscuro
+
+power:
+  charging: Cargando por USB
+  battery_high: Batería alta
+  battery_medium: Batería media
+  battery_low: Batería baja, cárgalo pronto
+  battery_unknown: Nivel de batería desconocido
+  mode_wired: Con cable (USB)
+  mode_bluetooth: "Bluetooth, dispositivo %{slot}: %{link}"
+  link_connected: conectado
+  link_connecting: conectando…
+  link_pairing: emparejando…
+  link_idle: sin conexión

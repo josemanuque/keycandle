@@ -23,8 +23,9 @@ use crate::tr;
 
 type ChoiceState = SelectState<Vec<SharedString>>;
 
-/// Choices with at most this many options show as a segmented control; longer ones as a dropdown.
-const MAX_SEGMENTS: usize = 6;
+/// Choices with at most this many options show as a segmented control (all options visible, one
+/// click); longer ones as a dropdown, where a row of segments would get cramped.
+const MAX_SEGMENTS: usize = 4;
 
 /// The interactive part of one setting's row. Toggles and segments are stateless (drawn from the
 /// value).
@@ -49,6 +50,28 @@ impl Controls {
             })
             .collect();
         Self(controls)
+    }
+
+    /// Bring controls in line with values that changed on the keyboard itself (Fn keys, …).
+    pub fn sync(&self, ids: &[value::Id], model: &Model, window: &mut Window, cx: &mut Context<Configurator>) {
+        for id in ids {
+            let Some(current) = model.get(*id) else { continue };
+            match self.0.get(id) {
+                Some(Control::Range(state)) => {
+                    let v = current[0] as f32;
+                    state.update(cx, |s, cx| s.set_value(v, window, cx));
+                }
+                Some(Control::Choice(state)) => {
+                    let i = current[0] as usize;
+                    state.update(cx, |s, cx| s.set_selected_index(Some(IndexPath::new(i)), window, cx));
+                }
+                Some(Control::Color(state)) => {
+                    let c = color::from_stored(current);
+                    state.update(cx, |s, cx| s.set_value(c, window, cx));
+                }
+                _ => {} // toggles and segments are drawn from the model
+            }
+        }
     }
 
     /// Show a choice made elsewhere (e.g. the effect gallery) in its dropdown.

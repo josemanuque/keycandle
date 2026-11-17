@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct Prefs {
     /// Locale code, or None to follow the system.
     pub language: Option<String>,
+    /// "light" or "dark", or None to follow the system.
+    pub appearance: Option<String>,
 }
 
 impl Prefs {

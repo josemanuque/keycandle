@@ -9,16 +9,18 @@ use gpui_component::{h_flex, v_flex, ActiveTheme as _};
 use super::controls::Controls;
 use super::layout::{Layout, MAX_CONTENT};
 use super::lighting::EffectGroup;
-use super::model::{Connection, Model, Values};
+use super::model::{Connection, Model, Poll, Values};
 use super::page::Page;
 use super::widgets::muted;
-use super::{firmware, lighting, overview, settings_page, sidebar};
+use super::{app_settings, firmware, lighting, overview, power, settings_page, sidebar};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
 
-/// How often the connection is checked.
-const WATCH_EVERY: Duration = Duration::from_secs(2);
+/// How often the keyboard is checked (connection, and changes made on the keyboard itself).
+const WATCH_EVERY: Duration = Duration::from_millis(500);
+/// How often to look for a keyboard while none is connected.
+const SEARCH_EVERY: Duration = Duration::from_secs(2);
 /// Preview frame time (~30 fps: smooth enough, light on the CPU).
 const FRAME: Duration = Duration::from_millis(33);
 
@@ -72,21 +74,34 @@ impl Configurator {
 
     /// Notice an unplugged keyboard (or flash mode), and connect again when it comes back.
     fn watch_connection(window: &mut Window, cx: &mut Context<Self>) {
-        cx.spawn_in(window, async move |this, cx| loop {
-            cx.background_executor().timer(WATCH_EVERY).await;
-            let open = this.update_in(cx, |this, window, cx| {
-                if this.updater.step().is_busy() {
-                    return; // the updater owns the USB device until it is done
+        cx.spawn_in(window, async move |this, cx| {
+            let mut since_search = Duration::ZERO;
+            loop {
+                cx.background_executor().timer(WATCH_EVERY).await;
+                since_search += WATCH_EVERY;
+                let open = this.update_in(cx, |this, window, cx| {
+                    if this.updater.step().is_busy() {
+                        return; // the updater owns the USB device until it is done
+                    }
+                    if this.model.is_connected() {
+                        match this.model.poll() {
+                            Poll::Same => return,
+                            Poll::Lost => this.controls = Controls::default(),
+                            Poll::Changed(ids) => {
+                                this.controls.sync(&ids, &this.model, window, cx);
+                                this.effect_group = EffectGroup::of(this.model.byte(value::KEY_EFFECT));
+                            }
+                            Poll::StateChanged => {}
+                        }
+                    } else if since_search >= SEARCH_EVERY {
+                        since_search = Duration::ZERO;
+                        this.connect(window, cx);
+                    }
+                    cx.notify();
+                });
+                if open.is_err() {
+                    break; // window closed
                 }
-                if this.model.check_lost() {
-                    this.controls = Controls::default();
-                } else if !this.model.is_connected() {
-                    this.connect(window, cx);
-                }
-                cx.notify();
-            });
-            if open.is_err() {
-                break; // window closed
             }
         })
         .detach();
@@ -166,8 +181,11 @@ impl Configurator {
 
     fn render_page(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        if self.page == Page::Firmware {
-            return firmware::render(self, cx); // works without a connection too
+        // These work without a keyboard too.
+        match self.page {
+            Page::Firmware => return firmware::render(self, cx),
+            Page::Settings => return app_settings::render(self, cx),
+            _ => {}
         }
         if !self.model.is_connected() {
             let (text, detail) = match self.model.connection() {
@@ -185,8 +203,9 @@ impl Configurator {
         match self.page {
             Page::Overview => overview::render(self, cx),
             Page::Lighting => lighting::render(self, cx),
-            Page::Keys | Page::Power => settings_page::render(self, self.page.sections(), self.layout.width, cx),
-            Page::Firmware => unreachable!("handled above"),
+            Page::Keys => settings_page::render(self, self.page.sections(), self.layout.width, cx),
+            Page::Power => power::render(self, cx),
+            Page::Firmware | Page::Settings => unreachable!("handled above"),
         }
     }
 }

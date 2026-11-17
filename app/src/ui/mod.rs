@@ -9,6 +9,8 @@
 //! - `widgets`: shared building blocks
 
 mod app;
+mod app_settings;
+mod appearance;
 mod controls;
 mod firmware;
 mod layout;
@@ -16,6 +18,7 @@ mod lighting;
 pub mod model;
 mod overview;
 mod page;
+mod power;
 mod settings_page;
 mod sidebar;
 mod widgets;
@@ -37,9 +40,9 @@ pub fn run(page: Option<&str>) {
             ..Default::default()
         };
         cx.open_window(options, |window, cx| {
-            // Light or dark like the system, and follow it when it changes.
-            Theme::sync_system_appearance(Some(window), cx);
-            window.observe_window_appearance(|window, cx| Theme::sync_system_appearance(Some(window), cx)).detach();
+            // Light or dark: the user's choice, or like the system (and follow it when it changes).
+            appearance::apply(window, cx);
+            window.observe_window_appearance(|window, cx| appearance::apply(window, cx)).detach();
             let view = cx.new(|cx| app::Configurator::new(page, window, cx));
             cx.new(|cx| Root::new(view, window, cx))
         })

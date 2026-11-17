@@ -756,10 +756,52 @@ static void measure_led_rate(uint32_t now) {
     since                = now;
 }
 
+/* ---- state report for the configurator ------------------------------------------------------
+ * The app reads ID_STATE every half second. `changes` goes up whenever anything it shows changed on
+ * the keyboard itself (lighting from Fn keys, wired/Bluetooth, device slot, battery, cable, Win/Mac),
+ * so it re-reads settings only then. Detected by fingerprinting all of it every 100 ms. */
+enum { STATE_CABLE = 1, STATE_BATTERY_LOW = 2, STATE_LIGHTING_ON = 4, STATE_MAC = 8 };
+static uint8_t state_changes;
+
+static uint8_t state_flags(void) {
+    return (vbus_known() && vbus_present() ? STATE_CABLE : 0) | (battery_low ? STATE_BATTERY_LOW : 0) |
+           (rgb_matrix_is_enabled() ? STATE_LIGHTING_ON : 0) | (get_highest_layer(default_layer_state) == RK71_MAC_LAYER ? STATE_MAC : 0);
+}
+
+static uint32_t fnv1a(uint32_t h, const void *data, uint8_t len) {
+    for (const uint8_t *p = data; len--; p++) h = (h ^ *p) * 16777619u;
+    return h;
+}
+
+static void watch_state(uint32_t now) {
+    static uint32_t checked, last;
+    if (TIMER_DIFF_32(now, checked) < 100) return;
+    checked = now;
+    uint8_t live[] = {on_bluetooth(), kb_config.host, link_state, battery_level, state_flags()};
+    uint32_t h = fnv1a(2166136261u, &rgb_matrix_config, sizeof(rgb_matrix_config));
+    h = fnv1a(h, &kb_config, sizeof(kb_config));
+    h = fnv1a(h, &kb_extra, sizeof(kb_extra));
+    h = fnv1a(h, live, sizeof(live));
+    if (h != last) {
+        last = h;
+        state_changes++;
+    }
+}
+
+static void state_report(uint8_t *value) {
+    value[0] = state_changes;
+    value[1] = on_bluetooth();      /* 0 wired, 1 Bluetooth */
+    value[2] = kb_config.host;      /* Bluetooth device slot 0..4 */
+    value[3] = link_state;          /* 0 idle, 1 connecting, 2 pairing, 3 connected */
+    value[4] = battery_level;       /* 0 unknown, 1 low, 2 medium, 3 high */
+    value[5] = state_flags();
+}
+
 void housekeeping_task_kb(void) {
     uint32_t now = timer_read32();
 
     measure_led_rate(now);
+    watch_state(now);
 
     vbus_task();
 
@@ -982,8 +1024,10 @@ enum {
     ID_SIDE_TRIM_LAST = ID_SIDE_TRIM_FIRST + 17, /* light 6 blue */
     ID_PULSE_EXTRA_FIRST,                        /* red, green, blue */
     ID_PULSE_EXTRA_LAST = ID_PULSE_EXTRA_FIRST + 2,
-    ID_LED_ROW_RATE, /* read-only: key LED colour rows lit per second (refresh = this / 15) */
-    ID_LED_SWITCH,   /* read-only: row switch time, average and longest since last read (timer ticks) */
+    /* Read-only values; numbered explicitly because the configurator app relies on them. */
+    ID_LED_ROW_RATE = 50, /* key LED colour rows lit per second (refresh = this / 15) */
+    ID_LED_SWITCH   = 51, /* row switch time, average and longest since last read (timer ticks) */
+    ID_STATE        = 52, /* change counter, mode, device, link, battery, flags (see state_report) */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1094,6 +1138,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     value[0] = led_row_rate >> 8;
                     value[1] = led_row_rate & 0xFF;
                     break;
+                case ID_STATE: state_report(value); break;
                 case ID_LED_SWITCH:
                     value[0] = led_switch_avg >> 8;
                     value[1] = led_switch_avg & 0xFF;

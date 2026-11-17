@@ -1,7 +1,6 @@
-﻿//! The app's sections, as listed in the sidebar.
+//! The app's sections, as listed in the sidebar.
 
 use gpui_component::Icon;
-
 
 use crate::settings::{Section, KEYS, LIGHTING, POWER};
 
@@ -12,10 +11,12 @@ pub enum Page {
     Keys,
     Power,
     Firmware,
+    /// The app's own settings (language, appearance).
+    Settings,
 }
 
 impl Page {
-    pub const ALL: [Page; 5] = [Page::Overview, Page::Lighting, Page::Keys, Page::Power, Page::Firmware];
+    pub const ALL: [Page; 6] = [Page::Overview, Page::Lighting, Page::Keys, Page::Power, Page::Firmware, Page::Settings];
 
     /// Stable name: the translation key part and the `--page` argument.
     pub fn name(self) -> &'static str {
@@ -25,6 +26,7 @@ impl Page {
             Page::Keys => "keys",
             Page::Power => "power",
             Page::Firmware => "firmware",
+            Page::Settings => "settings",
         }
     }
 
@@ -49,6 +51,7 @@ impl Page {
             Page::Keys => "icons/keyboard.svg",
             Page::Power => "icons/battery-full.svg",
             Page::Firmware => "icons/download.svg",
+            Page::Settings => "icons/settings.svg",
         };
         Icon::empty().path(file)
     }
@@ -59,7 +62,7 @@ impl Page {
             Page::Lighting => LIGHTING,
             Page::Keys => KEYS,
             Page::Power => POWER,
-            Page::Overview | Page::Firmware => &[],
+            Page::Overview | Page::Firmware | Page::Settings => &[],
         }
     }
 
