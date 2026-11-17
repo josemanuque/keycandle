@@ -13,7 +13,7 @@ mod controls;
 mod firmware;
 mod layout;
 mod lighting;
-mod model;
+pub mod model;
 mod overview;
 mod page;
 mod settings_page;

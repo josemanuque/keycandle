@@ -6,6 +6,8 @@
 //!   rk71-configurator --releases list the firmware releases on GitHub (download test)
 //!   rk71-configurator --isp-info read the bootloader's chip id and flash checksum (read-only)
 //!   rk71-configurator --leave-flash-mode   start the firmware from the bootloader
+//!   rk71-configurator --install <file.bin>  install firmware, like the Firmware page
+//!   rk71-configurator --set <channel> <id> <byte>…   write and save one VIA value
 
 mod color;
 mod device;
@@ -31,6 +33,8 @@ fn main() -> Result<()> {
         Some("--releases") => list_releases(),
         Some("--isp-info") => isp_info(),
         Some("--leave-flash-mode") => isp::Bootloader::open()?.start_firmware(),
+        Some("--install") => install(std::env::args().nth(2).as_deref()),
+        Some("--set") => set_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
             Ok(())
@@ -86,5 +90,56 @@ fn list_releases() -> Result<()> {
 fn isp_info() -> Result<()> {
     let bl = isp::Bootloader::open()?;
     println!("Bootloader: SN32F24xB, code security {:#06x}, flash checksum {:#06x}", bl.security, bl.flash_checksum()?);
+    Ok(())
+}
+
+/// Command-line install (the Firmware page's "From a file…").
+fn install(path: Option<&str>) -> Result<()> {
+    let path = path.ok_or_else(|| anyhow::anyhow!("usage: --install <firmware.bin>"))?;
+    let source = updater::Source::File(path.into());
+    // Like the app: read every setting first, put them back once the new firmware is up.
+    let mut model = ui::model::Model::default();
+    let saved = model.connect().then(|| model.snapshot());
+    let keyboard = model.take_keyboard();
+    let last = std::cell::Cell::new(String::new());
+    updater::install_blocking(&source, keyboard, &|step| {
+        let line = match step {
+            updater::Step::Downloading => "Reading the file…".to_string(),
+            updater::Step::WaitingForBootloader { manual: false } => "Restarting into flash mode…".into(),
+            updater::Step::WaitingForBootloader { manual: true } => "Press Fn + Pause on the keyboard…".into(),
+            updater::Step::Writing(p) => format!("Writing {:>3.0}%", (p * 10.0).floor() * 10.0),
+            updater::Step::Starting => "Starting the keyboard…".into(),
+            _ => return,
+        };
+        if line != last.replace(line.clone()) {
+            println!("{line}");
+        }
+    })?;
+    println!("Installed {}.", source.describe());
+    if let Some(saved) = saved {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !model.connect() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        if model.is_connected() {
+            model.restore(&saved);
+            println!("Settings put back.");
+        } else {
+            println!("The keyboard didn't come back in time; settings were not put back.");
+        }
+    }
+    Ok(())
+}
+
+/// Command-line write of one value (`--set 3 4 191 74` = key color hue 191, saturation 74).
+fn set_value(args: &[String]) -> Result<()> {
+    let numbers: Vec<u8> = args.iter().map(|a| a.parse()).collect::<Result<_, _>>()?;
+    let [channel, id, value @ ..] = numbers.as_slice() else {
+        anyhow::bail!("usage: --set <channel> <id> <byte>…");
+    };
+    let kb = Keyboard::open()?;
+    kb.set(*channel, *id, value)?;
+    kb.save(*channel)?;
+    println!("Set {channel}/{id} = {value:?}");
     Ok(())
 }

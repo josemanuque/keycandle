@@ -144,6 +144,11 @@ impl Updater {
     }
 }
 
+/// Install and wait for it (the command line's `--install`); `set` reports each step.
+pub fn install_blocking(source: &Source, keyboard: Option<Keyboard>, set: &impl Fn(Step)) -> Result<()> {
+    run_install(source, keyboard, set)
+}
+
 fn run_install(source: &Source, keyboard: Option<Keyboard>, set: &impl Fn(Step)) -> Result<()> {
     let image = source.fetch()?;
     isp::check_image(&image)?;
