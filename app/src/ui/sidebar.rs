@@ -116,7 +116,13 @@ fn status_mark(dot: Rgba, mark: Option<Mark>) -> impl IntoElement {
 struct Selection {
     fill: Hsla,
     text: Hsla,
+    /// Windows: a short bar in the accent color at the row's left edge, as its navigation panes have.
+    bar: Option<Hsla>,
 }
+
+/// The accent bar's size.
+const BAR_WIDTH: f32 = 3.0;
+const BAR_HEIGHT: f32 = 16.0;
 
 /// `compact`: icons only (narrow windows).
 pub fn render(
@@ -132,19 +138,34 @@ pub fn render(
     let title_bar = app.backdrop.title_bar_height();
     let inset = app.backdrop.sidebar_inset();
     let rail = app.backdrop.rail_width();
-    // macOS: the system's accent color, gray while another window is active. Elsewhere: the theme's.
+    // macOS: filled with the system's accent color, gray while another window is active. Windows: the
+    // theme's fill with a bar in the system's accent color. Linux: the theme's.
+    let accent = chrome::accent_color(theme.mode.is_dark());
     let selection = match (native, window.is_window_active()) {
-        (true, true) => Selection { fill: chrome::accent_color().unwrap_or(theme.primary), text: white() },
-        (true, false) => Selection { fill: theme.foreground.opacity(0.14), text: theme.foreground },
-        (false, _) => Selection { fill: theme.sidebar_accent, text: theme.sidebar_accent_foreground },
+        (true, true) => Selection { fill: accent.unwrap_or(theme.primary), text: white(), bar: None },
+        (true, false) => Selection { fill: theme.foreground.opacity(0.14), text: theme.foreground, bar: None },
+        (false, _) => Selection { fill: theme.sidebar_accent, text: theme.sidebar_accent_foreground, bar: accent },
     };
     let view = cx.entity().downgrade();
     let rows: Vec<AnyElement> = Page::ALL.into_iter().enumerate().map(|(index, page)| {
         let selected = page == app.page;
         let view = view.clone();
         let title = page.title();
+        let row_height = if !compact { 28. } else if native { 38. } else { 36. };
+        let bar = selection.bar.filter(|_| selected).map(|color| {
+            div()
+                .absolute()
+                .left_0()
+                .top(px((row_height - BAR_HEIGHT) / 2.))
+                .w(px(BAR_WIDTH))
+                .h(px(BAR_HEIGHT))
+                .rounded_full()
+                .bg(color)
+        });
         let row = h_flex()
             .id(("section", index))
+            .relative()
+            .children(bar)
             .role(Role::TreeItem)
             .aria_label(title.clone())
             .aria_selected(selected)
@@ -161,14 +182,14 @@ pub fn render(
             // As wide as the window buttons above, and centered under them.
             row.justify_center()
                 .w(px(if native { 60. } else { 36. }))
-                .h(px(if native { 38. } else { 36. }))
+                .h(px(row_height))
                 .rounded(px(if native { 10. } else { 8. }))
                 .child(page.icon().size_5())
                 .tooltip(move |window, cx| Tooltip::new(title.clone()).build(window, cx))
                 .into_any_element()
         } else {
             row.w_full()
-                .h_7()
+                .h(px(row_height))
                 .px_2()
                 .gap_2()
                 .rounded(px(8.))
@@ -181,6 +202,8 @@ pub fn render(
     }).collect();
 
     let (dot, state, detail) = connection_text(app.model.connection(), app.model.write_error());
+    // Firmware that only listens over Bluetooth: say so instead of promising that things stay in sync.
+    let detail = if app.model.bluetooth_one_way() { Some(tr!("connection.bluetooth_one_way")) } else { detail };
     // What's happening right now takes the place of the usual line.
     let activity = app.model.activity();
     let dot = activity_color(&activity).unwrap_or(dot);

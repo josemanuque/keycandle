@@ -198,8 +198,9 @@ fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Contex
     let theme = cx.theme().clone();
     let id = setting.value_id();
     let mask = app.model.byte(id);
-    // The device in use, when the keyboard says (USB with firmware v0.8+).
+    // The device in use, when the keyboard says (USB with firmware v0.8+, Bluetooth with v0.9+).
     let in_use = app.model.state().map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
+    let in_use = in_use.or(app.model.bluetooth_device().map(usize::from));
     let view = cx.entity().downgrade();
     let rows = (0..DEVICES).map(|device| {
         let name = if device == WIRED { tr!("devices.wired") } else { tr!("devices.bluetooth", number = device + 1) };

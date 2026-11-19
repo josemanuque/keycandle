@@ -1,6 +1,6 @@
 [package]
 name = "keycandle"
-version = "0.8.3"
+version = "0.9.0"
 edition = "2021"
 description = "Configurator for the RK71 QMK firmware (Windows, macOS, Linux)"
 license = "GPL-2.0-or-later"
@@ -38,4 +38,4 @@ winresource = "0.1"
 
 # Settings over Bluetooth (btlink.rs): the keyboard's LED indicators through Windows' keyboard driver
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Security"] }
+windows-sys = { version = "0.61", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Security", "Win32_System_Registry"] }

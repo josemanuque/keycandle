@@ -31,6 +31,7 @@ Every push also builds the firmware on GitHub Actions. Open a run under **Action
 
 | Version | Changes |
 |---|---|
+| `v0.9b` | Settings over Bluetooth, both ways, on Windows, macOS and Linux: change lighting and Win/Mac per device with the cable unplugged, and see changes made with the Fn keys. Win/Mac for each Bluetooth device and the cable on the Keys page, with the device in use marked. The sidebar shows what's being sent and received, over the cable too. Keyboard: no red flash while saving. macOS: accent-coloured selection, keyboard navigation in the sidebar; Windows: accent bar on the selected page. Needs this release's firmware for the two-way part |
 | `v0.8.3b` | App on macOS feels native: translucent sidebar (Liquid Glass on macOS 26) with the window buttons in it, a full menu bar (About, Settings, pages, Appearance, Reconnect, Check for Firmware Updates, Help) and Cmd shortcuts; closing keeps the app in the Dock. On every OS: quitting or closing waits while firmware is being written, Ctrl/Cmd+1–5 open the pages, Reconnect no longer crashes |
 | `v0.8.2b` | The project is now **Keycandle** (app, repo and icon with a "K" legend). App: fits narrow and short windows (collapsing sidebar, previews sized to the window), full-width pages, What's new as a link under each version, blue Install, no console window on Windows; built for Windows, macOS (universal) and Linux on every release |
 | `v0.8.1b` | Side lights: colours accurate at low brightness (all colour pins switch together; green and blue used to stay on longer than red, turning colours light blue), frames timed from the time really used (measured ~3.1 kHz, above IEEE 1789's 3 kHz "no observable effect"); key lights ~1.4 kHz with margin; "Same brightness as the keys" uses the keys' brightness and hides the side-light slider. App: verified settings restore after updates (answers matched to requests), "Show fewer" and per-version notes in the release list |
@@ -143,9 +144,11 @@ answering as `05AC:024F` (tested on the board). Fn+Pause and the BOOT pad give `
 
 ## Roadmap
 
-* **v0.9:** settings over Bluetooth. Windows lets an ordinary app set a Bluetooth keyboard's lock-LED state through
-  the keyboard's own interface (no admin, no driver; tested on the board), and the module passes it on, so the app
-  can send short messages (lighting, effects, modes) one way. Plus Win/Mac per Bluetooth device in the app.
+* **v0.9 (done):** settings over Bluetooth, both ways. The app sends short messages through the keyboard's lock-LED
+  state, which the Bluetooth module passes on (Windows: the keyboard's own interface, no admin or driver; macOS: Input
+  Monitoring permission; Linux: the udev rule). The keyboard confirms each one, and reports its own values
+  (lighting, Win/Mac per device, the device in use) as reserved media-key codes that systems ignore.
+* Settings other than lighting and Win/Mac still show their last USB values while on Bluetooth.
 * Firmware updates stay USB-only: the bootloader is USB-only and Bluetooth carries a few bits per message.
 
 ## Known limitations

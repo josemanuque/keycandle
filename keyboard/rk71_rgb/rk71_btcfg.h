@@ -17,9 +17,9 @@ void rk71_btcfg_ack(uint16_t usage);
 /* Sends a usage to the host over Bluetooth; false if the module's queue is full. */
 bool rk71_btcfg_usage(uint16_t usage);
 
-/* Values reported to the app, as VIA reads them: key brightness, effect, speed, hue, saturation, and
- * the Mac layout per device. */
-#define BTCFG_SLOTS 6
+/* Values reported to the app, as VIA reads them: key brightness, effect, speed, hue, saturation, the
+ * Mac layout per device, and the Bluetooth device slot in use (0..4). */
+#define BTCFG_SLOTS 7
 void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]);
 
 /* Call every 100 ms or so: reports one value that changed on the keyboard (Fn keys) while `connected`. */

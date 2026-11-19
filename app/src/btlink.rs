@@ -56,8 +56,11 @@ const SAVED_SHOWN: Duration = Duration::from_millis(1500);
 /// How long to wait before trying again to listen to the keyboard.
 const LISTEN_RETRY: Duration = Duration::from_secs(1);
 /// What each reported slot is: the value's id and which of its bytes (keep in step with the firmware's
-/// rk71_btcfg_read).
-const SLOTS: [((u8, u8), usize); 6] = [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0)];
+/// rk71_btcfg_read). The last one isn't a setting: the Bluetooth device slot in use (firmware v0.9+).
+const SLOTS: [((u8, u8), usize); 7] =
+    [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0), (DEVICE_IN_USE, 0)];
+/// Stands for the device slot in use among the reported values (no VIA value has this id).
+const DEVICE_IN_USE: (u8, u8) = (0xFF, 0);
 
 /// One byte of a value, as the keyboard reported it.
 pub type Update = ((u8, u8), usize, u8);
@@ -188,6 +191,12 @@ struct Shared {
     closed: bool,
     /// Reported by the keyboard, not yet picked up by the app.
     updates: Vec<Update>,
+    /// The Bluetooth device slot in use (0..4), once the keyboard has said.
+    device_in_use: Option<u8>,
+    /// The keyboard has reported something since the queue started.
+    heard: bool,
+    /// The keyboard confirmed our request for its values; they're due by then.
+    answer_due: Option<Instant>,
 }
 
 type Link = std::sync::Arc<(std::sync::Mutex<Shared>, std::sync::Condvar)>;
@@ -207,6 +216,11 @@ fn listen(link: Link) {
                 let Ok(n) = device.read_timeout(&mut buf, 50) else { break 'open };
                 if let Some(update) = usage_in(&buf[..n]).and_then(|usage| reports.feed(usage)) {
                     let mut s = link.0.lock().unwrap();
+                    s.heard = true;
+                    if update.0 == DEVICE_IN_USE {
+                        s.device_in_use = Some(update.2);
+                        continue;
+                    }
                     s.updates.push(update);
                     s.got_values = true;
                     s.receiving_until = Some(Instant::now() + RECEIVE_SHOWN);
@@ -247,6 +261,7 @@ impl Queue {
                 if result.is_ok() {
                     if s.asking {
                         s.receiving_until = Some(Instant::now() + SYNC_ANSWER);
+                        s.answer_due = s.receiving_until;
                     } else {
                         s.saved_until = Some(Instant::now() + SAVED_SHOWN);
                     }
@@ -263,6 +278,22 @@ impl Queue {
     /// What the keyboard reported since the last call.
     pub fn take_updates(&self) -> Vec<Update> {
         std::mem::take(&mut self.0 .0.lock().unwrap().updates)
+    }
+
+    /// The Bluetooth device slot in use (0..4), if the keyboard reported it.
+    pub fn device_in_use(&self) -> Option<u8> {
+        self.0 .0.lock().unwrap().device_in_use
+    }
+
+    /// Whether the keyboard reports its values: None until it's known, false for firmware that
+    /// confirmed the request but sent nothing back (older than v0.9).
+    pub fn keyboard_reports(&self) -> Option<bool> {
+        let s = self.0 .0.lock().unwrap();
+        if s.heard {
+            Some(true)
+        } else {
+            s.answer_due.filter(|due| Instant::now() >= *due).map(|_| false)
+        }
     }
 
     pub fn push(&self, channel: u8, id: u8, value: &[u8]) {
@@ -621,6 +652,9 @@ mod tests {
         assert_eq!(r.feed(0x3D1), Some(((0, 55), 0, 0x21)));
         assert_eq!(r.feed(0x34F), None);
         assert_eq!(r.feed(0x3CF), Some(((3, 4), 1, 0xFF)));
+        // The device slot in use (slot 6) = 2.
+        assert_eq!(r.feed(0x360), None);
+        assert_eq!(r.feed(0x3E2), Some((DEVICE_IN_USE, 0, 2)));
         // A low half without its high half, or from another slot, is dropped.
         assert_eq!(r.feed(0x388), None);
         assert_eq!(r.feed(0x301), None);

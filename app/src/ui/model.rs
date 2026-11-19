@@ -152,6 +152,17 @@ impl Model {
         self.bluetooth.as_ref().map(btlink::Queue::status)
     }
 
+    /// Only on Bluetooth: the device slot in use (0..4), once the keyboard has reported it.
+    pub fn bluetooth_device(&self) -> Option<u8> {
+        self.bluetooth.as_ref().and_then(btlink::Queue::device_in_use)
+    }
+
+    /// Only on Bluetooth: the keyboard's firmware turned out not to report its values (older than
+    /// v0.9), so changes made on the keyboard don't show here.
+    pub fn bluetooth_one_way(&self) -> bool {
+        self.bluetooth.as_ref().and_then(btlink::Queue::keyboard_reports) == Some(false)
+    }
+
     /// What's going on between the app and the keyboard right now, over either connection.
     pub fn activity(&self) -> btlink::Status {
         if let Some(status) = self.bluetooth_status() {

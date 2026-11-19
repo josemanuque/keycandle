@@ -42,6 +42,7 @@ connection:
   bluetooth: Bluetooth
   bluetooth_detail: Iluminação e layouts ficam sincronizados
   bluetooth_note: As outras configurações mostram os valores da última conexão USB. Atualizar o firmware exige o cabo.
+  bluetooth_one_way: "As configurações vão num só sentido: atualize o firmware para ver as mudanças feitas no teclado"
   page_bluetooth_no_values: O teclado está no Bluetooth. Conecte-o uma vez por USB para o app ler as configurações; depois você também pode mudá-las pelo Bluetooth.
 
 overview:

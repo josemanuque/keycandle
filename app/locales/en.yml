@@ -43,6 +43,7 @@ connection:
   bluetooth: Bluetooth
   bluetooth_detail: Lighting and layouts stay in sync
   bluetooth_note: Other settings show their values from the last USB connection. Firmware updates need the cable.
+  bluetooth_one_way: "Settings go one way: update the firmware to see changes made on the keyboard"
   page_bluetooth_no_values: The keyboard is on Bluetooth. Connect it by USB once so the app can read its settings; after that you can change them over Bluetooth too.
 
 overview:

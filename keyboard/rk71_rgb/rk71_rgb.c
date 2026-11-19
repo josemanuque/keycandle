@@ -1247,7 +1247,7 @@ void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
 #ifdef VIA_ENABLE
     static const struct {
         uint8_t channel, id, index;
-    } slots[BTCFG_SLOTS] = {
+    } slots[BTCFG_SLOTS - 1] = {
         {id_qmk_rgb_matrix_channel, 1, 0}, /* brightness */
         {id_qmk_rgb_matrix_channel, 2, 0}, /* effect */
         {id_qmk_rgb_matrix_channel, 3, 0}, /* speed */
@@ -1255,7 +1255,7 @@ void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
         {id_qmk_rgb_matrix_channel, 4, 1}, /* saturation */
         {id_custom_channel, ID_MAC_DEVICES, 0},
     };
-    for (uint8_t i = 0; i < BTCFG_SLOTS; i++) {
+    for (uint8_t i = 0; i < BTCFG_SLOTS - 1; i++) {
         uint8_t data[8] = {id_custom_get_value, slots[i].channel, slots[i].id}; /* these ids answer in 2 bytes */
         if (slots[i].channel == id_custom_channel) {
             via_custom_value_command_kb(data, sizeof(data));
@@ -1264,6 +1264,7 @@ void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
         }
         values[i] = data[3 + slots[i].index];
     }
+    values[BTCFG_SLOTS - 1] = kb_config.host; /* the device slot in use: the app marks it */
 #else
     memset(values, 0, BTCFG_SLOTS);
 #endif

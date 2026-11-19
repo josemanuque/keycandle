@@ -151,12 +151,40 @@ pub fn set_dark(window: &Window, dark: Option<bool>) {
     let _ = (window, dark);
 }
 
-/// The accent color chosen in System Settings (macOS).
-pub fn accent_color() -> Option<Hsla> {
+/// The accent color chosen in the system's settings (macOS, Windows). `dark`: the app's theme, for
+/// Windows, which has lighter and darker shades of it for each.
+pub fn accent_color(dark: bool) -> Option<Hsla> {
     #[cfg(target_os = "macos")]
-    return mac::accent_color();
-    #[cfg(not(target_os = "macos"))]
-    None
+    return { let _ = dark; mac::accent_color() };
+    #[cfg(windows)]
+    return win::accent_color(dark);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    { let _ = dark; None }
+}
+
+#[cfg(windows)]
+mod win {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_BINARY};
+
+    /// From the accent palette Windows keeps in the registry: 8 shades, lightest first, 4 bytes each
+    /// (R, G, B, unused); the accent itself is the 4th. Its own controls use a lighter shade on dark
+    /// backgrounds and a darker one on light ones (AccentFillColorDefault).
+    pub fn accent_color(dark: bool) -> Option<gpui::Hsla> {
+        let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+        let (key, name) = (wide(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"), wide("AccentPalette"));
+        let mut palette = [0u8; 32];
+        let mut len = palette.len() as u32;
+        // SAFETY: the strings are NUL-terminated and the buffer's size is passed with it.
+        let status = unsafe {
+            RegGetValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr(), RRF_RT_REG_BINARY, std::ptr::null_mut(), palette.as_mut_ptr().cast(), &mut len)
+        };
+        if status != 0 || len < 32 {
+            return None;
+        }
+        let shade = if dark { 1 } else { 4 };
+        let [r, g, b] = [0, 1, 2].map(|i| palette[shade * 4 + i] as f32 / 255.0);
+        Some(gpui::Rgba { r, g, b, a: 1.0 }.into())
+    }
 }
 
 /// The standard About panel (macOS); the version comes from the build.
