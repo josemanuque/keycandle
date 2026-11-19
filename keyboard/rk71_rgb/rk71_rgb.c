@@ -768,11 +768,24 @@ static uint32_t fnv1a(uint32_t h, const void *data, uint8_t len) {
     return h;
 }
 
+/* Ask the module for the battery level now and then, so the app can show it (over USB and
+ * Bluetooth) without anyone pressing Fn+Space. The answer only updates battery_level; the bar on the
+ * side lights stays for Fn+Space and unplugging. Not while settings arrive over Bluetooth: sending to
+ * the module then could cost an LED report. Called every 100 ms; asks in one of those windows each
+ * minute (and 3 s after start), going by the clock so it needs no RAM (there's none to spare). */
+#define BATTERY_POLL_MS 60000
+static void poll_battery(uint32_t now) {
+    uint32_t phase = (now - 3000) % BATTERY_POLL_MS;
+    if (now < 3000 || phase >= 100 || battery_bar.active || btcfg_active(now)) return;
+    bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
+}
+
 static void watch_state(uint32_t now) {
     static uint32_t checked, last;
     if (TIMER_DIFF_32(now, checked) < 100) return;
     checked = now;
     btcfg_task(now, on_bluetooth() && link_connected);
+    poll_battery(now);
     uint8_t live[] = {on_bluetooth(), kb_config.host, link_state, battery_level, state_flags()};
     uint32_t h = fnv1a(2166136261u, &rgb_matrix_config, sizeof(rgb_matrix_config));
     h = fnv1a(h, &kb_config, sizeof(kb_config));
