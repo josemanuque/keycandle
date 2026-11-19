@@ -3,17 +3,17 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{canvas, div, prelude::*, px, AnyElement, Context, FontWeight, Window};
+use gpui::{canvas, div, prelude::*, px, AnyElement, Context, FocusHandle, FontWeight, Window};
 use gpui_component::{h_flex, v_flex, ActiveTheme as _};
 
 use super::controls::Controls;
 use super::layout::{Layout, MAX_CONTENT};
 use super::lighting::EffectGroup;
 use super::model::{Connection, Model, Poll, Values};
-use super::chrome::{Backdrop, SidebarViews};
+use super::chrome::{self, Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, bluetooth, firmware, lighting, menu, overview, power, settings_page, sidebar};
+use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -45,6 +45,9 @@ pub struct Configurator {
     pub(super) backdrop: Backdrop,
     /// The native material (and glass) behind the sidebar, on macOS.
     sidebar_views: Option<SidebarViews>,
+    /// The sidebar, as a stop for Tab; the arrow keys then move through its sections.
+    pub(super) sidebar_focus: FocusHandle,
+    status_mark: sidebar::StatusMark,
 }
 
 impl Configurator {
@@ -64,11 +67,15 @@ impl Configurator {
             started: Instant::now(),
             backdrop,
             sidebar_views,
+            sidebar_focus: cx.focus_handle(),
+            status_mark: Default::default(),
         };
         this.connect(window, cx);
         this.open(page, cx);
         Self::watch_connection(window, cx);
         Self::animate(window, cx);
+        // The sidebar's selection follows whether the window is the active one.
+        cx.observe_window_activation(window, |_, _, cx| cx.notify()).detach();
         this
     }
 
@@ -101,6 +108,11 @@ impl Configurator {
                         return; // the updater owns the USB device until it is done
                     }
                     if this.model.on_bluetooth() {
+                        let changed = this.model.bluetooth_updates();
+                        if !changed.is_empty() {
+                            this.controls.sync(&changed, &this.model, window, cx);
+                            this.effect_group = EffectGroup::of(this.model.byte(value::KEY_EFFECT));
+                        }
                         if since_search >= SEARCH_EVERY {
                             since_search = Duration::ZERO;
                             if this.model.recheck_bluetooth() {
@@ -109,7 +121,11 @@ impl Configurator {
                         }
                     } else if this.model.is_connected() {
                         match this.model.poll() {
-                            Poll::Same => return,
+                            Poll::Same => {
+                                if !this.model.activity_fading() {
+                                    return;
+                                }
+                            }
                             Poll::Lost => this.controls = Controls::default(),
                             Poll::Changed(ids) => {
                                 this.controls.sync(&ids, &this.model, window, cx);
@@ -242,17 +258,13 @@ impl Configurator {
                 .when_some(detail, |el, detail| el.child(muted(&theme, detail)))
                 .into_any_element();
         }
-        let page = match self.page {
+        match self.page {
             Page::Overview => overview::render(self, cx),
             Page::Lighting => lighting::render(self, cx),
             Page::Keys => settings_page::render(self, self.page.sections(), self.layout.width, cx),
             Page::Power => power::render(self, cx),
             Page::Firmware | Page::Settings => unreachable!("handled above"),
-        };
-        if !self.model.on_bluetooth() {
-            return page;
         }
-        v_flex().gap_6().child(bluetooth::banner(self, cx)).child(page).into_any_element()
     }
 }
 
@@ -264,6 +276,10 @@ impl Render for Configurator {
         let compact = f32::from(viewport.width) < COMPACT_BELOW;
         self.layout.window_height = f32::from(viewport.height);
         let page = self.render_page(cx);
+        let mark = self.status_mark.update(sidebar::outcome(&self.model), Instant::now());
+        if mark.is_some_and(|mark| mark.moving) {
+            window.request_animation_frame();
+        }
         // Measure the room the page really gets; pages size their columns and previews from it.
         let view = cx.entity().downgrade();
         let measure = canvas(
@@ -282,7 +298,7 @@ impl Render for Configurator {
         .absolute()
         .size_full();
         if let Some(views) = &mut self.sidebar_views {
-            views.set_width(if compact { sidebar::COMPACT_WIDTH } else { sidebar::WIDTH });
+            views.set_width(if compact { self.backdrop.rail_width() } else { sidebar::WIDTH });
         }
         // Translucent windows (macOS) have no title bar: the page keeps clear of its strip, which
         // still moves the window. Only the page is opaque; the backdrop shows under the sidebar.
@@ -300,17 +316,19 @@ impl Render for Configurator {
             .child(div().pb_4().text_color(theme.muted_foreground).child(self.page.subtitle()))
             .child(div().relative().w_full().min_w_0().max_w(px(MAX_CONTENT)).child(measure).child(page));
         h_flex()
+            .relative()
             .size_full()
             .text_color(theme.foreground)
-            .child(sidebar::render(self, compact, cx))
+            .child(sidebar::render(self, compact, mark, window, cx))
             .child(
                 v_flex()
                     .flex_1()
                     .min_w_0() // shrink to the window, not grow with the content (the width is measured below)
                     .h_full()
                     .bg(theme.background)
-                    .child(div().flex_none().h(title_bar))
+                    .child(chrome::title_strip(title_bar))
                     .child(scroll),
             )
+            .when(compact, |el| el.children(sidebar::activity_popup(self, cx)))
     }
 }

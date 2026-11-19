@@ -2,6 +2,7 @@
 //! through it.
 
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use crate::btlink;
 use crate::device::{Keyboard, CHANNEL_KEYBOARD};
@@ -27,7 +28,7 @@ pub enum Connection {
     FlashMode,
     /// It runs the original Royal Kludge firmware.
     Stock,
-    /// Only on Bluetooth: settings go one way, the values shown are from the last USB connection.
+    /// Only on Bluetooth: lighting and layouts stay in step; other values are from the last USB connection.
     Bluetooth,
 }
 
@@ -118,11 +119,17 @@ pub struct Model {
     firmware_version: Option<u32>,
     /// None for firmware older than v0.8, which doesn't report it.
     state: Option<KeyboardState>,
-    /// Sends settings while the keyboard is only on Bluetooth.
+    /// Sends settings to the keyboard, and hears its changes, while it is only on Bluetooth.
     bluetooth: Option<btlink::Queue>,
     /// Values changed since the cache was last written.
     cache_dirty: bool,
+    /// Over USB: show "saved" / "receiving" until then.
+    saved_until: Option<Instant>,
+    received_until: Option<Instant>,
 }
+
+/// How long a finished change stays on show over USB, where changes take no time to send.
+const ACTIVITY_SHOWN: Duration = Duration::from_millis(1200);
 
 impl Model {
     /// Connected over USB (VIA: reads, writes and firmware updates).
@@ -143,6 +150,31 @@ impl Model {
     /// The Bluetooth sender's progress (None unless only on Bluetooth).
     pub fn bluetooth_status(&self) -> Option<btlink::Status> {
         self.bluetooth.as_ref().map(btlink::Queue::status)
+    }
+
+    /// What's going on between the app and the keyboard right now, over either connection.
+    pub fn activity(&self) -> btlink::Status {
+        if let Some(status) = self.bluetooth_status() {
+            return status;
+        }
+        let now = Instant::now();
+        if self.received_until.is_some_and(|until| now < until) {
+            btlink::Status::Receiving
+        } else if self.received_until.is_some_and(|until| now < until + ACTIVITY_SHOWN) {
+            btlink::Status::Received
+        } else if self.saved_until.is_some_and(|until| now < until) {
+            btlink::Status::Saved
+        } else if let Some(error) = &self.write_error {
+            btlink::Status::Failed(error.clone())
+        } else {
+            btlink::Status::Idle
+        }
+    }
+
+    /// Something was on show recently: keep redrawing until it has gone.
+    pub fn activity_fading(&self) -> bool {
+        let soon = Instant::now().checked_sub(ACTIVITY_SHOWN * 2);
+        [self.received_until, self.saved_until].into_iter().flatten().any(|until| soon.is_some_and(|s| s < until))
     }
 
     pub fn connection(&self) -> &Connection {
@@ -262,6 +294,24 @@ impl Model {
         false
     }
 
+    /// Only on Bluetooth: take in what the keyboard reported (Fn keys, or its answer to our request
+    /// when it was found). Returns the values that changed.
+    pub fn bluetooth_updates(&mut self) -> Vec<value::Id> {
+        let updates = self.bluetooth.as_ref().map(btlink::Queue::take_updates).unwrap_or_default();
+        let mut changed = Vec::new();
+        for (id, index, byte) in updates {
+            let Some(slot) = self.values.get_mut(&id).and_then(|v| v.get_mut(index)) else { continue };
+            if *slot != byte {
+                *slot = byte;
+                if !changed.contains(&id) {
+                    changed.push(id);
+                }
+            }
+        }
+        self.cache_dirty |= !changed.is_empty();
+        changed
+    }
+
     /// Write the remembered values if they changed (at most once per poll, not per slider step).
     fn flush_cache(&mut self) {
         if std::mem::take(&mut self.cache_dirty) {
@@ -297,6 +347,9 @@ impl Model {
         let changed: Vec<value::Id> = now.iter().filter(|(id, v)| self.values.get(id) != Some(v)).map(|(id, _)| *id).collect();
         self.values = now;
         self.cache_dirty |= !changed.is_empty();
+        if !changed.is_empty() {
+            self.received_until = Some(Instant::now() + ACTIVITY_SHOWN);
+        }
         if changed.is_empty() { Poll::StateChanged } else { Poll::Changed(changed) }
     }
 
@@ -331,6 +384,9 @@ impl Model {
         if let Some(kb) = &self.keyboard {
             if let Err(e) = kb.set(setting.channel, setting.id, value).and_then(|_| kb.save(setting.channel)) {
                 self.write_error = Some(format!("{e:#}"));
+            } else {
+                self.write_error = None;
+                self.saved_until = Some(Instant::now() + ACTIVITY_SHOWN);
             }
         } else if let Some(queue) = &self.bluetooth {
             queue.push(setting.channel, setting.id, value);

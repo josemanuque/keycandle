@@ -1,4 +1,5 @@
-//! Settings over Bluetooth, one way (computer -> keyboard), through the keyboard's lock LEDs.
+//! Settings over Bluetooth, both ways. Computer -> keyboard goes through the keyboard's lock LEDs;
+//! keyboard -> computer through reserved media-key usages (see `Reports`).
 //!
 //! Over Bluetooth the RK71 offers only keyboard and media interfaces; the one thing the computer
 //! can send is the lock-LED state, which the module passes on to the keyboard. Windows lets an
@@ -13,17 +14,89 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use hidapi::{HidApi, HidDevice};
+use hidapi::HidDevice;
+
+use crate::device::hid_api;
 
 /// The Bluetooth module's id, as the computer sees the keyboard over Bluetooth.
 const BT_VID: u16 = 0x05AC;
 const BT_PID: u16 = 0x024F;
-/// Bluetooth HID (the service class in the device path; the same id over USB is stock firmware).
+/// Bluetooth HID (the service class in Windows' device path; the same id over USB is stock firmware).
+#[cfg(windows)]
 const BT_HID: &str = "00001124";
+
+/// One of the RK71's collections, over Bluetooth (not the stock firmware over USB, which shares the
+/// id). Windows names the transport only in the path; macOS and Linux paths don't carry it.
+fn over_bluetooth(d: &hidapi::DeviceInfo) -> bool {
+    if d.vendor_id() != BT_VID || d.product_id() != BT_PID {
+        return false;
+    }
+    #[cfg(windows)]
+    return d.path().to_string_lossy().to_lowercase().contains(BT_HID);
+    #[cfg(not(windows))]
+    return matches!(d.bus_type(), hidapi::BusType::Bluetooth);
+}
 const ATTEMPTS: usize = 4;
 /// Time per symbol: the LED report has to cross Bluetooth and the module.
 const SYMBOL: Duration = Duration::from_millis(30);
 const ACK_WAIT: Duration = Duration::from_millis(700);
+/// A message on this channel asks the keyboard to report its values (firmware: BTCFG_SYNC_CHANNEL).
+const SYNC_CHANNEL: u8 = 0xF0;
+/// The report the keyboard's confirmations and values arrive in. Other reports (typing, on macOS,
+/// where they share a device with it) are dropped unread.
+const REPORT_ID: u8 = 8;
+/// How long "receiving" stays up after a value arrives, and after asking for all of them (the
+/// keyboard waits until messages stop, then sends one value every 100 ms).
+const RECEIVE_SHOWN: Duration = Duration::from_millis(1200);
+const SYNC_ANSWER: Duration = Duration::from_millis(2600);
+/// How long "received" stays up once the keyboard has finished.
+const RECEIVED_SHOWN: Duration = Duration::from_millis(1200);
+/// How long "saved" stays up after the last change was confirmed.
+const SAVED_SHOWN: Duration = Duration::from_millis(1500);
+/// How long to wait before trying again to listen to the keyboard.
+const LISTEN_RETRY: Duration = Duration::from_secs(1);
+/// What each reported slot is: the value's id and which of its bytes (keep in step with the firmware's
+/// rk71_btcfg_read).
+const SLOTS: [((u8, u8), usize); 6] = [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0)];
+
+/// One byte of a value, as the keyboard reported it.
+pub type Update = ((u8, u8), usize, u8);
+
+/// Puts together the values the keyboard reports: two usages each, the high and low half.
+#[derive(Default)]
+struct Reports {
+    high: Option<(u16, u8)>,
+}
+
+impl Reports {
+    fn feed(&mut self, usage: u16) -> Option<Update> {
+        match usage {
+            0 => None, // the release after every usage
+            0x300..=0x36F => {
+                self.high = Some(((usage >> 4) & 0xF, (usage & 0xF) as u8));
+                None
+            }
+            0x380..=0x3EF => {
+                let slot = (usage - 0x380) >> 4;
+                let (_, high) = self.high.take().filter(|(s, _)| *s == slot)?;
+                let (id, index) = *SLOTS.get(slot as usize)?;
+                Some((id, index, high << 4 | (usage & 0xF) as u8))
+            }
+            _ => {
+                self.high = None;
+                None
+            }
+        }
+    }
+}
+
+/// The usage in a report from the keyboard's media-key channel, if it is one.
+fn usage_in(report: &[u8]) -> Option<u16> {
+    match report {
+        [REPORT_ID, low, high, ..] => Some(u16::from_le_bytes([*low, *high])),
+        _ => None,
+    }
+}
 
 /// The message: 4 start symbols, then channel, id, two value bytes and a CRC-8, 2 bits per symbol.
 pub fn symbols(channel: u8, id: u8, value: &[u8]) -> Vec<u8> {
@@ -66,6 +139,7 @@ pub fn available() -> bool {
 /// Send one setting (a VIA value write) and wait until the keyboard confirms it. About a second
 /// per attempt; call it off the UI thread. Returns the number of attempts it took.
 pub fn send(channel: u8, id: u8, value: &[u8]) -> Result<usize> {
+    imp::ensure_access()?;
     let message = symbols(channel, id, value);
     let ack = Acks::open()?;
     let want = ack_usage(&message);
@@ -86,6 +160,12 @@ pub enum Status {
     Idle,
     /// Settings still to send, counting the one on its way.
     Sending(usize),
+    /// The keyboard is telling us its values (it was just found, or they changed on it).
+    Receiving,
+    /// The keyboard's values just arrived.
+    Received,
+    /// A change just reached the keyboard.
+    Saved,
     /// The last setting couldn't be delivered (technical message).
     Failed(String),
 }
@@ -96,16 +176,54 @@ struct Shared {
     /// a slider drag sends only where it stopped.
     pending: Vec<((u8, u8), Vec<u8>)>,
     sending: bool,
+    /// What's on its way is the request for the keyboard's values, not a change of ours.
+    asking: bool,
+    /// Show "receiving" until then.
+    receiving_until: Option<Instant>,
+    /// Values did arrive during this "receiving".
+    got_values: bool,
+    /// Show "saved" until then.
+    saved_until: Option<Instant>,
     failed: Option<String>,
     closed: bool,
+    /// Reported by the keyboard, not yet picked up by the app.
+    updates: Vec<Update>,
+}
+
+type Link = std::sync::Arc<(std::sync::Mutex<Shared>, std::sync::Condvar)>;
+
+/// Hear what the keyboard reports, for as long as the queue exists (the window is open).
+fn listen(link: Link) {
+    let closed = || link.0.lock().unwrap().closed;
+    while !closed() {
+        let Ok(channel) = imp::ensure_access().and_then(|_| Acks::open()) else {
+            std::thread::sleep(LISTEN_RETRY);
+            continue;
+        };
+        let mut reports = Reports::default();
+        let mut buf = [0u8; 16];
+        'open: while !closed() {
+            for device in &channel.0 {
+                let Ok(n) = device.read_timeout(&mut buf, 50) else { break 'open };
+                if let Some(update) = usage_in(&buf[..n]).and_then(|usage| reports.feed(usage)) {
+                    let mut s = link.0.lock().unwrap();
+                    s.updates.push(update);
+                    s.got_values = true;
+                    s.receiving_until = Some(Instant::now() + RECEIVE_SHOWN);
+                }
+            }
+        }
+    }
 }
 
 /// Sends settings one by one on a background thread, as the app changes them.
-pub struct Queue(std::sync::Arc<(std::sync::Mutex<Shared>, std::sync::Condvar)>);
+pub struct Queue(Link);
 
 impl Queue {
     pub fn new() -> Self {
         let shared = std::sync::Arc::new((std::sync::Mutex::new(Shared::default()), std::sync::Condvar::new()));
+        let listener = shared.clone();
+        std::thread::spawn(move || listen(listener));
         let worker = shared.clone();
         std::thread::spawn(move || {
             let (lock, wake) = &*worker;
@@ -119,15 +237,32 @@ impl Queue {
                         return;
                     }
                     s.sending = true;
-                    s.pending.remove(0)
+                    let next = s.pending.remove(0);
+                    s.asking = next.0 .0 == SYNC_CHANNEL;
+                    next
                 };
                 let result = send(channel, id, &value);
                 let mut s = lock.lock().unwrap();
                 s.sending = false;
+                if result.is_ok() {
+                    if s.asking {
+                        s.receiving_until = Some(Instant::now() + SYNC_ANSWER);
+                    } else {
+                        s.saved_until = Some(Instant::now() + SAVED_SHOWN);
+                    }
+                }
+                s.asking = false;
                 s.failed = result.err().map(|e| format!("{e:#}"));
             }
         });
-        Self(shared)
+        let queue = Self(shared);
+        queue.push(SYNC_CHANNEL, 0, &[0]); // ask for the keyboard's current values
+        queue
+    }
+
+    /// What the keyboard reported since the last call.
+    pub fn take_updates(&self) -> Vec<Update> {
+        std::mem::take(&mut self.0 .0.lock().unwrap().updates)
     }
 
     pub fn push(&self, channel: u8, id: u8, value: &[u8]) {
@@ -141,12 +276,26 @@ impl Queue {
     }
 
     pub fn status(&self) -> Status {
-        let s = self.0 .0.lock().unwrap();
-        let busy = s.pending.len() + s.sending as usize;
-        match (&s.failed, busy) {
-            (_, n) if n > 0 => Status::Sending(n),
-            (Some(e), _) => Status::Failed(e.clone()),
-            _ => Status::Idle,
+        let mut s = self.0 .0.lock().unwrap();
+        let now = Instant::now();
+        let ours = s.pending.iter().filter(|((channel, _), _)| *channel != SYNC_CHANNEL).count();
+        let busy = ours + (s.sending && !s.asking) as usize;
+        let asking = s.asking || ours < s.pending.len();
+        if busy > 0 {
+            Status::Sending(busy)
+        } else if asking || s.receiving_until.is_some_and(|until| now < until) {
+            Status::Receiving
+        } else if s.got_values && s.receiving_until.is_some_and(|until| now < until + RECEIVED_SHOWN) {
+            Status::Received
+        } else {
+            s.got_values = false;
+            if s.saved_until.is_some_and(|until| now < until) {
+                Status::Saved
+            } else if let Some(e) = &s.failed {
+                Status::Failed(e.clone())
+            } else {
+                Status::Idle
+            }
         }
     }
 }
@@ -164,11 +313,10 @@ struct Acks(Vec<HidDevice>);
 
 impl Acks {
     fn open() -> Result<Self> {
-        let api = HidApi::new()?;
+        let api = hid_api()?;
         let devices: Vec<HidDevice> = api
             .device_list()
-            .filter(|d| d.vendor_id() == BT_VID && d.product_id() == BT_PID && d.usage_page() == 0x0C)
-            .filter(|d| d.path().to_string_lossy().to_lowercase().contains(BT_HID))
+            .filter(|d| over_bluetooth(d) && d.usage_page() == 0x0C)
             .filter_map(|d| d.open_device(&api).ok())
             .collect();
         if devices.is_empty() {
@@ -227,6 +375,11 @@ mod imp {
     const SCROLL: u16 = 1;
     const NUM: u16 = 2;
     const CAPS: u16 = 4;
+
+    /// Windows needs no permission for this.
+    pub fn ensure_access() -> Result<()> {
+        Ok(())
+    }
 
     /// The RK71's Bluetooth keyboard interface (classic HID, its main keyboard collection).
     pub fn find() -> Option<Vec<u16>> {
@@ -328,7 +481,7 @@ mod imp {
     use std::thread::sleep;
 
     use anyhow::{Context, Result};
-    use hidapi::{BusType, DeviceInfo, HidApi, HidDevice};
+    use hidapi::{DeviceInfo, HidApi, HidDevice};
 
     /// HID LED bits, the order the keyboard sees.
     const CAPS: u8 = 0x02;
@@ -336,22 +489,38 @@ mod imp {
 
     /// The RK71's keyboard collection, over Bluetooth.
     fn keyboard(api: &HidApi) -> Option<&DeviceInfo> {
-        api.device_list().find(|d| {
-            d.vendor_id() == super::BT_VID
-                && d.product_id() == super::BT_PID
-                && matches!(d.bus_type(), BusType::Bluetooth)
-                && d.usage_page() == 0x01
-                && d.usage() == 0x06
-        })
+        api.device_list().find(|d| super::over_bluetooth(d) && d.usage_page() == 0x01 && d.usage() == 0x06)
+    }
+
+    /// macOS: keyboards can only be opened with Input Monitoring. Asks the first time (the system
+    /// shows its prompt) and says where the switch is until it's on.
+    #[cfg(target_os = "macos")]
+    pub fn ensure_access() -> Result<()> {
+        #[link(name = "IOKit", kind = "framework")]
+        extern "C" {
+            fn IOHIDRequestAccess(request_type: u32) -> bool;
+        }
+        const LISTEN_EVENT: u32 = 1; // kIOHIDRequestTypeListenEvent
+        // SAFETY: takes a plain value and returns whether access is granted.
+        anyhow::ensure!(
+            unsafe { IOHIDRequestAccess(LISTEN_EVENT) },
+            "allow Keycandle in System Settings > Privacy & Security > Input Monitoring"
+        );
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    pub fn ensure_access() -> Result<()> {
+        Ok(())
     }
 
     pub fn find() -> Option<()> {
-        let api = HidApi::new().ok()?;
+        let api = super::hid_api().ok()?;
         keyboard(&api).map(|_| ())
     }
 
     pub fn send(symbols: &[u8]) -> Result<()> {
-        let api = HidApi::new()?;
+        let api = super::hid_api()?;
         let info = keyboard(&api).context("no RK71 connected over Bluetooth")?;
         let dev = info.open_device(&api).context(if cfg!(target_os = "macos") {
             "couldn't open the RK71's Bluetooth keyboard (allow Keycandle in System Settings > Privacy & Security > Input Monitoring)"
@@ -438,6 +607,35 @@ mod tests {
         assert_eq!(crc8(b"123456789"), 0xF4); // the CRC-8 (poly 0x07) check value
         let crc = crc8(&[0, 8, 2, 0]);
         assert_eq!(ack_usage(&s), 0x3F0 | (crc & 0x0F) as u16);
+    }
+
+    #[test]
+    fn values_reported_by_the_keyboard() {
+        let mut r = Reports::default();
+        // Brightness (slot 0) = 0xC8, with the releases between the halves.
+        assert_eq!(r.feed(0x30C), None);
+        assert_eq!(r.feed(0), None);
+        assert_eq!(r.feed(0x388), Some(((3, 1), 0, 0xC8)));
+        // Layouts (slot 5) = 0x21; saturation is the second byte of the colour.
+        assert_eq!(r.feed(0x352), None);
+        assert_eq!(r.feed(0x3D1), Some(((0, 55), 0, 0x21)));
+        assert_eq!(r.feed(0x34F), None);
+        assert_eq!(r.feed(0x3CF), Some(((3, 4), 1, 0xFF)));
+        // A low half without its high half, or from another slot, is dropped.
+        assert_eq!(r.feed(0x388), None);
+        assert_eq!(r.feed(0x301), None);
+        assert_eq!(r.feed(0x398), None);
+        // A confirmation in between breaks the pair.
+        assert_eq!(r.feed(0x301), None);
+        assert_eq!(r.feed(0x3F2), None);
+        assert_eq!(r.feed(0x381), None);
+    }
+
+    #[test]
+    fn only_the_report_channel_is_read() {
+        assert_eq!(usage_in(&[8, 0xF8, 0x03]), Some(0x3F8));
+        assert_eq!(usage_in(&[1, 0, 0, 4, 0, 0, 0, 0, 0]), None);
+        assert_eq!(usage_in(&[]), None);
     }
 
     #[cfg(not(windows))]

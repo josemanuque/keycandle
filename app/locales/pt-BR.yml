@@ -40,7 +40,8 @@ connection:
   page_flash_mode: O teclado está em modo de gravação. Abra Firmware para instalar uma atualização ou sair do modo de gravação.
   page_stock: O teclado está com o firmware original da Royal Kludge, que este app não consegue configurar. Abra Firmware para instalar o firmware deste projeto.
   bluetooth: Bluetooth
-  bluetooth_detail: As configurações vão em um só sentido
+  bluetooth_detail: Iluminação e layouts ficam sincronizados
+  bluetooth_note: As outras configurações mostram os valores da última conexão USB. Atualizar o firmware exige o cabo.
   page_bluetooth_no_values: O teclado está no Bluetooth. Conecte-o uma vez por USB para o app ler as configurações; depois você também pode mudá-las pelo Bluetooth.
 
 overview:
@@ -193,12 +194,12 @@ effect:
   splash: Respingo
   multi_splash: Respingo múltiplo
 
-bluetooth:
-  title: No Bluetooth
+sync:
   sending: Enviando alterações (%{count})…
-  saved: Todas as alterações salvas no teclado
+  receiving: Recebendo do teclado…
+  received: Recebido do teclado
+  saved: Salvo no teclado
   failed: "Não entregue: %{error}"
-  detail: As alterações chegam ao teclado pelo Bluetooth, e ele confirma cada uma. Os valores mostrados são da última conexão USB, então mudanças feitas com as teclas Fn desde então não aparecem. Atualizar o firmware exige o cabo.
 
 devices:
   bluetooth: Dispositivo Bluetooth %{number}

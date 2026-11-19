@@ -39,6 +39,8 @@ actions!(
         OpenGuide,
         OpenReleases,
         ReportIssue,
+        FocusNext,
+        FocusPrevious,
     ]
 );
 
@@ -67,6 +69,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(key!("4"), ShowPower, None),
         KeyBinding::new(key!("5"), ShowFirmware, None),
         KeyBinding::new(key!("r"), Reconnect, None),
+        KeyBinding::new("tab", FocusNext, None),
+        KeyBinding::new("shift-tab", FocusPrevious, None),
     ];
     if cfg!(target_os = "macos") {
         keys.extend([
@@ -78,6 +82,8 @@ pub fn init(cx: &mut App) {
     }
     cx.bind_keys(keys);
 
+    cx.on_action(|_: &FocusNext, cx| with_active_window(cx, |window, cx| window.focus_next(cx)));
+    cx.on_action(|_: &FocusPrevious, cx| with_active_window(cx, |window, cx| window.focus_prev(cx)));
     cx.on_action(|_: &Quit, cx| quit(cx));
     cx.on_action(|_: &About, _| chrome::about());
     cx.on_action(|_: &Hide, cx| cx.hide());

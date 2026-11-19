@@ -1,6 +1,5 @@
 //! The app window.
 //!
-//! - `bluetooth`: the banner shown while settings go over Bluetooth
 //! - `app`: root view (owns the model and controls; connection and animation loops)
 //! - `model`: the keyboard and its values, no UI
 //! - `page`: the sections in the sidebar
@@ -12,7 +11,6 @@
 mod app;
 mod app_settings;
 mod appearance;
-mod bluetooth;
 mod chrome;
 mod controls;
 mod firmware;

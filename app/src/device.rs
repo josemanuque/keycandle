@@ -32,6 +32,14 @@ mod cmd {
 pub const CHANNEL_KEYBOARD: u8 = 0;
 pub const CHANNEL_RGB_MATRIX: u8 = 3;
 
+/// Start HID access and list the devices. One at a time: the app does this from several threads, and
+/// hidapi's device search on macOS shares one manager object.
+pub fn hid_api() -> hidapi::HidResult<HidApi> {
+    static SEARCH: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one_at_a_time = SEARCH.lock().unwrap_or_else(|e| e.into_inner());
+    HidApi::new()
+}
+
 pub struct Keyboard {
     dev: HidDevice,
     pub protocol_version: u16,
@@ -40,7 +48,7 @@ pub struct Keyboard {
 impl Keyboard {
     /// Open the first RK71 found (QMK firmware, USB).
     pub fn open() -> Result<Self> {
-        let api = HidApi::new().context("cannot start HID access")?;
+        let api = hid_api().context("cannot start HID access")?;
         let info = api
             .device_list()
             .find(|d| {

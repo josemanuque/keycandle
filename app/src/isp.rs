@@ -12,7 +12,9 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
-use hidapi::{HidApi, HidDevice};
+use hidapi::HidDevice;
+
+use crate::device::hid_api;
 
 pub const VID: u16 = 0x0C45;
 pub const PID: u16 = 0x7040;
@@ -45,7 +47,7 @@ const STOCK_ISP_MAGIC: [u8; 8] = [0xAA, 0x42, 0x89, 0x5A, 0xFF, 0x71, 0x62, 0xCC
 /// Is an RK71 running the stock firmware connected? A real Apple keyboard shares the id, so this also
 /// requires the stock firmware's vendor-defined collection on interface 1.
 pub fn stock_present() -> bool {
-    HidApi::new().is_ok_and(|api| {
+    hid_api().is_ok_and(|api| {
         let mut devices = api.device_list().filter(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID);
         devices.any(|d| d.interface_number() == 1 && d.usage_page() >= 0xFF00)
     })
@@ -53,7 +55,7 @@ pub fn stock_present() -> bool {
 
 /// Restart a stock-firmware RK71 into its bootloader.
 pub fn enter_from_stock() -> Result<()> {
-    let api = HidApi::new().context("cannot start HID access")?;
+    let api = hid_api().context("cannot start HID access")?;
     let info = api
         .device_list()
         .find(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID && d.interface_number() == 0)
@@ -70,7 +72,7 @@ pub fn enter_from_stock() -> Result<()> {
 
 /// Is the keyboard in its bootloader right now?
 pub fn is_present() -> bool {
-    HidApi::new().is_ok_and(|api| api.device_list().any(|d| d.vendor_id() == VID && d.product_id() == PID))
+    hid_api().is_ok_and(|api| api.device_list().any(|d| d.vendor_id() == VID && d.product_id() == PID))
 }
 
 /// Wait for the bootloader to appear (after the keyboard was told to restart into it).
@@ -116,7 +118,7 @@ impl Bootloader {
     /// stock firmware's command it keeps the stock id (05AC:024F, interface 0): the chip jumps into
     /// the ROM without the computer seeing it reconnect.
     pub fn open() -> Result<Self> {
-        let api = HidApi::new().context("cannot start HID access")?;
+        let api = hid_api().context("cannot start HID access")?;
         let own = api.device_list().find(|d| d.vendor_id() == VID && d.product_id() == PID);
         let via_stock = || {
             api.device_list()

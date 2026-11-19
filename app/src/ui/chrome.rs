@@ -3,7 +3,7 @@
 //! Elsewhere the window is opaque. Also the AppKit calls GPUI doesn't wrap: the window's
 //! light/dark appearance and the standard About panel.
 
-use gpui::{px, Pixels, Point, Window, WindowBackgroundAppearance};
+use gpui::{div, prelude::*, px, Div, Hsla, MouseButton, Pixels, Point, Window, WindowBackgroundAppearance};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS is translucent
@@ -21,6 +21,16 @@ const PANE_INSET: f64 = 8.0;
 /// Concentric with the window's corners.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const PANE_RADIUS: f64 = 18.0;
+
+/// The strip our content leaves for a title bar that's only drawn by the system. A double click does
+/// what the user chose for title bars (System Settings: zoom, by default, or minimize).
+pub fn title_strip(height: Pixels) -> Div {
+    div().flex_none().w_full().h(height).on_mouse_down(MouseButton::Left, |event, window, _| {
+        if event.click_count == 2 {
+            window.titlebar_double_click();
+        }
+    })
+}
 
 impl Backdrop {
     pub fn detect() -> Self {
@@ -56,6 +66,26 @@ impl Backdrop {
             Backdrop::Opaque => None,
             Backdrop::Sidebar => Some(gpui::point(px(18.), px(18.))),
             Backdrop::FloatingGlass => Some(gpui::point(px(22.), px(22.))),
+        }
+    }
+
+    /// Width of the icons-only sidebar. On macOS the window buttons sit in it and have to fit, with
+    /// the same margin on both sides.
+    pub fn rail_width(self) -> f32 {
+        match self {
+            Backdrop::Opaque => 48.,
+            Backdrop::Sidebar => 96.,
+            Backdrop::FloatingGlass => 104.,
+        }
+    }
+
+    /// Space between the sidebar's edge and its rows. With the rows' own padding, their icons line
+    /// up with the window buttons.
+    pub fn sidebar_inset(self) -> f32 {
+        match self {
+            Backdrop::Opaque => 8.,
+            Backdrop::Sidebar => 10.,
+            Backdrop::FloatingGlass => 14.,
         }
     }
 
@@ -119,6 +149,14 @@ pub fn set_dark(window: &Window, dark: Option<bool>) {
     mac::set_appearance(window, dark);
     #[cfg(not(target_os = "macos"))]
     let _ = (window, dark);
+}
+
+/// The accent color chosen in System Settings (macOS).
+pub fn accent_color() -> Option<Hsla> {
+    #[cfg(target_os = "macos")]
+    return mac::accent_color();
+    #[cfg(not(target_os = "macos"))]
+    None
 }
 
 /// The standard About panel (macOS); the version comes from the build.
@@ -219,6 +257,21 @@ mod mac {
             if !content.is_null() {
                 let _: () = msg_send![view, setFrame: frame(content, width, inset)];
             }
+        }
+    }
+
+    pub fn accent_color() -> Option<gpui::Hsla> {
+        // SAFETY: AppKit calls on the main thread; the color is checked before it's read.
+        unsafe {
+            let accent: *mut AnyObject = msg_send![class!(NSColor), controlAccentColor];
+            let srgb: *mut AnyObject = msg_send![class!(NSColorSpace), sRGBColorSpace];
+            let color: *mut AnyObject = msg_send![accent, colorUsingColorSpace: srgb];
+            if color.is_null() {
+                return None;
+            }
+            let (r, g, b): (f64, f64, f64) =
+                (msg_send![color, redComponent], msg_send![color, greenComponent], msg_send![color, blueComponent]);
+            Some(gpui::Rgba { r: r as f32, g: g as f32, b: b as f32, a: 1.0 }.into())
         }
     }
 

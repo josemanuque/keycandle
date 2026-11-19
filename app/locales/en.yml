@@ -41,7 +41,8 @@ connection:
   page_flash_mode: The keyboard is in flash mode. Open Firmware to install an update or leave flash mode.
   page_stock: The keyboard has its original Royal Kludge firmware, which this app can't configure. Open Firmware to install this project's firmware.
   bluetooth: Bluetooth
-  bluetooth_detail: Settings are sent one way
+  bluetooth_detail: Lighting and layouts stay in sync
+  bluetooth_note: Other settings show their values from the last USB connection. Firmware updates need the cable.
   page_bluetooth_no_values: The keyboard is on Bluetooth. Connect it by USB once so the app can read its settings; after that you can change them over Bluetooth too.
 
 overview:
@@ -194,12 +195,12 @@ effect:
   splash: Splash
   multi_splash: Multi splash
 
-bluetooth:
-  title: On Bluetooth
+sync:
   sending: Sending changes (%{count})…
-  saved: All changes saved on the keyboard
+  receiving: Receiving from keyboard…
+  received: Received from keyboard
+  saved: Saved on keyboard
   failed: "Not delivered: %{error}"
-  detail: Changes go to the keyboard over Bluetooth, and it confirms each one. The values shown are from the last USB connection, so changes made with the Fn keys since then aren't shown. Firmware updates need the cable.
 
 devices:
   bluetooth: Bluetooth device %{number}

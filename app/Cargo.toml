@@ -12,7 +12,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 dirs = "6"
-hidapi = "2.6"
+# macos-shared-device: open devices without seizing them (hidapi's macOS default seizes, which
+# would cut a Bluetooth keyboard off from the system and keep a second Keycandle from opening it)
+hidapi = { version = "2.6", features = ["macos-shared-device"] }
 rust-i18n = "4.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

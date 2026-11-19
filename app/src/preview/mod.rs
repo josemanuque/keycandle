@@ -48,8 +48,10 @@ pub fn keyboard(scale: f32, keys: &KeyColors, side: &SideColors) -> impl IntoEle
                         .bottom(at(5.0))
                         .rounded(at(5.0))
                         .bg(light.map_or(face, |l| face.blend(l.opacity(FACE_TINT))))
-                        .px(at(4.0))
+                        .px(at(if key.label.chars().count() > 3 { 2.5 } else { 4.0 }))
                         .py(at(3.0))
+                        .overflow_hidden()
+                        .whitespace_nowrap() // a legend stays on one line at any preview size
                         .text_size(at(if key.label.chars().count() > 3 { 8.0 } else { 11.0 }))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .text_color(light.map_or(legend, |l| legend.blend(l)))
