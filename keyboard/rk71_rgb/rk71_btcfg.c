@@ -1,7 +1,9 @@
 // Copyright 2026 josemanuque
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * Settings over Bluetooth, one way: computer -> keyboard.
+ * Settings over Bluetooth, both ways.
+ *
+ * Computer -> keyboard:
  *
  * Over Bluetooth the module gives the computer only keyboard and media interfaces; the one thing the
  * computer can send is the lock-LED state (Num, Caps, Scroll), which the module forwards as `B1 xx`.
@@ -22,8 +24,17 @@
  * stalls the chip long enough to lose an LED report from the module. People press lock keys far more slowly than that, so typing can't produce a
  * message, and the Caps key's light ignores LED changes shorter than 200 ms (rk71_rgb.c), so it
  * doesn't flicker while a message arrives.
+ *
+ * Keyboard -> computer: values changed here (Fn keys) go out on the same media-key channel, as two
+ * reserved usages per value, each followed by a release:
+ *
+ *   0x300 | slot << 4 | high 4 bits,  then  0x380 + (slot << 4) | low 4 bits      (slot 0..6)
+ *
+ * A message on BTCFG_SYNC_CHANNEL asks for all of them (the app does when it finds the keyboard).
+ * Nothing is reported while messages are arriving: sending could cost an LED report.
  */
 #include "rk71_btcfg.h"
+#include <string.h>
 #include "timer.h"
 
 #define SYMBOL_GAP_MS 250
@@ -31,14 +42,17 @@
 #define LED_DATA 0x03  /* Num Lock (bit 0), Caps Lock (bit 1) */
 #define START_SYMBOLS 4
 #define MESSAGE_BYTES 5
+#define SENT_KNOWN 0x80 /* in `requested`: `sent` holds real values (RAM is tight: no byte of its own) */
 
 static const uint8_t start[START_SYMBOLS] = {1, 2, 1, 2};
 
 static uint8_t  prev_leds = 0xFF;
-static uint32_t prev_at;
-static uint32_t clock_at; /* last symbol */
+static uint32_t prev_at; /* last LED report */
 static uint8_t  symbols; /* of the current message */
 static uint8_t  bytes[MESSAGE_BYTES];
+
+static uint8_t sent[BTCFG_SLOTS]; /* what the computer was last told */
+static uint8_t requested; /* slots to report even if unchanged, and SENT_KNOWN */
 
 btcfg_stats_t btcfg_stats;
 
@@ -68,7 +82,6 @@ void btcfg_leds(uint8_t leds, uint32_t now) {
         return;
     }
     btcfg_stats.symbols++;
-    clock_at = now;
 
     uint8_t data = leds & LED_DATA;
     if (symbols < START_SYMBOLS) {
@@ -90,10 +103,40 @@ void btcfg_leds(uint8_t leds, uint32_t now) {
         return;
     }
     btcfg_stats.ok++;
-    rk71_btcfg_apply(bytes[0], bytes[1], bytes[2], bytes[3]);
+    if (bytes[0] == BTCFG_SYNC_CHANNEL) {
+        requested |= (1 << BTCFG_SLOTS) - 1;
+    } else {
+        rk71_btcfg_apply(bytes[0], bytes[1], bytes[2], bytes[3]);
+        rk71_btcfg_read(sent); /* the computer chose these: no need to tell it */
+        requested |= SENT_KNOWN;
+    }
     rk71_btcfg_ack(0x3F0 | (bytes[MESSAGE_BYTES - 1] & 0x0F));
 }
 
 bool btcfg_active(uint32_t now) {
-    return btcfg_stats.symbols && TIMER_DIFF_32(now, clock_at) < BTCFG_QUIET_MS;
+    return btcfg_stats.symbols && TIMER_DIFF_32(now, prev_at) < BTCFG_QUIET_MS;
+}
+
+/* One value: both halves, each followed by a release. False if the module's queue filled up. */
+static bool report(uint8_t slot, uint8_t value) {
+    return rk71_btcfg_usage(0x300 | slot << 4 | value >> 4) && rk71_btcfg_usage(0) &&
+           rk71_btcfg_usage((0x380 + (slot << 4)) | (value & 0x0F)) && rk71_btcfg_usage(0);
+}
+
+void btcfg_task(uint32_t now, bool connected) {
+    uint8_t values[BTCFG_SLOTS];
+    rk71_btcfg_read(values);
+    if (!(requested & SENT_KNOWN)) { /* at start-up nothing has changed yet */
+        memcpy(sent, values, BTCFG_SLOTS);
+        requested |= SENT_KNOWN;
+    }
+    if (!connected || btcfg_active(now)) return;
+    for (uint8_t slot = 0; slot < BTCFG_SLOTS; slot++) {
+        if (values[slot] == sent[slot] && !(requested >> slot & 1)) continue;
+        if (report(slot, values[slot])) {
+            sent[slot] = values[slot];
+            requested &= ~(1 << slot);
+        }
+        return; /* one per round */
+    }
 }

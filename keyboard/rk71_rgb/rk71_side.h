@@ -35,7 +35,8 @@ void side_indicator(uint8_t slot, uint8_t positions, rgb_t colour);
 #define SIDE_NEAR 0x20 /* the light nearest you (position 6) */
 #define SIDE_FAR 0x01  /* the farthest light (position 1) */
 bool side_is_dark(void);                           /* nothing lit (and the frame timer stopped) */
-void side_blank(void); /* colour lines off until the next frame (around a flash write, see rk71_leds_pause) */
+void side_pause(void);  /* dark, and no timer, until side_resume (around a flash write, see rk71_leds_pause) */
+void side_resume(void);
 
 /* Colour balance against the bluish diffuser: on-time of red, green, blue, 0..31 each. */
 void side_set_tuning(uint8_t red, uint8_t green, uint8_t blue);

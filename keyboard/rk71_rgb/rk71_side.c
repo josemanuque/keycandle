@@ -361,10 +361,18 @@ void side_indicator(uint8_t slot, uint8_t positions, rgb_t colour) {
     if (slot < GROUPS - 1) set_group(1 + slot, positions, colour);
 }
 
-void side_blank(void) {
+/* A save is many small flash writes, and interrupts run between them: with the timer still going, a
+ * step could light a colour (red comes first) just before the next write froze the chip. */
+void side_pause(void) {
+    frame_timer_run(false);
+}
+
+void side_resume(void) {
     chSysLock();
-    colour_off(); /* the next step relights them */
+    step_idx   = 0;
+    frame_used = 0;
     chSysUnlock();
+    frame_timer_run(n_steps != 0);
 }
 
 bool side_is_dark(void) {

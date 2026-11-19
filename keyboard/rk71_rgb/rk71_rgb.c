@@ -207,11 +207,13 @@ static bool kb_ready;
 static void flash_write_begin(void) {
     if (!kb_ready) return;
     rk71_leds_pause();
-    side_blank();
+    side_pause();
 }
 
 static void flash_write_end(void) {
-    if (kb_ready) rk71_leds_resume();
+    if (!kb_ready) return;
+    side_resume();
+    rk71_leds_resume();
 }
 
 static void save_config(void) {
@@ -785,6 +787,7 @@ static void watch_state(uint32_t now) {
     static uint32_t checked, last;
     if (TIMER_DIFF_32(now, checked) < 100) return;
     checked = now;
+    btcfg_task(now, on_bluetooth() && link_connected);
     uint8_t live[] = {on_bluetooth(), kb_config.host, link_state, battery_level, state_flags()};
     uint32_t h = fnv1a(2166136261u, &rgb_matrix_config, sizeof(rgb_matrix_config));
     h = fnv1a(h, &kb_config, sizeof(kb_config));
@@ -1237,6 +1240,38 @@ void rk71_btcfg_apply(uint8_t channel, uint8_t id, uint8_t v0, uint8_t v1) {
 #else
     (void)channel, (void)id, (void)v0, (void)v1;
 #endif
+}
+
+/* The values reported to the app over Bluetooth, read the way VIA reads them so they mean the same. */
+void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
+#ifdef VIA_ENABLE
+    static const struct {
+        uint8_t channel, id, index;
+    } slots[BTCFG_SLOTS] = {
+        {id_qmk_rgb_matrix_channel, 1, 0}, /* brightness */
+        {id_qmk_rgb_matrix_channel, 2, 0}, /* effect */
+        {id_qmk_rgb_matrix_channel, 3, 0}, /* speed */
+        {id_qmk_rgb_matrix_channel, 4, 0}, /* hue */
+        {id_qmk_rgb_matrix_channel, 4, 1}, /* saturation */
+        {id_custom_channel, ID_MAC_DEVICES, 0},
+    };
+    for (uint8_t i = 0; i < BTCFG_SLOTS; i++) {
+        uint8_t data[8] = {id_custom_get_value, slots[i].channel, slots[i].id}; /* these ids answer in 2 bytes */
+        if (slots[i].channel == id_custom_channel) {
+            via_custom_value_command_kb(data, sizeof(data));
+        } else {
+            via_qmk_rgb_matrix_command(data, sizeof(data));
+        }
+        values[i] = data[3 + slots[i].index];
+    }
+#else
+    memset(values, 0, BTCFG_SLOTS);
+#endif
+}
+
+bool rk71_btcfg_usage(uint16_t usage) {
+    uint8_t pkt[3] = {0xA3, usage >> 8, usage & 0xFF};
+    return rk71_bt_send(pkt, sizeof(pkt));
 }
 
 /* Confirm a setting that arrived over Bluetooth (rk71_btcfg.c): a reserved media-key usage, then a release. */
