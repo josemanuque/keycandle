@@ -134,10 +134,15 @@ pub struct Model {
 }
 
 
-/// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard, as if version 0.8 of
-/// the app and firmware were installed.
+/// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard (for screenshots and
+/// design work).
 pub fn preview() -> bool {
     std::env::var_os("KEYCANDLE_PREVIEW").is_some()
+}
+
+/// KEYCANDLE_PREVIEW=updates: also pretend version 0.8 is installed, to show the update notices.
+pub fn preview_updates() -> bool {
+    std::env::var("KEYCANDLE_PREVIEW").is_ok_and(|v| v == "updates")
 }
 
 /// How long a finished change stays on show over USB, where changes take no time to send.
@@ -339,8 +344,8 @@ impl Model {
         if preview() {
             self.values = cache::load();
             self.connection = Connection::Usb { protocol: 0 };
-            // An older version, so the update notices show too.
-            self.firmware_version = Some(0x0800);
+            // KEYCANDLE_PREVIEW=updates: an older version, so the update notices show.
+            self.firmware_version = Some(if preview_updates() { 0x0800 } else { keyboard::current().macros_since });
             // Wired, charging, battery high, lighting on.
             self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, 3, 1 | 4]));
             return true;

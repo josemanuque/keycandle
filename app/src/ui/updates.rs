@@ -39,7 +39,7 @@ impl Available {
 
 /// This app's version, comparable with release versions.
 pub fn app_version() -> u32 {
-    if super::model::preview() {
+    if super::model::preview_updates() {
         return 0x0800;
     }
     parse_version(env!("CARGO_PKG_VERSION")).unwrap_or(0)
@@ -47,7 +47,7 @@ pub fn app_version() -> u32 {
 
 /// This app's version as shown next to an update (the one compared).
 fn app_version_text() -> String {
-    if super::model::preview() { format_version(app_version()) } else { env!("CARGO_PKG_VERSION").to_string() }
+    if super::model::preview_updates() { format_version(app_version()) } else { env!("CARGO_PKG_VERSION").to_string() }
 }
 
 /// The firmware version on the keyboard: as connected now, or as last seen (it's on Bluetooth).
