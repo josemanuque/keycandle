@@ -37,6 +37,7 @@ const SIDE_MODES: &[&str] = &["follow_keyboard", "fixed_color", "off"];
 const SIDE_EFFECTS: &[&str] = &["static", "breathing", "color_cycle", "type_pulse", "wave"];
 const CAPS_KEY_MODES: &[&str] = &["auto", "off", "custom_color", "dark"];
 const LIGHTS_OFF_TIMES: &[&str] = &["min_1", "min_2", "min_5", "min_10", "min_30", "never"];
+const FROW_ORDERS: &[&str] = &["frow_fkeys_first", "frow_media_first"];
 const SLEEP_TIMES: &[&str] = &["sec_5", "sec_10", "sec_30", "min_1", "min_5", "never"];
 
 pub const LIGHTING: &[Section] = &[
@@ -91,6 +92,7 @@ pub const KEYS: &[Section] = &[
         &[
             s(KB, 13, "frow_side", Kind::Toggle),
             inline(s(KB, 14, "frow_side_color", Kind::Color)),
+            s(KB, 65, "frow_order", Kind::Choice(FROW_ORDERS)),
             s(KB, 16, "fn_highlight", Kind::Toggle),
             s(KB, 56, "win_lock", Kind::Toggle),
         ],

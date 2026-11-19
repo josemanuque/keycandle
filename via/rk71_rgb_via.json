@@ -513,6 +513,25 @@
               ]
             },
             {
+              "label": "With the F-row lock on, the number row gives",
+              "type": "dropdown",
+              "options": [
+                [
+                  "F1-F12 (Fn: media)",
+                  0
+                ],
+                [
+                  "Media (Fn: F1-F12)",
+                  1
+                ]
+              ],
+              "content": [
+                "id_frow_media_first",
+                0,
+                65
+              ]
+            },
+            {
               "label": "Caps Lock key",
               "type": "dropdown",
               "options": [

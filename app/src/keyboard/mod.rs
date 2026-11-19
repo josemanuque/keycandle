@@ -62,6 +62,9 @@ pub struct Profile {
     pub macros_since: u32,
     /// VIA value (channel 0) that plays macro n when set to n.
     pub macro_play_value: u8,
+    /// What Fn + a key does, by group: (group key, [(keys, description key)]). Translation keys:
+    /// `shortcuts.group.<group>` and `shortcuts.<description>`.
+    pub fn_shortcuts: &'static [(&'static str, &'static [(&'static str, &'static str)])],
     /// The Fn layer: macros go there, so the key keeps its normal job.
     pub fn_layer: usize,
     /// The physical keys (label, place, matrix position).

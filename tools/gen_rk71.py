@@ -137,6 +137,7 @@ if len(sys.argv) > 2:
                         "content": ["id_frow_on_side", 0, 13]},
                        {"showIf": "{id_frow_on_side} == 1", "label": "F-row lock side colour", "type": "color",
                         "content": ["id_frow_side_colour", 0, 14]},
+                       {"label": "With the F-row lock on, the number row gives", "type": "dropdown", "options": [["F1-F12 (Fn: media)", 0], ["Media (Fn: F1-F12)", 1]], "content": ["id_frow_media_first", 0, 65]},
                        {"label": "Caps Lock key", "type": "dropdown", "options": [["Auto", 0], ["Custom colour", 2], ["Dark", 3], ["Off", 1]],
                         "content": ["id_caps_key_mode", 0, 15]},
                        {"showIf": "{id_caps_key_mode} == 2", "label": "Caps Lock key colour", "type": "color",

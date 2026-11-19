@@ -134,6 +134,9 @@ setting:
   frow_side:
     label: Bloqueo de fila F en la luz lateral más lejana
     help: Fn + Ctrl convierte 1…= en F1…F12
+  frow_order:
+    label: "Con el bloqueo de fila F, la fila de números da"
+    help: "Fn + Ctrl activa y desactiva el bloqueo; la tecla Fn brilla en naranja mientras está activo"
   frow_side_color:
     label: Color del bloqueo de fila F
   fn_highlight:
@@ -165,6 +168,8 @@ note:
   speed_unused: Este efecto no se mueve, así que no tiene velocidad.
 
 option:
+  frow_fkeys_first: "F1–F12 (Fn: multimedia)"
+  frow_media_first: "Multimedia (Fn: F1–F12)"
   follow_keyboard: Seguir el teclado
   fixed_color: Color fijo
   "off": Apagado
@@ -437,3 +442,37 @@ macros:
   play: "Reproducir"
   play_help: "Escribe la macro en el cuadro, como lo haría su tecla"
   play_save_first: "Guarda la macro primero"
+
+shortcuts:
+  title: "Atajos con Fn"
+  hint: "Lo que hace Fn + una tecla en este teclado"
+  bt_device: "Dispositivo Bluetooth 1–5; mantén 3 s para emparejar uno nuevo en esa ranura"
+  mode: "Cambia entre cable y Bluetooth; mantén 3 s para emparejar el dispositivo actual"
+  forget: "Mantén 3 s: olvida todos los dispositivos emparejados"
+  battery: "Nivel de batería en las luces laterales"
+  windows: "Distribución Windows para este dispositivo"
+  mac: "Distribución Mac para este dispositivo"
+  win_lock: "Bloqueo de la tecla Win"
+  frow_lock: "Bloqueo de fila F (la tecla Fn brilla en naranja)"
+  light_toggle: "Iluminación de teclas sí o no"
+  next_effect: "Siguiente efecto"
+  hue: "Cambiar el color"
+  brightness: "Más brillo / menos brillo"
+  speed: "Efecto más lento / más rápido"
+  fkeys: "F1–F12"
+  grave: "` (acento grave)"
+  prtsc: "Imprimir pantalla"
+  prev_next: "Pista anterior / siguiente"
+  play: "Reproducir / pausa"
+  volume: "Subir / bajar volumen"
+  mute: "Silenciar"
+  boot: "Modo flash, para instalar firmware a mano"
+  frow_media: "Multimedia: brillo de pantalla, pistas, silencio, volumen"
+  group:
+    connection: "Conexión"
+    layout: "Distribución y bloqueos"
+    lighting: "Iluminación"
+    media: "Teclas F, multimedia y sistema"
+    other: "Otros"
+    frow: "Con el bloqueo de fila F"
+    macros: "Tus macros"

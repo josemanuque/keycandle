@@ -135,6 +135,9 @@ setting:
   frow_side:
     label: F-row lock on the farthest side light
     help: Fn + Ctrl turns 1…= into F1…F12
+  frow_order:
+    label: "With the F-row lock on, the number row gives"
+    help: "Fn + Ctrl turns the lock on and off; the Fn key glows orange while it's on"
   frow_side_color:
     label: F-row lock color
   fn_highlight:
@@ -166,6 +169,8 @@ note:
   speed_unused: This effect doesn't move, so it has no speed.
 
 option:
+  frow_fkeys_first: "F1–F12 (Fn: media)"
+  frow_media_first: "Media (Fn: F1–F12)"
   follow_keyboard: Follow keyboard
   fixed_color: Fixed color
   "off": "Off"
@@ -438,3 +443,37 @@ macros:
   play: "Play"
   play_help: "Types the macro into the box, as its key would"
   play_save_first: "Save the macro first"
+
+shortcuts:
+  title: "Fn shortcuts"
+  hint: "What Fn + a key does on this keyboard"
+  bt_device: "Bluetooth device 1–5; hold 3 s to pair a new one in that slot"
+  mode: "Switch between cable and Bluetooth; hold 3 s to pair the current device"
+  forget: "Hold 3 s: forget all paired devices"
+  battery: "Battery level on the side lights"
+  windows: "Windows layout for this device"
+  mac: "Mac layout for this device"
+  win_lock: "Win-key lock on or off"
+  frow_lock: "F-row lock on or off (the Fn key glows orange)"
+  light_toggle: "Key lighting on or off"
+  next_effect: "Next lighting effect"
+  hue: "Change the color"
+  brightness: "Brighter / dimmer"
+  speed: "Effect slower / faster"
+  fkeys: "F1–F12"
+  grave: "` (backtick)"
+  prtsc: "Print Screen"
+  prev_next: "Previous / next track"
+  play: "Play / pause"
+  volume: "Volume up / down"
+  mute: "Mute"
+  boot: "Flash mode, for installing firmware by hand"
+  frow_media: "Media: screen brightness, tracks, mute, volume"
+  group:
+    connection: "Connection"
+    layout: "Layout and locks"
+    lighting: "Lighting"
+    media: "F-keys, media and system"
+    other: "Other"
+    frow: "With the F-row lock on"
+    macros: "Your macros"

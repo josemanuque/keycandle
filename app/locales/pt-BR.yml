@@ -134,6 +134,9 @@ setting:
   frow_side:
     label: Bloqueio da linha F na luz lateral mais distante
     help: Fn + Ctrl transforma 1…= em F1…F12
+  frow_order:
+    label: "Com o bloqueio da fileira F, a fileira de números dá"
+    help: "Fn + Ctrl liga e desliga o bloqueio; a tecla Fn fica laranja enquanto está ligado"
   frow_side_color:
     label: Cor do bloqueio da linha F
   fn_highlight:
@@ -165,6 +168,8 @@ note:
   speed_unused: Este efeito não se move, então não tem velocidade.
 
 option:
+  frow_fkeys_first: "F1–F12 (Fn: mídia)"
+  frow_media_first: "Mídia (Fn: F1–F12)"
   follow_keyboard: Seguir o teclado
   fixed_color: Cor fixa
   "off": Desligado
@@ -437,3 +442,37 @@ macros:
   play: "Reproduzir"
   play_help: "Digita a macro na caixa, como a tecla dela faria"
   play_save_first: "Salve a macro primeiro"
+
+shortcuts:
+  title: "Atalhos com Fn"
+  hint: "O que Fn + uma tecla faz neste teclado"
+  bt_device: "Dispositivo Bluetooth 1–5; segure 3 s para parear um novo nesse slot"
+  mode: "Alterna entre cabo e Bluetooth; segure 3 s para parear o dispositivo atual"
+  forget: "Segure 3 s: esquece todos os dispositivos pareados"
+  battery: "Nível da bateria nas luzes laterais"
+  windows: "Layout Windows para este dispositivo"
+  mac: "Layout Mac para este dispositivo"
+  win_lock: "Bloqueio da tecla Win"
+  frow_lock: "Bloqueio da fileira F (a tecla Fn fica laranja)"
+  light_toggle: "Iluminação das teclas liga/desliga"
+  next_effect: "Próximo efeito"
+  hue: "Mudar a cor"
+  brightness: "Mais brilho / menos brilho"
+  speed: "Efeito mais lento / mais rápido"
+  fkeys: "F1–F12"
+  grave: "` (crase)"
+  prtsc: "Print Screen"
+  prev_next: "Faixa anterior / próxima"
+  play: "Reproduzir / pausar"
+  volume: "Aumentar / diminuir volume"
+  mute: "Mudo"
+  boot: "Modo flash, para instalar firmware à mão"
+  frow_media: "Mídia: brilho da tela, faixas, mudo, volume"
+  group:
+    connection: "Conexão"
+    layout: "Layout e bloqueios"
+    lighting: "Iluminação"
+    media: "Teclas F, mídia e sistema"
+    other: "Outros"
+    frow: "Com o bloqueio da fileira F"
+    macros: "Suas macros"

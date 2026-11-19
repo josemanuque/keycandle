@@ -37,6 +37,38 @@ pub static PROFILE: Profile = Profile {
     matrix: (5, 16),
     fn_layer: 3, // keyboard/rk71_rgb/config.h RK71_FN_LAYER
     macros_since: 0x0A00,
+    // keyboard/rk71_rgb/keymaps/via/keymap.c (the Fn layer and its comment).
+    fn_shortcuts: &[
+        ("connection", &[
+            ("Fn + Q … T", "bt_device"),
+            ("Fn + P", "mode"),
+            ("Fn + Backspace", "forget"),
+            ("Fn + Space", "battery"),
+        ]),
+        ("layout", &[
+            ("Fn + A", "windows"),
+            ("Fn + S", "mac"),
+            ("Fn + Win", "win_lock"),
+            ("Fn + Ctrl", "frow_lock"),
+        ]),
+        ("lighting", &[
+            ("Fn + Enter", "light_toggle"),
+            ("Fn + \\", "next_effect"),
+            ("Fn + H", "hue"),
+            ("Fn + ↑ / ↓", "brightness"),
+            ("Fn + ← / →", "speed"),
+        ]),
+        ("media", &[
+            ("Fn + 1 … =", "fkeys"),
+            ("Fn + Esc", "grave"),
+            ("Fn + Ins", "prtsc"),
+            ("Fn + Home / End", "prev_next"),
+            ("Fn + Del", "play"),
+            ("Fn + PgUp / PgDn", "volume"),
+            ("Fn + M", "mute"),
+        ]),
+        ("other", &[("Fn + Pause", "boot")]),
+    ],
     macro_play_value: 64,
     keys: &layout::KEYS,
 };

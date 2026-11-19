@@ -52,6 +52,7 @@
 #define RK71_MAC_LAYER 1  /* Mac base layer */
 #define RK71_FROW_LAYER 2 /* F-row lock */
 #define RK71_FN_LAYER 3   /* Fn: while held, P and the device key show the connection */
+#define RK71_FMEDIA_LAYER 4 /* media on the number row, with the F-row lock (see layer_state_set_kb) */
 
 /*
  * Battery saving (Bluetooth, no cable): the lighting turns off after a while without typing, and

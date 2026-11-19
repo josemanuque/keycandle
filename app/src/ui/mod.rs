@@ -24,6 +24,7 @@ mod power;
 mod settings_page;
 mod macro_store;
 mod macros_page;
+mod shortcuts;
 mod sidebar;
 mod updates;
 mod widgets;

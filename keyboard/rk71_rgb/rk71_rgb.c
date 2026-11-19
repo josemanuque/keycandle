@@ -90,6 +90,7 @@ static kb_config_t kb_config;
 #define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
 #define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
 #define KEY_FLAG_MACRO_KEEP_CTRL 0x02 /* macros play Ctrl as Ctrl on Mac devices too (off: as Cmd) */
+#define KEY_FLAG_FROW_MEDIA_FIRST 0x04 /* F-row lock on: media without Fn, F1-F12 with Fn */
 
 /* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off (lit as the effect has it),
  * a custom colour, or Dark (its light goes off). */
@@ -357,6 +358,18 @@ static void apply_device_layout(void) {
     bool          mac  = (kb_extra.mac_devices >> current_device()) & 1;
     layer_state_t want = (layer_state_t)1 << (mac ? RK71_MAC_LAYER : RK71_WIN_LAYER);
     if (default_layer_state != want) default_layer_set(want);
+}
+
+/* The F-row lock (keymaps: FROW) normally makes the number row F1-F12 with media on Fn (the keymap's
+ * tri-layer turns FMEDIA on with Fn). "Media first" swaps that: with the lock on, media without Fn,
+ * and with Fn the Fn layer's F1-F12. */
+layer_state_t layer_state_set_kb(layer_state_t state) {
+    state = layer_state_set_user(state);
+    if ((kb_extra.key_flags & KEY_FLAG_FROW_MEDIA_FIRST) && layer_state_cmp(state, RK71_FROW_LAYER)) {
+        layer_state_t media = (layer_state_t)1 << RK71_FMEDIA_LAYER;
+        state = layer_state_cmp(state, RK71_FN_LAYER) ? state & ~media : state | media;
+    }
+    return state;
 }
 
 layer_state_t default_layer_state_set_kb(layer_state_t state) {
@@ -1061,7 +1074,30 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
 /* VIA saves the key lighting after every step of a slider or the colour picker, and QMK writes it to
  * flash at once each time: dozens of writes while dragging, each freezing the LEDs on one colour.
  * The save is postponed until the changes settle, like the side-light settings below. */
+/* Key brightness, VIA's 0-255 on this keyboard's 0-200 scale (RGB_MATRIX_MAXIMUM_BRIGHTNESS: the
+ * LED driver's PWM period, 200 = fully on). QMK rounds down both ways, so a value read and written
+ * back (the app restoring settings after a firmware update) lost a step or two each time; rounding to
+ * the nearest makes the round trip exact. Handles a VIA get/set of it in place (USB and Bluetooth);
+ * false for anything else. */
+static bool key_brightness_command(uint8_t *data) {
+    if (data[1] != id_qmk_rgb_matrix_channel || data[2] != id_qmk_rgb_matrix_brightness) return false;
+    if (data[0] == id_custom_set_value) {
+        uint8_t v = ((uint16_t)data[3] * RGB_MATRIX_MAXIMUM_BRIGHTNESS + 127) / 255;
+        rgb_matrix_sethsv_noeeprom(rgb_matrix_get_hue(), rgb_matrix_get_sat(), v);
+        return true;
+    }
+    if (data[0] == id_custom_get_value) {
+        data[3] = ((uint16_t)rgb_matrix_get_val() * 255 + RGB_MATRIX_MAXIMUM_BRIGHTNESS / 2) / RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+        return true;
+    }
+    return false;
+}
+
 bool via_command_kb(uint8_t *data, uint8_t length) {
+    if (key_brightness_command(data)) {
+        raw_hid_send(data, length);
+        return true;
+    }
     if (data[0] == id_custom_save && data[1] == id_qmk_rgb_matrix_channel) {
         rgb_save_pending  = true;
         save_requested_at = timer_read32();
@@ -1125,6 +1161,7 @@ enum {
     ID_MAC_DEVICE_FIRST = 58, /* 58..63: one device's bit of ID_MAC_DEVICES each, for VIA's toggles */
     ID_MAC_DEVICE_LAST  = 63,
     ID_MACRO_PLAY       = 64, /* set: play macro n now, as its key would (the app's Play / Try it) */
+    ID_FROW_MEDIA_FIRST = 65, /* with the F-row lock: 0 F1-F12 (Fn: media), 1 media (Fn: F1-F12) */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1231,6 +1268,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     break;
                 case ID_MACRO_MATCH_OS: set_flag(&kb_extra.key_flags, KEY_FLAG_MACRO_KEEP_CTRL, !value[0]); break;
                 case ID_MACRO_PLAY: play_macro(value[0]); break;
+                case ID_FROW_MEDIA_FIRST:
+                    set_flag(&kb_extra.key_flags, KEY_FLAG_FROW_MEDIA_FIRST, value[0]);
+                    layer_state_set(layer_state); /* the number row changes right away */
+                    break;
                 case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
                     set_flag(&kb_extra.mac_devices, 1 << (value_id - ID_MAC_DEVICE_FIRST), value[0]);
                     apply_device_layout();
@@ -1300,6 +1341,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_WIN_LOCK: value[0] = keymap_config.no_gui; break;
                 case ID_MACRO_MATCH_OS: value[0] = !(kb_extra.key_flags & KEY_FLAG_MACRO_KEEP_CTRL); break;
                 case ID_MACRO_PLAY: value[0] = 0; break;
+                case ID_FROW_MEDIA_FIRST: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FROW_MEDIA_FIRST); break;
                 case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
                     value[0] = kb_extra.mac_devices >> (value_id - ID_MAC_DEVICE_FIRST) & 1;
                     break;
@@ -1328,7 +1370,7 @@ void rk71_btcfg_apply(uint8_t channel, uint8_t id, uint8_t v0, uint8_t v1) {
         via_custom_value_command_kb(data, sizeof(data));
         save_pending = true;
     } else if (channel == id_qmk_rgb_matrix_channel) {
-        via_qmk_rgb_matrix_command(data, sizeof(data));
+        if (!key_brightness_command(data)) via_qmk_rgb_matrix_command(data, sizeof(data));
         rgb_save_pending = true;
     } else {
         return;
@@ -1356,7 +1398,7 @@ void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
         uint8_t data[8] = {id_custom_get_value, slots[i].channel, slots[i].id}; /* these ids answer in 2 bytes */
         if (slots[i].channel == id_custom_channel) {
             via_custom_value_command_kb(data, sizeof(data));
-        } else {
+        } else if (!key_brightness_command(data)) {
             via_qmk_rgb_matrix_command(data, sizeof(data));
         }
         values[i] = data[3 + slots[i].index];

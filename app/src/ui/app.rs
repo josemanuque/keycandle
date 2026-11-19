@@ -13,7 +13,7 @@ use super::model::{Connection, Model, Poll, Values};
 use super::chrome::{self, Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, firmware, lighting, macros_page, menu, overview, power, settings_page, sidebar, updates};
+use super::{app_settings, firmware, lighting, macros_page, menu, overview, power, settings_page, shortcuts, sidebar, updates};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -304,7 +304,11 @@ impl Configurator {
         match self.page {
             Page::Overview => overview::render(self, cx),
             Page::Lighting => lighting::render(self, cx),
-            Page::Keys => settings_page::render(self, self.page.sections(), self.layout.width, cx),
+            Page::Keys => v_flex()
+                .gap(px(super::layout::GAP))
+                .child(settings_page::render(self, self.page.sections(), self.layout.width, cx))
+                .child(shortcuts::render(self, self.layout.width, cx))
+                .into_any_element(),
             Page::Power => power::render(self, cx),
             Page::Macros | Page::Firmware | Page::Settings => unreachable!("handled above"),
         }
