@@ -99,7 +99,7 @@ fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &
             .detach();
             Control::Range(state)
         }
-        Kind::Choice(keys) if keys.len() <= MAX_SEGMENTS || setting.segmented => Control::Segments,
+        Kind::Choice(keys) if keys.len() <= MAX_SEGMENTS => Control::Segments,
         Kind::Choice(_) => {
             let options: Vec<SharedString> = setting.options().into_iter().map(Into::into).collect();
             let selected = (current[0] as usize).min(options.len() - 1);
@@ -235,6 +235,9 @@ pub fn switch(app: &Configurator, setting: &'static Setting, cx: &mut Context<Co
 
 /// The cable's bit in the DeviceLayouts value (bits 0..4 are Bluetooth devices 1..5).
 const WIRED: usize = 5;
+/// Narrowest a device card gets, and the space between them.
+const MIN_DEVICE_CARD: f32 = 140.0;
+const DEVICE_GAP: f32 = 10.0;
 
 /// A card per device (the cable, then Bluetooth 1..5), each with Windows / Mac; the one in use is
 /// outlined.
@@ -246,11 +249,16 @@ fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Contex
     let in_use = app.model.state().map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
     let in_use = in_use.or(app.model.bluetooth_device().map(usize::from));
     let view = cx.entity().downgrade();
+    // Even rows: 6 across, or 3 by 2, or 2 by 3, never a lone card stretched along a row of its own.
+    // The section spans the page; the card's padding and border come off.
+    let inner = app.layout.width - 42.0;
+    let columns = [6.0f32, 3.0, 2.0].into_iter().find(|n| (inner - DEVICE_GAP * (n - 1.0)) / n >= MIN_DEVICE_CARD).unwrap_or(1.0);
+    let card_width = ((inner - DEVICE_GAP * (columns - 1.0)) / columns).floor();
     let cards = [WIRED, 0, 1, 2, 3, 4].map(|device| {
         let (name, key) = if device == WIRED {
-            (tr!("devices.wired"), tr!("devices.wired_key"))
+            (tr!("devices.wired_short"), tr!("devices.wired_key"))
         } else {
-            (tr!("devices.bluetooth", number = device + 1), tr!("devices.bluetooth_key", key = ["Q", "W", "E", "R", "T"][device]))
+            (tr!("devices.bluetooth_short", number = device + 1), tr!("devices.bluetooth_key", key = ["Q", "W", "E", "R", "T"][device]))
         };
         let used = in_use == Some(device);
         let detail = if used { format!("{key} · {}", tr!("devices.in_use")) } else { key };
@@ -269,22 +277,21 @@ fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Contex
                 .child(label)
         });
         v_flex()
-            .flex_1()
-            .min_w(px(132.))
+            .w(px(card_width))
             .gap_1()
             .p_3()
             .rounded_lg()
             .bg(theme.background)
             .border_1()
             .border_color(if used { theme.ring } else { theme.border })
-            .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(name))
+            .child(div().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(name))
             .child(muted(&theme, detail))
             .child(div().pt_1().child(segmented(&theme).children(options)))
     });
     v_flex()
         .gap_3()
         .py_2()
-        .child(h_flex().flex_wrap().gap_2p5().children(cards))
+        .child(h_flex().flex_wrap().gap(px(DEVICE_GAP)).children(cards))
         .when_some(setting.help(), |el, help| el.child(muted(&theme, help)))
         .into_any_element()
 }

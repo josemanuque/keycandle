@@ -36,8 +36,6 @@ pub struct Setting {
     pub note_when_hidden: Option<&'static str>,
     /// Choice: the order the options are shown in (firmware values), when not 0, 1, 2, …
     pub order: Option<&'static [u8]>,
-    /// Choice: all options side by side even when there are many (short labels).
-    pub segmented: bool,
     /// Drawn inside the previous setting's row, next to its switch (a toggle's color or level).
     pub inline: bool,
 }
@@ -106,16 +104,11 @@ const fn section(key: &'static str, settings: &'static [Setting]) -> Section {
 }
 
 const fn s(channel: u8, id: u8, key: &'static str, kind: Kind) -> Setting {
-    Setting { channel, id, key, kind, shown_when: None, note_when_hidden: None, order: None, segmented: false, inline: false }
+    Setting { channel, id, key, kind, shown_when: None, note_when_hidden: None, order: None, inline: false }
 }
 
 const fn ordered(mut setting: Setting, order: &'static [u8]) -> Setting {
     setting.order = Some(order);
-    setting
-}
-
-const fn segmented(mut setting: Setting) -> Setting {
-    setting.segmented = true;
     setting
 }
 
@@ -230,8 +223,8 @@ pub static BATTERY_BAR: Setting = s(KB, 24, "battery_bar", Kind::Toggle);
 pub const POWER: &[Section] = &[section(
     "on_battery",
     &[
-        segmented(s(KB, 22, "lights_off_after", Kind::Choice(LIGHTS_OFF_TIMES))),
-        segmented(s(KB, 23, "sleep_after", Kind::Choice(SLEEP_TIMES))),
+        s(KB, 22, "lights_off_after", Kind::Choice(LIGHTS_OFF_TIMES)),
+        s(KB, 23, "sleep_after", Kind::Choice(SLEEP_TIMES)),
         s(KB, 25, "dim_on_battery", Kind::Toggle),
         inline(when(s(KB, 26, "dim_level", Kind::Range { min: 0, max: 31 }), 25, &[1])),
     ],

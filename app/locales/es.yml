@@ -219,6 +219,8 @@ devices:
   win: Win
   wired_key: Cable USB
   bluetooth_key: Fn + %{key}
+  wired_short: Cable
+  bluetooth_short: Bluetooth %{number}
 
 controls:
   not_available: no disponible

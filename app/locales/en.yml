@@ -220,6 +220,8 @@ devices:
   win: Win
   wired_key: USB cable
   bluetooth_key: Fn + %{key}
+  wired_short: Cable
+  bluetooth_short: Bluetooth %{number}
 
 controls:
   not_available: not available
