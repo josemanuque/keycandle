@@ -20,6 +20,7 @@
 #include "rk71_sleep.h"
 #include "rk71_keyled.h"
 #include "rk71_btcfg.h"
+#include "rk71_defaults.h"
 #include "lib/lib8tion/lib8tion.h"
 #include "bluetooth.h"
 #include "connection.h"
@@ -131,34 +132,20 @@ typedef struct {
 } kb_data_t;
 _Static_assert(sizeof(kb_data_t) == EECONFIG_KB_DATA_SIZE, "kb_data_t must fill EECONFIG_KB_DATA_SIZE");
 
-/* Side-light defaults, tuned by eye on the real keyboard (2026-11-16): colour balance against the
- * diffuser, and a soft glow (the side lights are bright next to the keys at full power). */
-#define DEF_RED 31
-#define DEF_GREEN 15
-#define DEF_BLUE 23
-#define DEF_BRIGHT 2
+/* Settings as used: stored XOR their defaults (rk71_defaults.h). */
 #define SIDE_RED_V (kb_config.side_red ^ DEF_RED)
 #define SIDE_GREEN_V (kb_config.side_green ^ DEF_GREEN)
 #define SIDE_BLUE_V (kb_config.side_blue ^ DEF_BLUE)
 #define SIDE_BRIGHT_V (kb_config.side_bright ^ DEF_BRIGHT)
-/* Status (pairing, mode, battery) has its own brightness, so it stays readable when the side
- * lights are set to a faint glow or the keyboard lighting is dim. */
-#define DEF_STATUS_BRIGHT 16
 #define STATUS_BRIGHT_V (kb_extra.status_bright ^ DEF_STATUS_BRIGHT)
-#define DEF_FX_SPEED 16
 
-/* Side-light short-pulse compensation (red, green, blue), tuned by eye on the real board so white
- * stays white at low brightness (2026-11-16). */
-static const uint8_t def_pulse_extra[3] = {0, 8, 5};
+static const uint8_t def_pulse_extra[3] = {DEF_PULSE_RED, DEF_PULSE_GREEN, DEF_PULSE_BLUE};
 #define PULSE_EXTRA_V(c) (kb_extra.pulse_extra[c] ^ def_pulse_extra[c])
 
 /* Battery saving times (VIA "Power"). 0 = never. */
 static const uint32_t lights_off_ms[] = {60000, 120000, 300000, 600000, 1800000, 0}; /* 1/2/5/10/30 min, never */
 static const uint32_t sleep_ms[]      = {5000, 10000, 30000, 60000, 300000, 0};      /* 5/10/30 s, 1/5 min, never */
 #define TIME_CHOICES 6
-#define DEF_LIGHTS_OFF 2  /* 5 minutes */
-#define DEF_SLEEP_AFTER 1 /* 10 seconds */
-#define DEF_DIM_LEVEL 12  /* ~40 % */
 #define LIGHTS_OFF_V ((kb_extra.lights_off ^ DEF_LIGHTS_OFF) % TIME_CHOICES)
 #define SLEEP_AFTER_V ((kb_extra.sleep_after ^ DEF_SLEEP_AFTER) % TIME_CHOICES)
 #define DIM_LEVEL_V (kb_extra.dim_level ^ DEF_DIM_LEVEL)
@@ -174,14 +161,6 @@ static bool typing_recently(void) {
     return last_input_activity_elapsed() < window;
 }
 #define FX_SPEED_V (kb_extra.side_fx_speed ^ DEF_FX_SPEED)
-
-/* Colour defaults (hue, saturation). */
-#define DEF_SIDE_FIXED ((hs_t){0, 0})      /* white */
-#define DEF_CAPS_SIDE ((hs_t){0, 255})     /* red */
-#define DEF_FROW_SIDE ((hs_t){43, 255})    /* yellow */
-#define DEF_CAPS_KEY ((hs_t){0, 0})        /* white */
-#define DEF_STATUS_WIRED ((hs_t){85, 255}) /* green */
-#define DEF_STATUS_BT ((hs_t){170, 255})   /* blue */
 
 static hs_t hs_value(hs_t stored, hs_t def) {
     return (hs_t){stored.h ^ def.h, stored.s ^ def.s};

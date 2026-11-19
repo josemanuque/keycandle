@@ -18,9 +18,6 @@ use hidapi::HidDevice;
 
 use crate::device::hid_api;
 
-/// The Bluetooth module's id, as the computer sees the keyboard over Bluetooth.
-const BT_VID: u16 = 0x05AC;
-const BT_PID: u16 = 0x024F;
 /// Bluetooth HID (the service class in Windows' device path; the same id over USB is stock firmware).
 #[cfg(windows)]
 const BT_HID: &str = "00001124";
@@ -28,7 +25,7 @@ const BT_HID: &str = "00001124";
 /// One of the RK71's collections, over Bluetooth (not the stock firmware over USB, which shares the
 /// id). Windows names the transport only in the path; macOS and Linux paths don't carry it.
 fn over_bluetooth(d: &hidapi::DeviceInfo) -> bool {
-    if d.vendor_id() != BT_VID || d.product_id() != BT_PID {
+    if !crate::keyboard::current().bluetooth.matches(d) {
         return false;
     }
     #[cfg(windows)]
@@ -58,12 +55,8 @@ const RECEIVED_SHOWN: Duration = Duration::from_millis(1200);
 const SAVED_SHOWN: Duration = Duration::from_millis(1500);
 /// How long to wait before trying again to listen to the keyboard.
 const LISTEN_RETRY: Duration = Duration::from_secs(1);
-/// What each reported slot is: the value's id and which of its bytes (keep in step with the firmware's
-/// rk71_btcfg_read). The last one isn't a setting: the keyboard's state, packed (firmware v0.9+):
-/// device slot in use (bits 0-2), battery level (3-4), battery low (5), Win-key lock (6).
-const SLOTS: [((u8, u8), usize); 7] =
-    [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0), (KEYBOARD_STATE, 0)];
-/// Stands for the keyboard's state among the reported values (no VIA value has this id).
+/// Stands for the keyboard's packed state among the reported values (no VIA value has this id); what
+/// each slot is comes from `keyboard::Profile::bluetooth_slots`.
 const KEYBOARD_STATE: (u8, u8) = (0xFF, 0);
 
 /// One byte of a value, as the keyboard reported it.
@@ -86,7 +79,7 @@ impl Reports {
             0x380..=0x3EF => {
                 let slot = (usage - 0x380) >> 4;
                 let (_, high) = self.high.take().filter(|(s, _)| *s == slot)?;
-                let (id, index) = *SLOTS.get(slot as usize)?;
+                let (id, index) = crate::keyboard::current().bluetooth_slots.get(slot as usize)?.unwrap_or((KEYBOARD_STATE, 0));
                 Some((id, index, high << 4 | (usage & 0xF) as u8))
             }
             _ => {
@@ -195,7 +188,7 @@ struct Shared {
     closed: bool,
     /// Reported by the keyboard, not yet picked up by the app.
     updates: Vec<Update>,
-    /// The keyboard's packed state (see SLOTS), once it has said.
+    /// The keyboard's packed state (see `keyboard::Profile::bluetooth_slots`), once it has said.
     keyboard_state: Option<u8>,
     /// The keyboard has reported something since the queue started.
     heard: bool,
@@ -330,7 +323,7 @@ impl Queue {
         }
     }
 
-    /// The keyboard's packed state (see SLOTS), if it reported it.
+    /// The keyboard's packed state (see `keyboard::Profile::bluetooth_slots`), if it reported it.
     pub fn keyboard_state(&self) -> Option<u8> {
         self.0 .0.lock().unwrap().keyboard_state
     }

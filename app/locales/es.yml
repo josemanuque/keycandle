@@ -349,3 +349,31 @@ busy:
   title: Se está actualizando el firmware
   detail: Espera a que termine. Cerrar Keycandle ahora dejaría el teclado en modo de flasheo.
   ok: OK
+
+updates:
+  title: Actualizaciones
+  download: Descargar
+  install: Instalar
+  later: Más tarde
+  show: Ver
+  all_up_to_date: Keycandle y el firmware del teclado están al día
+  app_title: "Keycandle %{version}"
+  app_detail: "Tienes %{installed} · la app se actualiza aparte del teclado"
+  firmware_title: "Firmware del teclado %{version}"
+  firmware_detail: "Instalado: %{installed} · unos 10 segundos por el cable USB; tus ajustes vuelven"
+  toast_two: 2 actualizaciones disponibles
+  toast_two_detail: "Keycandle %{app} y el firmware del teclado %{firmware}."
+  toast_app_detail: Una nueva versión de esta app.
+  toast_firmware_detail: Instálalo desde Firmware con el cable conectado.
+  checking: Buscando…
+  check_failed: No se pudo conectar con GitHub
+  not_checked: Sin buscar todavía
+  newer_available: "%{version} disponible"
+  up_to_date: Al día
+  firmware_unknown: Conecta el teclado por USB una vez para comparar
+  app_installed: "Keycandle %{version}"
+  firmware_installed: "Firmware del teclado %{version}"
+  firmware: Firmware del teclado
+  check_now: Buscar ahora
+  check_on_start: Buscar actualizaciones al abrir Keycandle
+  check_on_start_help: Consulta las versiones más nuevas en GitHub. No se instala nada sin ti.

@@ -1,7 +1,7 @@
 //! The drawn RK71 used by the Overview and Lighting pages, at any size.
 
 pub mod effects;
-pub mod geometry;
+pub use crate::keyboard::rk71::layout as geometry;
 
 use gpui::{div, prelude::*, px, rgb, Hsla, IntoElement, Pixels};
 

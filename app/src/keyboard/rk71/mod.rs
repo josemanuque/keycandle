@@ -1,0 +1,36 @@
+//! The Royal Kludge RK71 (SN32F248BF) with this project's QMK firmware (keyboard/rk71_rgb).
+
+pub mod layout;
+pub mod settings;
+
+use super::{Ids, Profile};
+
+pub static PROFILE: Profile = Profile {
+    name: "RK71",
+    usb: Ids { vid: 0x0C45, pid: 0x8071 },
+    bootloader_magic: b"RK71",
+    bootloader: Ids { vid: 0x0C45, pid: 0x7040 },
+    chip: (32, 3),
+    chip_name: "SN32F24xB",
+    flash_size: 64 * 1024,
+    ram: 0x2000_0000..=0x2000_2000,
+    // Stock firmware V1.12 answers as an Apple keyboard; this report sends it to the bootloader.
+    stock: Ids { vid: 0x05AC, pid: 0x024F },
+    stock_bootloader_report: [0xAA, 0x42, 0x89, 0x5A, 0xFF, 0x71, 0x62, 0xCC],
+    // The Bluetooth module keeps the stock id.
+    bluetooth: Ids { vid: 0x05AC, pid: 0x024F },
+    state_value: (52, 6),
+    win_lock_value: 56,
+    // keyboard/rk71_rgb/rk71_rgb.c, rk71_btcfg_read: brightness, effect, speed, hue, saturation,
+    // Win/Mac per device, then the packed state.
+    bluetooth_slots: &[
+        Some(((3, 1), 0)),
+        Some(((3, 2), 0)),
+        Some(((3, 3), 0)),
+        Some(((3, 4), 0)),
+        Some(((3, 4), 1)),
+        Some(((0, 55), 0)),
+        None,
+    ],
+    bluetooth_device_keys: &["Q", "W", "E", "R", "T"],
+};

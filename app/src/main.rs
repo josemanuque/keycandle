@@ -20,6 +20,7 @@ mod color;
 mod device;
 mod i18n;
 mod isp;
+mod keyboard;
 mod prefs;
 mod preview;
 mod releases;

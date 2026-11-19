@@ -23,6 +23,7 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
         .flex_wrap()
         .items_start()
         .gap(px(GAP))
+        .child(div().w(px(app.layout.width)).child(super::updates::settings_card(app, &theme, cx)))
         .child(div().w(px(card_width)).child(language(&theme, cx)))
         .child(div().w(px(card_width)).child(appearance(&theme, cx)))
         .child(div().w(px(card_width)).child(slider_values(app, &theme, cx)))

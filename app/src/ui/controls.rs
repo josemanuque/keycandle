@@ -234,8 +234,6 @@ pub fn switch(app: &Configurator, setting: &'static Setting, cx: &mut Context<Co
         .into_any_element()
 }
 
-/// The cable's bit in the DeviceLayouts value (bits 0..4 are Bluetooth devices 1..5).
-const WIRED: usize = 5;
 /// Narrowest a device card gets, and the space between them.
 const MIN_DEVICE_CARD: f32 = 140.0;
 const DEVICE_GAP: f32 = 10.0;
@@ -247,18 +245,20 @@ fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Contex
     let id = setting.value_id();
     let mask = app.model.byte(id);
     // The device in use, when the keyboard says (USB with firmware v0.8+, Bluetooth with v0.9+).
-    let in_use = app.model.state().copied().or(app.model.bluetooth_state()).map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
+    let profile = crate::keyboard::current();
+    let wired = profile.wired_device();
+    let in_use = app.model.state().copied().or(app.model.bluetooth_state()).map(|s| if s.bluetooth { s.slot as usize } else { wired });
     let view = cx.entity().downgrade();
     // Even rows: 6 across, or 3 by 2, or 2 by 3, never a lone card stretched along a row of its own.
     // The section spans the page; the card's padding and border come off.
     let inner = app.layout.width - 42.0;
     let columns = [6.0f32, 3.0, 2.0].into_iter().find(|n| (inner - DEVICE_GAP * (n - 1.0)) / n >= MIN_DEVICE_CARD).unwrap_or(1.0);
     let card_width = ((inner - DEVICE_GAP * (columns - 1.0)) / columns).floor();
-    let cards = [WIRED, 0, 1, 2, 3, 4].map(|device| {
-        let (name, key) = if device == WIRED {
+    let cards = std::iter::once(wired).chain(0..wired).map(|device| {
+        let (name, key) = if device == wired {
             (tr!("devices.wired_short"), tr!("devices.wired_key"))
         } else {
-            (tr!("devices.bluetooth_short", number = device + 1), tr!("devices.bluetooth_key", key = ["Q", "W", "E", "R", "T"][device]))
+            (tr!("devices.bluetooth_short", number = device + 1), tr!("devices.bluetooth_key", key = profile.bluetooth_device_keys[device]))
         };
         let used = in_use == Some(device);
         let detail = if used { format!("{key} · {}", tr!("devices.in_use")) } else { key };

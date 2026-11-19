@@ -27,8 +27,10 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
     let width = app.layout.width;
     let (_, tile_width) = columns(width, MIN_TILE, TILE_GAP);
     let view = cx.entity().downgrade();
+    let updates = super::updates::overview_card(app, width, cx);
     v_flex()
         .gap(px(GAP))
+        .children(updates)
         .child(live_preview(app, &theme, width, false))
         .child(h_flex().w(px(width)).flex_wrap().gap(px(TILE_GAP)).children(tiles.into_iter().enumerate().map(
             |(i, (title, current, page))| {

@@ -15,9 +15,7 @@ use anyhow::{bail, Context, Result};
 use hidapi::HidDevice;
 
 use crate::device::hid_api;
-
-pub const VID: u16 = 0x0C45;
-pub const PID: u16 = 0x7040;
+use crate::keyboard;
 const REPORT: usize = 64;
 const BASE: u16 = 0x55AA;
 const ACK: u32 = 0xFAFA_FAFA;
@@ -30,25 +28,16 @@ mod cmd {
     pub const USER_MODE: u8 = 0x07;
 }
 
-/// SN32F24xB: family 32, chip 3; 64 KB of flash; code security level 0 reads as 0x0000.
-const FAMILY: u8 = 32;
-const CHIP_SN32F24XB: u8 = 3;
-pub const FLASH_SIZE: usize = 64 * 1024;
+/// Code security level 0 reads as 0x0000 (the chip, its flash size and ids: `keyboard::Profile`).
 const SECURITY_OFF: u16 = 0x0000;
 const SECURITY_OFF_ALT: u16 = 0xFFFF;
 
-/// The original Royal Kludge firmware shows up with an Apple keyboard's id.
-const STOCK_VID: u16 = 0x05AC;
-const STOCK_PID: u16 = 0x024F;
-/// The stock firmware jumps to the bootloader when it gets this feature report (what the vendor's
-/// updater sends; see tools/stock_enter_isp.py).
-const STOCK_ISP_MAGIC: [u8; 8] = [0xAA, 0x42, 0x89, 0x5A, 0xFF, 0x71, 0x62, 0xCC];
 
 /// Is an RK71 running the stock firmware connected? A real Apple keyboard shares the id, so this also
 /// requires the stock firmware's vendor-defined collection on interface 1.
 pub fn stock_present() -> bool {
     hid_api().is_ok_and(|api| {
-        let mut devices = api.device_list().filter(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID);
+        let mut devices = api.device_list().filter(|d| keyboard::current().stock.matches(d));
         devices.any(|d| d.interface_number() == 1 && d.usage_page() >= 0xFF00)
     })
 }
@@ -58,13 +47,14 @@ pub fn enter_from_stock() -> Result<()> {
     let api = hid_api().context("cannot start HID access")?;
     let info = api
         .device_list()
-        .find(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID && d.interface_number() == 0)
-        .context("no RK71 with the original firmware found on USB")?;
+        .find(|d| keyboard::current().stock.matches(d) && d.interface_number() == 0)
+        .with_context(|| format!("no {} with the original firmware found on USB", keyboard::current().name))?;
     // hidapi falls back to opening without read/write access, which is all a feature report needs
     // (Windows keeps keyboards open exclusively).
     let dev = info.open_device(&api).context("could not open the keyboard")?;
     let mut report = [0u8; REPORT + 1];
-    report[1..1 + STOCK_ISP_MAGIC.len()].copy_from_slice(&STOCK_ISP_MAGIC);
+    let magic = &keyboard::current().stock_bootloader_report;
+    report[1..1 + magic.len()].copy_from_slice(magic);
     // The firmware jumps away during the transfer, so an error here is normal.
     let _ = dev.send_feature_report(&report);
     Ok(())
@@ -72,7 +62,7 @@ pub fn enter_from_stock() -> Result<()> {
 
 /// Is the keyboard in its bootloader right now?
 pub fn is_present() -> bool {
-    hid_api().is_ok_and(|api| api.device_list().any(|d| d.vendor_id() == VID && d.product_id() == PID))
+    hid_api().is_ok_and(|api| api.device_list().any(|d| keyboard::current().bootloader.matches(d)))
 }
 
 /// Wait for the bootloader to appear (after the keyboard was told to restart into it).
@@ -89,13 +79,14 @@ pub fn wait_for(timeout: Duration) -> bool {
 
 /// Check that a file looks like firmware for this keyboard before anything is written.
 pub fn check_image(image: &[u8]) -> Result<()> {
-    if image.len() < 0x100 || image.len() > FLASH_SIZE {
-        bail!("the file is {} bytes; firmware for this keyboard is 256 bytes to 64 KB", image.len());
+    let kb = keyboard::current();
+    if image.len() < 0x100 || image.len() > kb.flash_size {
+        bail!("the file is {} bytes; firmware for this keyboard is 256 bytes to {} KB", image.len(), kb.flash_size / 1024);
     }
     // An Arm Cortex-M0 image starts with its stack pointer (in RAM) and reset address (in flash).
     let word = |i: usize| u32::from_le_bytes(image[i..i + 4].try_into().unwrap());
     let (stack, reset) = (word(0), word(4));
-    if !(0x2000_0000..=0x2000_2000).contains(&stack) || reset as usize >= FLASH_SIZE || reset & 1 == 0 {
+    if !kb.ram.contains(&stack) || reset as usize >= kb.flash_size || reset & 1 == 0 {
         bail!("this does not look like SN32 keyboard firmware (stack {stack:#x}, reset {reset:#x})");
     }
     Ok(())
@@ -119,10 +110,10 @@ impl Bootloader {
     /// the ROM without the computer seeing it reconnect.
     pub fn open() -> Result<Self> {
         let api = hid_api().context("cannot start HID access")?;
-        let own = api.device_list().find(|d| d.vendor_id() == VID && d.product_id() == PID);
+        let own = api.device_list().find(|d| keyboard::current().bootloader.matches(d));
         let via_stock = || {
             api.device_list()
-                .find(|d| d.vendor_id() == STOCK_VID && d.product_id() == STOCK_PID && d.interface_number() == 0)
+                .find(|d| keyboard::current().stock.matches(d) && d.interface_number() == 0)
         };
         let info = own.or_else(via_stock).context("the keyboard is not in flash mode")?;
         let dev = info.open_device(&api).context(
@@ -130,8 +121,9 @@ impl Bootloader {
         )?;
         let mut bl = Bootloader { dev, security: 0 };
         let r = bl.command(cmd::GET_VERSION, &[])?;
-        if r[8] != FAMILY || r[9] != CHIP_SN32F24XB {
-            bail!("unexpected chip {}.{} in the bootloader (expected the RK71's SN32F24xB)", r[8], r[9]);
+        let kb = keyboard::current();
+        if (r[8], r[9]) != kb.chip {
+            bail!("unexpected chip {}.{} in the bootloader (expected the {}'s {})", r[8], r[9], kb.name, kb.chip_name);
         }
         bl.security = u16::from_le_bytes([r[14], r[15]]);
         Ok(bl)

@@ -6,8 +6,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use hidapi::{HidApi, HidDevice};
 
-pub const VID: u16 = 0x0C45;
-pub const PID: u16 = 0x8071;
 const VIA_USAGE_PAGE: u16 = 0xFF60;
 const VIA_USAGE: u16 = 0x61;
 const PACKET: usize = 32;
@@ -24,8 +22,6 @@ mod cmd {
     pub const UNHANDLED: u8 = 0xFF;
     /// GET_KEYBOARD_VALUE ids
     pub const FIRMWARE_VERSION: u8 = 0x04;
-    /// The RK71 firmware only jumps to the bootloader when this follows BOOTLOADER_JUMP.
-    pub const BOOTLOADER_MAGIC: &[u8; 4] = b"RK71";
 }
 
 /// VIA value channels: 0 = the keyboard's own settings, 3 = QMK RGB matrix.
@@ -48,13 +44,14 @@ pub struct Keyboard {
 impl Keyboard {
     /// Open the first RK71 found (QMK firmware, USB).
     pub fn open() -> Result<Self> {
+        let kb = crate::keyboard::current();
         let api = hid_api().context("cannot start HID access")?;
         let info = api
             .device_list()
             .find(|d| {
-                d.vendor_id() == VID && d.product_id() == PID && d.usage_page() == VIA_USAGE_PAGE && d.usage() == VIA_USAGE
+                kb.usb.matches(d) && d.usage_page() == VIA_USAGE_PAGE && d.usage() == VIA_USAGE
             })
-            .ok_or_else(|| anyhow!("no RK71 found on USB (VID 0C45, PID 8071)"))?;
+            .ok_or_else(|| anyhow!("no {} found on USB ({})", kb.name, kb.usb))?;
         let dev = info.open_device(&api).context(
             "found the RK71 but could not open it. On Linux install tools/udev/50-rk71.rules; close other apps using it",
         )?;
@@ -80,7 +77,7 @@ impl Keyboard {
     /// Errors when the firmware is too old to do this; then Fn + Pause does the same by hand.
     pub fn enter_bootloader(self) -> Result<()> {
         let mut p = vec![cmd::BOOTLOADER_JUMP];
-        p.extend_from_slice(cmd::BOOTLOADER_MAGIC);
+        p.extend_from_slice(crate::keyboard::current().bootloader_magic);
         match self.exchange(&p) {
             Ok(answer) if answer[0] == cmd::UNHANDLED => bail!("this firmware cannot restart itself for updates"),
             // Otherwise it is restarting; it may even vanish before its answer is read.

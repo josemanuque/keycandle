@@ -350,3 +350,31 @@ busy:
   title: A firmware update is in progress
   detail: Wait until it finishes. Closing Keycandle now would leave the keyboard in flash mode.
   ok: OK
+
+updates:
+  title: Updates
+  download: Download
+  install: Install
+  later: Later
+  show: Show
+  all_up_to_date: Keycandle and the keyboard's firmware are up to date
+  app_title: "Keycandle %{version}"
+  app_detail: "You have %{installed} · the app updates separately from the keyboard"
+  firmware_title: "Keyboard firmware %{version}"
+  firmware_detail: "Installed: %{installed} · about 10 seconds over the USB cable; your settings come back"
+  toast_two: 2 updates available
+  toast_two_detail: "Keycandle %{app} and keyboard firmware %{firmware}."
+  toast_app_detail: A new version of this app.
+  toast_firmware_detail: Install it from Firmware with the cable plugged in.
+  checking: Checking…
+  check_failed: "Couldn't reach GitHub"
+  not_checked: Not checked yet
+  newer_available: "%{version} is available"
+  up_to_date: Up to date
+  firmware_unknown: Connect the keyboard by USB once to compare
+  app_installed: "Keycandle %{version}"
+  firmware_installed: "Keyboard firmware %{version}"
+  firmware: Keyboard firmware
+  check_now: Check now
+  check_on_start: Check for updates when Keycandle opens
+  check_on_start_help: Asks GitHub for the newest releases. Nothing is installed without you.

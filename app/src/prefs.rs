@@ -15,6 +15,12 @@ pub struct Prefs {
     pub appearance: Option<String>,
     /// Sliders show the keyboard's own numbers (e.g. 0-31) instead of percent.
     pub raw_values: bool,
+    /// Don't ask GitHub for new versions when the app opens.
+    pub no_update_check: bool,
+    /// Release tags whose update notice was put off ("Later"): not announced again.
+    pub dismissed_updates: Vec<String>,
+    /// The firmware version last seen on the keyboard, to tell about updates while it's on Bluetooth.
+    pub last_firmware: Option<u32>,
 }
 
 impl Prefs {

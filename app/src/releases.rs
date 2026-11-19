@@ -26,9 +26,22 @@ pub struct Release {
     pub date: String,
     /// The release notes (Markdown), as written on GitHub.
     pub notes: String,
+    /// The release on GitHub, for the app download and the full notes.
+    pub page: String,
     firmware: Asset,
     sums: Option<Asset>,
+    /// This computer's app build, when the release has one.
+    app: Option<Asset>,
 }
+
+/// The app's file in each release, for the system this build runs on.
+const APP_ASSET: &str = if cfg!(target_os = "windows") {
+    "keycandle-windows-x64.exe"
+} else if cfg!(target_os = "macos") {
+    "keycandle-macos-universal.zip"
+} else {
+    "keycandle-linux-x64.tar.gz"
+};
 
 #[derive(Clone, Debug, Deserialize)]
 struct Asset {
@@ -43,6 +56,8 @@ struct ApiRelease {
     draft: bool,
     published_at: Option<String>,
     body: Option<String>,
+    #[serde(default)]
+    html_url: String,
     assets: Vec<Asset>,
 }
 
@@ -50,6 +65,11 @@ impl Release {
     /// Version as the firmware reports it (0x00MMmmpp), from a tag like v0.7b or v0.5.5b.
     pub fn version(&self) -> Option<u32> {
         parse_version(&self.tag)
+    }
+
+    /// Whether the release has this computer's build of the app.
+    pub fn has_app(&self) -> bool {
+        self.app.is_some()
     }
 
     pub fn file_name(&self) -> &str {
@@ -90,14 +110,17 @@ pub fn fetch() -> Result<Vec<Release>> {
                 .find(|a| a.name.ends_with(".bin") && !a.name.contains("default-keymap"))?
                 .clone();
             let sums = r.assets.iter().find(|a| a.name == SUMS_FILE).cloned();
+            let app = r.assets.iter().find(|a| a.name == APP_ASSET).cloned();
             Some(Release {
                 date: r.published_at.as_deref().unwrap_or("").chars().take(10).collect(),
                 notes: r.body.unwrap_or_default().trim().to_string(),
                 prerelease: r.prerelease,
                 stock,
                 tag: r.tag_name,
+                page: r.html_url,
                 firmware,
                 sums,
+                app,
             })
         })
         .collect();

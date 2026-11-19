@@ -13,7 +13,7 @@ use super::model::{Connection, Model, Poll, Values};
 use super::chrome::{self, Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar};
+use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar, updates};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -50,11 +50,18 @@ pub struct Configurator {
     /// The sidebar, as a stop for Tab; the arrow keys then move through its sections.
     pub(super) sidebar_focus: FocusHandle,
     status_mark: sidebar::StatusMark,
+    /// Updates: look when the app opens (a preference), the tags put off with "Later", the firmware
+    /// version last seen over USB, and whether this session's notice was closed.
+    pub(super) check_updates_on_start: bool,
+    pub(super) dismissed_updates: Vec<String>,
+    pub(super) last_firmware: Option<u32>,
+    pub(super) toast_closed: bool,
 }
 
 impl Configurator {
     pub fn new(page: Page, backdrop: Backdrop, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let sidebar_views = SidebarViews::install(backdrop, window, sidebar::WIDTH);
+        let prefs = crate::prefs::Prefs::load();
         let mut this = Self {
             page,
             model: Model::default(),
@@ -68,12 +75,19 @@ impl Configurator {
             restore_after_update: None,
             started: Instant::now(),
             backdrop,
-            raw_values: crate::prefs::Prefs::load().raw_values,
+            raw_values: prefs.raw_values,
+            check_updates_on_start: !prefs.no_update_check,
+            dismissed_updates: prefs.dismissed_updates,
+            last_firmware: prefs.last_firmware,
+            toast_closed: false,
             sidebar_views,
             sidebar_focus: cx.focus_handle(),
             status_mark: Default::default(),
         };
         this.connect(window, cx);
+        if this.check_updates_on_start {
+            this.updater.check(); // in the background; the notice shows when the answer is in
+        }
         this.open(page, cx);
         Self::watch_connection(window, cx);
         Self::animate(window, cx);
@@ -95,6 +109,7 @@ impl Configurator {
         if let Some(saved) = self.restore_after_update.take() {
             let _ = self.model.restore(&saved);
         }
+        self.remember_firmware();
         self.effect_group = EffectGroup::of(self.model.byte(value::KEY_EFFECT));
         self.controls = Controls::build(&self.model, window, cx);
     }
@@ -346,5 +361,6 @@ impl Render for Configurator {
                     .child(scroll),
             )
             .when(compact, |el| el.children(sidebar::activity_popup(self, cx)))
+            .children(updates::toast(self, cx))
     }
 }

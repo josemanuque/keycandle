@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::btlink;
+use crate::keyboard;
 use crate::device::{Keyboard, CHANNEL_KEYBOARD};
 use crate::preview::effects::{Scene, SideScene};
 use crate::settings::{self, value, Setting};
@@ -93,8 +94,6 @@ impl KeyboardState {
 }
 
 /// The keyboard's state value id and length.
-const STATE_ID: u8 = 52;
-const STATE_LEN: usize = 6;
 
 /// What a poll found.
 pub enum Poll {
@@ -128,11 +127,10 @@ pub struct Model {
     received_until: Option<Instant>,
 }
 
-/// The Win-key lock's VIA value.
-const WIN_LOCK: value::Id = (CHANNEL_KEYBOARD, 56);
 
-/// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard.
-fn preview() -> bool {
+/// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard, as if version 0.8 of
+/// the app and firmware were installed.
+pub fn preview() -> bool {
     std::env::var_os("KEYCANDLE_PREVIEW").is_some()
 }
 
@@ -289,7 +287,8 @@ impl Model {
         if preview() {
             self.values = cache::load();
             self.connection = Connection::Usb { protocol: 0 };
-            self.firmware_version = Some(0x0900);
+            // An older version, so the update notices show too.
+            self.firmware_version = Some(0x0800);
             // Wired, charging, battery high, lighting on.
             self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, 3, 1 | 4]));
             return true;
@@ -299,7 +298,7 @@ impl Model {
                 self.firmware_version = kb.firmware_version().ok();
                 self.connection = Connection::Usb { protocol: kb.protocol_version };
                 self.write_error = None;
-                self.state = kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).ok().map(|v| KeyboardState::from_bytes(&v));
+                self.state = kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).ok().map(|v| KeyboardState::from_bytes(&v));
                 self.values = read_all(&kb);
                 self.keyboard = Some(kb);
                 cache::save(&self.values);
@@ -363,10 +362,10 @@ impl Model {
         // The Win-key lock comes with the keyboard's state rather than as a value of its own.
         if let Some(packed) = self.bluetooth.as_ref().and_then(btlink::Queue::keyboard_state) {
             let locked = packed >> 6 & 1;
-            if let Some(slot) = self.values.get_mut(&WIN_LOCK).and_then(|v| v.first_mut()) {
+            if let Some(slot) = self.values.get_mut(&(CHANNEL_KEYBOARD, keyboard::current().win_lock_value)).and_then(|v| v.first_mut()) {
                 if *slot != locked {
                     *slot = locked;
-                    changed.push(WIN_LOCK);
+                    changed.push((CHANNEL_KEYBOARD, keyboard::current().win_lock_value));
                 }
             }
         }
@@ -387,7 +386,7 @@ impl Model {
         self.flush_cache();
         let Some(kb) = &self.keyboard else { return Poll::Same };
         let fresh = match self.state {
-            Some(_) => kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).map(|v| Some(KeyboardState::from_bytes(&v))),
+            Some(_) => kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).map(|v| Some(KeyboardState::from_bytes(&v))),
             None => kb.ping().map(|_| None),
         };
         let Ok(fresh) = fresh else {

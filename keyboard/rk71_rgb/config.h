@@ -33,11 +33,8 @@
  */
 #define RGB_MATRIX_LED_PROCESS_LIMIT 230
 
-/* Out-of-the-box lighting: solid white. Only used when the settings storage is reset
- * (first boot or an EEPROM clear); saved settings take priority. */
-#define RGB_MATRIX_DEFAULT_MODE RGB_MATRIX_SOLID_COLOR
-#define RGB_MATRIX_DEFAULT_HUE 0
-#define RGB_MATRIX_DEFAULT_SAT 0
+/* Out-of-the-box settings, key lighting included: rk71_defaults.h. */
+#include "rk71_defaults.h"
 
 /*
  * Bluetooth module link (decoded from stock firmware V1.12): SPI0 slave on A2-A5, plus

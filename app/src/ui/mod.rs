@@ -23,6 +23,7 @@ mod page;
 mod power;
 mod settings_page;
 mod sidebar;
+mod updates;
 mod widgets;
 
 use gpui::{prelude::*, px, size, App, Bounds, TitlebarOptions, WindowBounds, WindowOptions};

@@ -147,8 +147,16 @@ pub fn render(
         (false, _) => Selection { fill: theme.sidebar_accent, text: theme.sidebar_accent_foreground, bar: accent },
     };
     let view = cx.entity().downgrade();
+    // A dot where there's an update: Firmware for the keyboard's, Settings for the app's.
+    let updates = super::updates::available(app);
     let rows: Vec<AnyElement> = Page::ALL.into_iter().enumerate().map(|(index, page)| {
         let selected = page == app.page;
+        let dot = match page {
+            Page::Firmware => updates.firmware.is_some(),
+            Page::Settings => updates.app.is_some(),
+            _ => false,
+        };
+        let dot_color = if selected { selection.text } else { theme.primary };
         let view = view.clone();
         let title = page.title();
         let row_height = if !compact { 28. } else if native { 38. } else { 36. };
@@ -185,6 +193,7 @@ pub fn render(
                 .h(px(row_height))
                 .rounded(px(if native { 10. } else { 8. }))
                 .child(page.icon().size_5())
+                .when(dot, |el| el.child(div().absolute().top(px(6.)).right(px(if native { 12. } else { 5. })).size_2().rounded_full().bg(dot_color)))
                 .tooltip(move |window, cx| Tooltip::new(title.clone()).build(window, cx))
                 .into_any_element()
         } else {
@@ -196,7 +205,8 @@ pub fn render(
                 .when(native, |el| el.text_size(px(13.)))
                 .when(!native, |el| el.text_sm())
                 .child(page.icon().size_4())
-                .child(div().min_w_0().truncate().child(title))
+                .child(div().flex_1().min_w_0().truncate().child(title))
+                .when(dot, |el| el.child(div().flex_none().size_2().rounded_full().bg(dot_color)))
                 .into_any_element()
         }
     }).collect();
