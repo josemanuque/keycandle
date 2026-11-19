@@ -57,20 +57,24 @@
 
 enum { SIDE_MODE_FOLLOW, SIDE_MODE_FIXED, SIDE_MODE_OFF };
 
+/* uint32_t fields, so they pack into `raw` (27 bits). With uint8_t fields GCC starts a new byte for
+ * any field that would cross one, the struct grew to 8 bytes and side_bright fell outside `raw`:
+ * it was never saved. */
 typedef union {
     uint32_t raw;
     struct {
-        bool    bt_mode : 1;     /* when plugged in: 0 = wired, 1 = Bluetooth */
-        uint8_t host : 3;        /* 0..4 -> device 1..5 */
-        uint8_t side_mode : 2;   /* SIDE_MODE_FOLLOW / _FIXED / _OFF */
-        bool    side_no_status : 1;
+        uint32_t bt_mode : 1;    /* when plugged in: 0 = wired, 1 = Bluetooth */
+        uint32_t host : 3;       /* 0..4 -> device 1..5 */
+        uint32_t side_mode : 2;  /* SIDE_MODE_FOLLOW / _FIXED / _OFF */
+        uint32_t side_no_status : 1;
         /* Stored XOR the defaults below, so an all-zero config means "defaults". 0..31 each. */
-        uint8_t side_red : 5;
-        uint8_t side_green : 5;
-        uint8_t side_blue : 5;
-        uint8_t side_bright : 5;
+        uint32_t side_red : 5;
+        uint32_t side_green : 5;
+        uint32_t side_blue : 5;
+        uint32_t side_bright : 5;
     };
 } kb_config_t;
+_Static_assert(sizeof(kb_config_t) == 4, "kb_config_t must fit in raw, which is what gets saved");
 
 static kb_config_t kb_config;
 
