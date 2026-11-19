@@ -80,6 +80,11 @@ jobs:
           cp assets/icon/icon-light.icns "$app/Contents/Resources/AppIcon.icns"
           sed "s/VERSION/${{ steps.version.outputs.version }}/" packaging/macos/Info.plist > "$app/Contents/Info.plist"
           lipo -info "$app/Contents/MacOS/keycandle"
+          # Sign the bundle as a whole (ad hoc): the linker only signs the bare binary, under the
+          # name "keycandle" and without the Info.plist, and macOS then won't match the app to its
+          # Input Monitoring switch, so Bluetooth settings fail even with the switch on.
+          codesign --force --deep --sign - "$app"
+          codesign --verify --strict --verbose=2 "$app"
           mkdir -p ../out
           ditto -c -k --keepParent "$app" "../out/keycandle-${{ matrix.name }}.zip"
 

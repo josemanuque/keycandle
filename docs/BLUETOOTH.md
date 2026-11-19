@@ -116,6 +116,27 @@ stock firmware never touches its ADC), so a percentage would need a hardware cha
 * The media and system collections can be opened and read by apps, a possible keyboard-to-computer path (untested).
 * Firmware updates over Bluetooth: no. The ROM bootloader is USB-only.
 
+## macOS: Input Monitoring
+
+macOS opens the Bluetooth keyboard to apps only with **Input Monitoring** (System Settings > Privacy &
+Security). The app asks on first use (`IOHIDRequestAccess`) and the sidebar says where the switch is until it's on.
+
+macOS remembers the switch for an app's code signature. Up to v0.9b the release bundle was never signed: the
+binary only carried the linker's own ad-hoc signature, named `keycandle` and without the bundle's Info.plist.
+macOS then didn't match the running app to its switch, so sending failed with the switch on (found 2026-11-19).
+Since v0.9.1 the release workflow signs the whole bundle (`codesign --force --deep --sign -`), so it is
+identified as `io.github.josemanuque.keycandle`.
+
+If the hint shows with the switch on (e.g. after updating from v0.9b):
+
+1. Input Monitoring: select Keycandle and remove it with **−** (switching it off and on isn't enough).
+2. Quit and open Keycandle, allow it when asked, then quit and open it once more.
+
+Or from Terminal: `tccutil reset ListenEvent io.github.josemanuque.keycandle`, then step 2.
+
+An ad-hoc signature changes with every build, so macOS may ask again after an update. Signing with a stable
+certificate (self-signed, or an Apple Developer ID) would keep the permission across updates.
+
 ## Still unknown
 
 - How the module is powered or reset (A6/A7 are held low as on stock; their role isn't traced).
