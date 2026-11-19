@@ -282,6 +282,14 @@ fn macros_cli(args: &[String]) -> Result<()> {
             kb.write_macros(&macros::encode_all(&all), size)?;
             println!("macro {n} saved");
         }
+        Some("raw") => {
+            // Bytes in hex, as the keyboard stores them (e.g. 01 02 e0 = press Ctrl).
+            let n: usize = args.get(1).and_then(|a| a.parse().ok()).ok_or_else(|| anyhow::anyhow!("which macro?"))?;
+            let bytes: Vec<u8> = args[2..].iter().map(|h| u8::from_str_radix(h, 16)).collect::<Result<_, _>>()?;
+            all[n] = macros::decode(&bytes);
+            kb.write_macros(&macros::encode_all(&all), size)?;
+            println!("macro {n} saved: {:?}", all[n]);
+        }
         Some("key") => {
             let n: u16 = args.get(1).and_then(|a| a.parse().ok()).ok_or_else(|| anyhow::anyhow!("which macro?"))?;
             let label = args.get(2).map(String::as_str).unwrap_or("");
