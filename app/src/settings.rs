@@ -34,6 +34,12 @@ pub struct Setting {
     pub shown_when: Option<(u8, &'static [u8])>,
     /// Note key, shown in the setting's place while it is hidden (says why).
     pub note_when_hidden: Option<&'static str>,
+    /// Choice: the order the options are shown in (firmware values), when not 0, 1, 2, …
+    pub order: Option<&'static [u8]>,
+    /// Choice: all options side by side even when there are many (short labels).
+    pub segmented: bool,
+    /// Drawn inside the previous setting's row, next to its switch (a toggle's color or level).
+    pub inline: bool,
 }
 
 impl Setting {
@@ -57,6 +63,15 @@ impl Setting {
         self.note_when_hidden.map(|key| i18n::text(&format!("note.{key}")))
     }
 
+    /// A Choice's firmware values in the order they're shown.
+    pub fn display_order(&self) -> Vec<u8> {
+        match (self.order, self.kind) {
+            (Some(order), _) => order.to_vec(),
+            (None, Kind::Choice(keys)) => (0..keys.len() as u8).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// The options of a Choice setting, translated (empty for other kinds).
     pub fn options(&self) -> Vec<String> {
         match self.kind {
@@ -71,16 +86,42 @@ pub struct Section {
     /// Translation key.
     pub key: &'static str,
     pub settings: &'static [Setting],
+    /// Takes the page's full width, below the cards that share a row.
+    pub wide: bool,
 }
 
 impl Section {
     pub fn title(&self) -> String {
         i18n::text(&format!("section.{}", self.key))
     }
+
+    /// A short line beside the title (`section_hint.<key>`), if there is one.
+    pub fn hint(&self) -> Option<String> {
+        i18n::optional(&format!("section_hint.{}", self.key))
+    }
+}
+
+const fn section(key: &'static str, settings: &'static [Setting]) -> Section {
+    Section { key, settings, wide: false }
 }
 
 const fn s(channel: u8, id: u8, key: &'static str, kind: Kind) -> Setting {
-    Setting { channel, id, key, kind, shown_when: None, note_when_hidden: None }
+    Setting { channel, id, key, kind, shown_when: None, note_when_hidden: None, order: None, segmented: false, inline: false }
+}
+
+const fn ordered(mut setting: Setting, order: &'static [u8]) -> Setting {
+    setting.order = Some(order);
+    setting
+}
+
+const fn segmented(mut setting: Setting) -> Setting {
+    setting.segmented = true;
+    setting
+}
+
+const fn inline(mut setting: Setting) -> Setting {
+    setting.inline = true;
+    setting
 }
 
 const fn when(mut setting: Setting, id: u8, values: &'static [u8]) -> Setting {
@@ -125,17 +166,17 @@ const LIGHTS_OFF_TIMES: &[&str] = &["min_1", "min_2", "min_5", "min_10", "min_30
 const SLEEP_TIMES: &[&str] = &["sec_5", "sec_10", "sec_30", "min_1", "min_5", "never"];
 
 pub const LIGHTING: &[Section] = &[
-    Section {
-        key: "keys",
-        settings: &[
+    section(
+        "keys",
+        &[
             else_note(when(s(RGB, 4, "key_color", Kind::Color), 2, COLOR_EFFECTS), "color_unused"),
             s(RGB, 1, "key_brightness", Kind::Range { min: 0, max: 255 }),
             else_note(when(s(RGB, 3, "key_speed", Kind::Range { min: 0, max: 255 }), 2, ANIMATED_EFFECTS), "speed_unused"),
         ],
-    },
-    Section {
-        key: "side_lights",
-        settings: &[
+    ),
+    section(
+        "side_lights",
+        &[
             s(KB, 1, "side_mode", Kind::Choice(SIDE_MODES)),
             when(s(KB, 2, "side_color", Kind::Color), 1, &[1]),
             when(s(KB, 17, "side_effect", Kind::Choice(SIDE_EFFECTS)), 1, &[0, 1]),
@@ -146,49 +187,55 @@ pub const LIGHTING: &[Section] = &[
             s(KB, 6, "side_green", Kind::Range { min: 0, max: 31 }),
             s(KB, 7, "side_blue", Kind::Range { min: 0, max: 31 }),
         ],
-    },
-    Section {
-        key: "status",
-        settings: &[
+    ),
+    section(
+        "status",
+        &[
             s(KB, 3, "status_show", Kind::Toggle),
             when(s(KB, 10, "status_brightness", Kind::Range { min: 0, max: 31 }), 3, &[1]),
             when(s(KB, 19, "status_wired_color", Kind::Color), 3, &[1]),
             when(s(KB, 20, "status_bluetooth_color", Kind::Color), 3, &[1]),
         ],
-    },
+    ),
 ];
+
+/// Caps key modes as shown: Off (no indication) last. Firmware values: 0 auto, 1 off, 2 custom, 3 dark.
+const CAPS_KEY_ORDER: &[u8] = &[0, 2, 3, 1];
 
 pub const KEYS: &[Section] = &[
-    Section { key: "layout", settings: &[s(KB, 55, "device_layouts", Kind::DeviceLayouts)] },
-    Section {
-        key: "caps_lock",
-        settings: &[
-            s(KB, 15, "caps_key", Kind::Choice(CAPS_KEY_MODES)),
+    section(
+        "caps_lock",
+        &[
+            ordered(s(KB, 15, "caps_key", Kind::Choice(CAPS_KEY_MODES)), CAPS_KEY_ORDER),
             when(s(KB, 21, "caps_key_color", Kind::Color), 15, &[2]),
             s(KB, 11, "caps_side", Kind::Toggle),
-            when(s(KB, 12, "caps_side_color", Kind::Color), 11, &[1]),
+            inline(s(KB, 12, "caps_side_color", Kind::Color)),
         ],
-    },
-    Section {
-        key: "other_indicators",
-        settings: &[
+    ),
+    section(
+        "other_locks",
+        &[
             s(KB, 13, "frow_side", Kind::Toggle),
-            when(s(KB, 14, "frow_side_color", Kind::Color), 13, &[1]),
+            inline(s(KB, 14, "frow_side_color", Kind::Color)),
             s(KB, 16, "fn_highlight", Kind::Toggle),
+            s(KB, 56, "win_lock", Kind::Toggle),
         ],
-    },
+    ),
+    Section { key: "layout", settings: &[s(KB, 55, "device_layouts", Kind::DeviceLayouts)], wide: true },
 ];
 
-pub const POWER: &[Section] = &[Section {
-    key: "on_battery",
-    settings: &[
-        s(KB, 22, "lights_off_after", Kind::Choice(LIGHTS_OFF_TIMES)),
-        s(KB, 23, "sleep_after", Kind::Choice(SLEEP_TIMES)),
-        s(KB, 24, "battery_bar", Kind::Toggle),
+/// The battery bar toggle sits in the Power page's battery card.
+pub static BATTERY_BAR: Setting = s(KB, 24, "battery_bar", Kind::Toggle);
+
+pub const POWER: &[Section] = &[section(
+    "on_battery",
+    &[
+        segmented(s(KB, 22, "lights_off_after", Kind::Choice(LIGHTS_OFF_TIMES))),
+        segmented(s(KB, 23, "sleep_after", Kind::Choice(SLEEP_TIMES))),
         s(KB, 25, "dim_on_battery", Kind::Toggle),
-        when(s(KB, 26, "dim_level", Kind::Range { min: 0, max: 31 }), 25, &[1]),
+        inline(when(s(KB, 26, "dim_level", Kind::Range { min: 0, max: 31 }), 25, &[1])),
     ],
-}];
+)];
 
 /// The values the app reads by name (previews and the overview), as (channel, id).
 pub mod value {
@@ -208,7 +255,7 @@ pub mod value {
 
 /// Every setting on every page.
 pub fn all() -> impl Iterator<Item = &'static Setting> {
-    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter()).chain([&KEY_EFFECT])
+    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter()).chain([&KEY_EFFECT, &BATTERY_BAR])
 }
 
 /// The setting for a value id.

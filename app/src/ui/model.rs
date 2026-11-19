@@ -128,6 +128,11 @@ pub struct Model {
     received_until: Option<Instant>,
 }
 
+/// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard.
+fn preview() -> bool {
+    std::env::var_os("KEYCANDLE_PREVIEW").is_some()
+}
+
 /// How long a finished change stays on show over USB, where changes take no time to send.
 const ACTIVITY_SHOWN: Duration = Duration::from_millis(1200);
 
@@ -140,7 +145,7 @@ impl Model {
     /// There are settings to show and change: over USB, or over Bluetooth with values remembered
     /// from the last USB connection.
     pub fn has_settings(&self) -> bool {
-        self.is_connected() || (self.on_bluetooth() && !self.values.is_empty())
+        self.is_connected() || ((self.on_bluetooth() || preview()) && !self.values.is_empty())
     }
 
     pub fn on_bluetooth(&self) -> bool {
@@ -256,6 +261,16 @@ impl Model {
     pub fn connect(&mut self) -> bool {
         self.values.clear();
         self.firmware_version = None;
+        // KEYCANDLE_PREVIEW=1: show the pages from the last values seen, as if plugged in (for
+        // screenshots and design work without the keyboard; changes go nowhere).
+        if preview() {
+            self.values = cache::load();
+            self.connection = Connection::Usb { protocol: 0 };
+            self.firmware_version = Some(0x0900);
+            // Wired, charging, battery high, lighting on.
+            self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, 3, 1 | 4]));
+            return true;
+        }
         match Keyboard::open() {
             Ok(kb) => {
                 self.firmware_version = kb.firmware_version().ok();
@@ -295,6 +310,9 @@ impl Model {
     /// Returns whether the connection changed.
     pub fn recheck_bluetooth(&mut self) -> bool {
         self.flush_cache();
+        if let Some(queue) = &self.bluetooth {
+            queue.ask_again_if_unheard();
+        }
         let busy = matches!(self.bluetooth_status(), Some(btlink::Status::Sending(_)));
         if !busy && (Keyboard::open().is_ok() || !btlink::available()) {
             self.connection = Connection::NotFound;

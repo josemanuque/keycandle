@@ -47,6 +47,7 @@ fn main() -> Result<()> {
         Some("--set") => set_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--get") => get_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--bt-set") => bt_set(&std::env::args().skip(2).collect::<Vec<_>>()),
+        Some("--bt-listen") => btlink::listen_for(std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(6)),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
             Ok(())

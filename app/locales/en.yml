@@ -65,7 +65,11 @@ lighting:
     your_color_hint: "These use the color you pick: solid, or shades and waves of it."
     multicolor_hint: These make their own colors (rainbows, rain, heat), so the color isn't used.
 
+section_hint:
+  layout: "Switches by itself when you change device (Fn + Q…T, Fn + P)"
+
 section:
+  other_locks: Other locks
   layout: Windows or Mac
   keys: Keys
   side_lights: Side lights
@@ -117,7 +121,7 @@ setting:
     label: Bluetooth color
   caps_key:
     label: Caps key
-    help: "Auto: cool white, or a dark key when the lighting is white. Off: lit like the other keys. Dark: its light goes off"
+    help: "Auto: cool white, or a dark key when the lighting is white. Dark: its light goes off. Off: lit like the other keys"
   caps_key_color:
     label: Caps key color
   caps_side:
@@ -133,6 +137,9 @@ setting:
   fn_highlight:
     label: Fn highlight
     help: While Fn is held, only keys with an Fn function stay lit
+  win_lock:
+    label: Win-key lock
+    help: Fn + Win switches it too; the Win key goes dark while locked
   lights_off_after:
     label: Lighting off after
   sleep_after:
@@ -145,7 +152,7 @@ setting:
     label: Dim the lighting on battery
     help: Keys and side lights; full brightness returns when plugged in
   dim_level:
-    label: Level on battery
+    label: Level
 
 note:
   side_brightness_follows: The side lights use the keys' brightness. Turn off “Same brightness as the keys” to set their own.
@@ -210,6 +217,9 @@ devices:
   windows: Windows
   mac: Mac
   in_use: In use
+  win: Win
+  wired_key: USB cable
+  bluetooth_key: Fn + %{key}
 
 controls:
   not_available: not available
@@ -230,6 +240,23 @@ firmware:
   available: Available
   from_file: From a file…
   check_again: Check again
+  up_to_date: Up to date
+  update_available: "%{version} is available"
+  other: Other firmware
+  other_detail: Install a build of your own (.bin), or go back to Royal Kludge's original firmware V1.12.
+  restore_original: Restore original firmware
+  recovery_title: Keyboard not responding?
+  recovery_detail: The chip's built-in bootloader can't be overwritten, so a failed update can always be fixed. The recovery guide walks through the BOOT-pad method step by step.
+  recovery_link: Open the recovery guide →
+  stage:
+    get: Get the firmware
+    get_detail: From the GitHub release, or your file
+    flash_mode: Flash mode
+    flash_mode_detail: The keyboard restarts into its bootloader
+    write: Write
+    write_detail: The new firmware goes onto the chip
+    start: Start
+    start_detail: Back to typing, settings put back
   asking_github: Asking GitHub…
   github_failed: "Couldn't get the list from GitHub: %{error}"
   show_older: Show %{count} older versions
@@ -286,6 +313,8 @@ power:
   link_connecting: connecting…
   link_pairing: pairing…
   link_idle: not connected
+  battery_source: reported by the Bluetooth module as high, medium or low
+  battery_needs_usb: Shown while the keyboard is connected by USB
 
 menu:
   about: About Keycandle

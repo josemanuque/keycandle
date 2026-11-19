@@ -771,12 +771,13 @@ static void measure_led_rate(uint32_t now) {
  * The app reads ID_STATE every half second. `changes` goes up whenever anything it shows changed on
  * the keyboard itself (lighting from Fn keys, wired/Bluetooth, device slot, battery, cable, Win/Mac),
  * so it re-reads settings only then. Detected by fingerprinting all of it every 100 ms. */
-enum { STATE_CABLE = 1, STATE_BATTERY_LOW = 2, STATE_LIGHTING_ON = 4, STATE_MAC = 8 };
+enum { STATE_CABLE = 1, STATE_BATTERY_LOW = 2, STATE_LIGHTING_ON = 4, STATE_MAC = 8, STATE_WIN_LOCK = 16 };
 static uint8_t state_changes;
 
 static uint8_t state_flags(void) {
     return (vbus_known() && vbus_present() ? STATE_CABLE : 0) | (battery_low ? STATE_BATTERY_LOW : 0) |
-           (rgb_matrix_is_enabled() ? STATE_LIGHTING_ON : 0) | (get_highest_layer(default_layer_state) == RK71_MAC_LAYER ? STATE_MAC : 0);
+           (rgb_matrix_is_enabled() ? STATE_LIGHTING_ON : 0) | (get_highest_layer(default_layer_state) == RK71_MAC_LAYER ? STATE_MAC : 0) |
+           (keymap_config.no_gui ? STATE_WIN_LOCK : 0);
 }
 
 static uint32_t fnv1a(uint32_t h, const void *data, uint8_t len) {
@@ -1047,6 +1048,7 @@ enum {
     ID_SIDE_TIMING  = 53, /* diagnostics: side-light delay loops per tick, loops per colour switch */
     ID_BTCFG_STATS  = 54, /* diagnostics: settings over Bluetooth: messages ok, bad, symbols seen */
     ID_MAC_DEVICES  = 55, /* Mac layout per device: bit n = Bluetooth device n+1 (0..4), bit 5 = wired */
+    ID_WIN_LOCK     = 56, /* Win-key lock (Fn+Win), QMK's keymap_config.no_gui */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1151,6 +1153,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     kb_extra.mac_devices = value[0] & 0x3F;
                     apply_device_layout(); /* the device in use switches layout right away */
                     break;
+                case ID_WIN_LOCK:
+                    keymap_config.no_gui = value[0] != 0;
+                    eeconfig_update_keymap(&keymap_config); /* saved by QMK, as Fn+Win does */
+                    break;
                 default: *command_id = id_unhandled; break;
             }
             side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
@@ -1209,6 +1215,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_SIDE_CALIBRATE: value[0] = side_calibrating; break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 case ID_MAC_DEVICES: value[0] = kb_extra.mac_devices; break;
+                case ID_WIN_LOCK: value[0] = keymap_config.no_gui; break;
                 default: *command_id = id_unhandled; break;
             }
             break;

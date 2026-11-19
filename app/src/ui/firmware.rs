@@ -6,7 +6,7 @@ use gpui_component::{
     h_flex,
     progress::Progress,
     text::TextView,
-    v_flex, ActiveTheme as _, Disableable as _, Icon, Theme,
+    v_flex, ActiveTheme as _, Disableable as _, Icon, IconName, Theme,
 };
 
 use super::app::Configurator;
@@ -19,11 +19,6 @@ use crate::updater::{Releases, Source, Step};
 /// Versions listed before "Show older versions".
 const RECENT: usize = 4;
 
-/// How many releases the short list shows (the newest few; the original firmware comes on top).
-fn list_recent_count(total: usize) -> usize {
-    total.min(RECENT + 1)
-}
-
 pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
     let width = app.layout.width;
@@ -34,8 +29,102 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
         .when_some(job(app, &theme, cx), |el, job| el.child(job))
         .when_some(confirmation(app, &theme, cx), |el, c| el.child(c))
         .child(available(app, &theme, cx))
+        .child(
+            h_flex()
+                .flex_wrap()
+                .items_start()
+                .gap(px(GAP))
+                .child(other_firmware(app, &theme, width, cx))
+                .child(recovery(&theme, width)),
+        )
         .into_any_element()
 }
+
+/// Two cards side by side when there's room for both.
+fn half(width: f32) -> f32 {
+    if width >= 2.0 * 380.0 + GAP { ((width - GAP) / 2.0).floor() } else { width }
+}
+
+/// A file of your own, or back to Royal Kludge's firmware.
+fn other_firmware(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context<Configurator>) -> impl IntoElement {
+    let busy = app.updater.step().is_busy() || app.pending_install.is_some();
+    let view = cx.entity().downgrade();
+    let from_file = view.clone();
+    let stock = match app.updater.releases() {
+        Releases::Loaded(list) => list.into_iter().find(|r| r.stock),
+        _ => None,
+    };
+    card(theme)
+        .w(px(half(width)))
+        .gap_2()
+        .child(card_title(tr!("firmware.other")))
+        .child(muted(theme, tr!("firmware.other_detail")).text_sm())
+        .child(
+            h_flex()
+                .pt_2()
+                .gap_2()
+                .flex_wrap()
+                .child(
+                    Button::new("from-file")
+                        .outline()
+                        .icon(Icon::empty().path("icons/folder-open.svg"))
+                        .label(tr!("firmware.from_file"))
+                        .disabled(busy)
+                        .on_click(move |_, _, cx| {
+                            let picked = cx.prompt_for_paths(PathPromptOptions {
+                                files: true,
+                                directories: false,
+                                multiple: false,
+                                prompt: Some(tr!("firmware.install").into()),
+                            });
+                            let view = from_file.clone();
+                            cx.spawn(async move |cx| {
+                                if let Ok(Ok(Some(paths))) = picked.await {
+                                    if let Some(path) = paths.into_iter().next() {
+                                        let _ = view.update(cx, |this, cx| this.request_install(Source::File(path), cx));
+                                    }
+                                }
+                            })
+                            .detach();
+                        }),
+                )
+                .when_some(stock, |el, release| {
+                    el.child(Button::new("restore-stock").outline().label(tr!("firmware.restore_original")).disabled(busy).on_click(
+                        move |_, _, cx| {
+                            let source = Source::Release(release.clone());
+                            let _ = view.update(cx, |this, cx| this.request_install(source, cx));
+                        },
+                    ))
+                }),
+        )
+}
+
+/// What to do when an update went wrong: the ROM bootloader can't be overwritten.
+fn recovery(theme: &Theme, width: f32) -> impl IntoElement {
+    card(theme)
+        .w(px(half(width)))
+        .gap_2()
+        .child(card_title(tr!("firmware.recovery_title")))
+        .child(muted(theme, tr!("firmware.recovery_detail")).text_sm())
+        .child(
+            h_flex()
+                .id("recovery-guide")
+                .pt_2()
+                .gap_1()
+                .items_center()
+                .cursor_pointer()
+                .text_sm()
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(theme.link)
+                .hover(|s| s.text_color(theme.link_hover))
+                .child(tr!("firmware.recovery_link"))
+                .on_click(|_, _, cx| cx.open_url(RECOVERY_GUIDE)),
+        )
+}
+
+/// The BOOT-pad steps.
+const RECOVERY_GUIDE: &str =
+    "https://github.com/josemanuque/keycandle/blob/main/stock/README.md#if-it-is-bricked-no-keys-no-lights-fnpause-does-nothing";
 
 fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement {
     let model = &app.model;
@@ -48,6 +137,7 @@ fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
         (false, _, false) => (tr!("firmware.not_connected"), tr!("firmware.not_connected_detail")),
     };
     let view = cx.entity().downgrade();
+    let update = update_status(app, theme, cx);
     card(theme)
         .child(card_title(tr!("firmware.on_keyboard")))
         .child(
@@ -61,6 +151,7 @@ fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
                         .child(div().text_2xl().font_weight(FontWeight::SEMIBOLD).child(title))
                         .child(muted(theme, detail)),
                 )
+                .children(update)
                 .when(model.in_flash_mode() && !app.updater.step().is_busy(), |el| {
                     el.child(Button::new("leave-flash").outline().label(tr!("firmware.leave_flash_mode")).on_click(move |_, _, cx| {
                         let _ = view.update(cx, |this, cx| {
@@ -70,6 +161,97 @@ fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
                     }))
                 }),
         )
+}
+
+/// Next to the installed version: "Up to date", or the newer release with its Install button.
+fn update_status(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) -> Option<AnyElement> {
+    let installed = app.model.firmware_version().filter(|v| *v != 0 && app.model.is_connected())?;
+    let Releases::Loaded(list) = app.updater.releases() else { return None };
+    let newest = list.into_iter().filter(|r| !r.stock).max_by_key(|r| r.version().unwrap_or(0))?;
+    let newest_version = newest.version()?;
+    if newest_version <= installed {
+        return Some(
+            h_flex()
+                .gap_2()
+                .items_center()
+                .text_sm()
+                .text_color(theme.muted_foreground)
+                .child(Icon::new(IconName::CircleCheck).size_4().text_color(theme.success))
+                .child(tr!("firmware.up_to_date"))
+                .into_any_element(),
+        );
+    }
+    let busy = app.updater.step().is_busy() || app.pending_install.is_some();
+    let view = cx.entity().downgrade();
+    let tag = newest.tag.clone();
+    Some(
+        h_flex()
+            .gap_3()
+            .items_center()
+            .child(div().text_sm().child(tr!("firmware.update_available", version = tag)))
+            .child(Button::new("install-newest").primary().label(tr!("firmware.install")).disabled(busy).on_click(move |_, _, cx| {
+                let source = Source::Release(newest.clone());
+                let _ = view.update(cx, |this, cx| this.request_install(source, cx));
+            }))
+            .into_any_element(),
+    )
+}
+
+/// The install's stages, as the design shows them: done, now, or still to come.
+fn stages(theme: &Theme, step: &Step) -> impl IntoElement {
+    let current = match step {
+        Step::Downloading => 0,
+        Step::WaitingForBootloader { .. } => 1,
+        Step::Writing(_) => 2,
+        Step::Starting => 3,
+        _ => 4, // finished
+    };
+    let failed = matches!(step, Step::Failed(_));
+    let names = [
+        (tr!("firmware.stage.get"), tr!("firmware.stage.get_detail")),
+        (tr!("firmware.stage.flash_mode"), tr!("firmware.stage.flash_mode_detail")),
+        (tr!("firmware.stage.write"), tr!("firmware.stage.write_detail")),
+        (tr!("firmware.stage.start"), tr!("firmware.stage.start_detail")),
+    ];
+    h_flex().flex_wrap().gap_3().children(names.into_iter().enumerate().map(|(i, (title, text))| {
+        let done = i < current && !failed;
+        let now = i == current;
+        let (mark_bg, mark_fg) = if done {
+            (theme.success.opacity(0.18), theme.success)
+        } else if now {
+            (theme.primary, theme.primary_foreground)
+        } else {
+            (theme.muted, theme.muted_foreground)
+        };
+        v_flex()
+            .flex_1()
+            .min_w(px(170.))
+            .gap_1p5()
+            .p_3p5()
+            .rounded_lg()
+            .bg(theme.background)
+            .border_1()
+            .border_color(if now { theme.primary } else { theme.border })
+            .child(
+                div()
+                    .size_6()
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .bg(mark_bg)
+                    .text_color(mark_fg)
+                    .child(if done {
+                        Icon::new(IconName::Check).size_3p5().into_any_element()
+                    } else {
+                        (i + 1).to_string().into_any_element()
+                    }),
+            )
+            .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
+            .child(muted(theme, text))
+    }))
 }
 
 /// The running or last install, if any.
@@ -102,6 +284,7 @@ fn job(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) -> Opt
                     .when_some(icon, |el, icon| el.child(Icon::empty().path(icon).size_5()))
                     .child(div().font_weight(FontWeight::SEMIBOLD).child(title)),
             )
+            .when(step.is_busy(), |el| el.child(stages(theme, &step)))
             .when(!detail.is_empty(), |el| el.child(muted(theme, detail)))
             .when(step.is_busy(), |el| {
                 el.child(match progress {
@@ -154,7 +337,6 @@ fn available(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
     let installed = app.model.firmware_version();
     let view = cx.entity().downgrade();
     let refresh = view.clone();
-    let from_file = view.clone();
 
     let header = h_flex()
         .justify_between()
@@ -163,30 +345,6 @@ fn available(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
         .child(
             h_flex()
                 .gap_2()
-                .child(
-                    Button::new("from-file")
-                        .ghost()
-                        .icon(Icon::empty().path("icons/folder-open.svg"))
-                        .label(tr!("firmware.from_file"))
-                        .disabled(busy)
-                        .on_click(move |_, _, cx| {
-                            let picked = cx.prompt_for_paths(PathPromptOptions {
-                                files: true,
-                                directories: false,
-                                multiple: false,
-                                prompt: Some(tr!("firmware.install").into()),
-                            });
-                            let view = from_file.clone();
-                            cx.spawn(async move |cx| {
-                                if let Ok(Ok(Some(paths))) = picked.await {
-                                    if let Some(path) = paths.into_iter().next() {
-                                        let _ = view.update(cx, |this, cx| this.request_install(Source::File(path), cx));
-                                    }
-                                }
-                            })
-                            .detach();
-                        }),
-                )
                 .child(
                     Button::new("refresh")
                         .ghost()
@@ -208,16 +366,16 @@ fn available(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
         }
         Releases::Failed(e) => note(theme, tr!("firmware.github_failed", error = e)).into_any_element(),
         Releases::Loaded(list) => {
+            let list: Vec<Release> = list.into_iter().filter(|r| !r.stock).collect();
             let newest = list.iter().find(|r| !r.stock).map(|r| r.tag.clone());
             let total = list.len();
             let shown: Vec<Release> = if app.show_all_releases {
                 list
             } else {
-                // the newest few, plus the original firmware
-                list.into_iter().enumerate().filter(|(i, r)| *i < RECENT || r.stock).map(|(_, r)| r).collect()
+                list.into_iter().take(RECENT).collect()
             };
             let hidden = total - shown.len();
-            let older = total - list_recent_count(total);
+            let older = total.saturating_sub(RECENT);
             let toggle = view.clone();
             let label = if app.show_all_releases { tr!("firmware.show_fewer") } else { tr!("firmware.show_older", count = hidden) };
             v_flex()

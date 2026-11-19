@@ -137,12 +137,14 @@ if len(sys.argv) > 2:
                         "content": ["id_frow_on_side", 0, 13]},
                        {"showIf": "{id_frow_on_side} == 1", "label": "F-row lock side colour", "type": "color",
                         "content": ["id_frow_side_colour", 0, 14]},
-                       {"label": "Caps Lock key", "type": "dropdown", "options": ["Auto", "Off", "Custom colour", "Dark"],
+                       {"label": "Caps Lock key", "type": "dropdown", "options": [["Auto", 0], ["Custom colour", 2], ["Dark", 3], ["Off", 1]],
                         "content": ["id_caps_key_mode", 0, 15]},
                        {"showIf": "{id_caps_key_mode} == 2", "label": "Caps Lock key colour", "type": "color",
                         "content": ["id_caps_key_colour", 0, 21]},
                        {"label": "While Fn is held, light only keys with an Fn function", "type": "toggle",
-                        "content": ["id_fn_highlight", 0, 16]}]}]},
+                        "content": ["id_fn_highlight", 0, 16]},
+                       {"label": "Win-key lock (Fn + Win)", "type": "toggle",
+                        "content": ["id_win_lock", 0, 56]}]}]},
                # Battery saving (value ids 22..26): whole keyboard
                {"label": "Power", "content": [{"label": "Power", "content": [
                        {"label": "On battery, lighting off after", "type": "dropdown",

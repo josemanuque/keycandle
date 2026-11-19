@@ -49,6 +49,9 @@ const REPORT_ID: u8 = 8;
 /// keyboard waits until messages stop, then sends one value every 100 ms).
 const RECEIVE_SHOWN: Duration = Duration::from_millis(1200);
 const SYNC_ANSWER: Duration = Duration::from_millis(2600);
+/// The first value comes about 2 s after the request is confirmed (the keyboard waits for messages to
+/// stop), the last about 4 s after: firmware that has sent nothing by then doesn't report.
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(6);
 /// How long "received" stays up once the keyboard has finished.
 const RECEIVED_SHOWN: Duration = Duration::from_millis(1200);
 /// How long "saved" stays up after the last change was confirmed.
@@ -195,6 +198,8 @@ struct Shared {
     device_in_use: Option<u8>,
     /// The keyboard has reported something since the queue started.
     heard: bool,
+    /// Our request for the keyboard's values couldn't be delivered.
+    unanswered: bool,
     /// The keyboard confirmed our request for its values; they're due by then.
     answer_due: Option<Instant>,
 }
@@ -230,6 +235,33 @@ fn listen(link: Link) {
     }
 }
 
+/// Diagnostics (--bt-listen): ask the keyboard for its values and print what arrives for `seconds`.
+pub fn listen_for(seconds: u64) -> Result<()> {
+    imp::ensure_access()?;
+    let channel = Acks::open()?;
+    let asked = std::thread::spawn(|| send(SYNC_CHANNEL, 0, &[0]));
+    let start = Instant::now();
+    let mut reports = Reports::default();
+    let mut buf = [0u8; 16];
+    while start.elapsed() < Duration::from_secs(seconds) {
+        for device in &channel.0 {
+            let n = device.read_timeout(&mut buf, 20)?;
+            let Some(usage) = usage_in(&buf[..n]).filter(|u| *u != 0) else { continue };
+            let at = start.elapsed().as_millis();
+            match reports.feed(usage) {
+                Some((id, index, byte)) => println!("{at:>6} ms  {usage:#05x}  value {id:?}[{index}] = {byte}"),
+                None => println!("{at:>6} ms  {usage:#05x}"),
+            }
+        }
+    }
+    match asked.join() {
+        Ok(Ok(attempts)) => println!("request confirmed (attempt {attempts})"),
+        Ok(Err(e)) => println!("request not confirmed: {e:#}"),
+        Err(_) => println!("request thread failed"),
+    }
+    Ok(())
+}
+
 /// Sends settings one by one on a background thread, as the app changes them.
 pub struct Queue(Link);
 
@@ -261,13 +293,18 @@ impl Queue {
                 if result.is_ok() {
                     if s.asking {
                         s.receiving_until = Some(Instant::now() + SYNC_ANSWER);
-                        s.answer_due = s.receiving_until;
+                        s.answer_due = Some(Instant::now() + ANSWER_TIMEOUT);
                     } else {
                         s.saved_until = Some(Instant::now() + SAVED_SHOWN);
                     }
                 }
+                // Our request for the keyboard's values failing isn't a lost change: no error on
+                // show, just ask again later (ask_again_if_unheard).
+                s.unanswered = s.asking && result.is_err();
+                if !s.asking {
+                    s.failed = result.err().map(|e| format!("{e:#}"));
+                }
                 s.asking = false;
-                s.failed = result.err().map(|e| format!("{e:#}"));
             }
         });
         let queue = Self(shared);
@@ -278,6 +315,18 @@ impl Queue {
     /// What the keyboard reported since the last call.
     pub fn take_updates(&self) -> Vec<Update> {
         std::mem::take(&mut self.0 .0.lock().unwrap().updates)
+    }
+
+    /// Ask for the keyboard's values again if they never came because sending failed (it was asleep,
+    /// or out of range, when the app found it). Call now and then.
+    pub fn ask_again_if_unheard(&self) {
+        let ask = {
+            let s = self.0 .0.lock().unwrap();
+            !s.heard && !s.sending && s.pending.is_empty() && s.unanswered
+        };
+        if ask {
+            self.push(SYNC_CHANNEL, 0, &[0]);
+        }
     }
 
     /// The Bluetooth device slot in use (0..4), if the keyboard reported it.

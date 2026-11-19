@@ -516,10 +516,22 @@
               "label": "Caps Lock key",
               "type": "dropdown",
               "options": [
-                "Auto",
-                "Off",
-                "Custom colour",
-                "Dark"
+                [
+                  "Auto",
+                  0
+                ],
+                [
+                  "Custom colour",
+                  2
+                ],
+                [
+                  "Dark",
+                  3
+                ],
+                [
+                  "Off",
+                  1
+                ]
               ],
               "content": [
                 "id_caps_key_mode",
@@ -544,6 +556,15 @@
                 "id_fn_highlight",
                 0,
                 16
+              ]
+            },
+            {
+              "label": "Win-key lock (Fn + Win)",
+              "type": "toggle",
+              "content": [
+                "id_win_lock",
+                0,
+                56
               ]
             }
           ]

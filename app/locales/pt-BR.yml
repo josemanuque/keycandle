@@ -64,7 +64,11 @@ lighting:
     your_color_hint: "Usam a cor que você escolher: sólida, ou tons e ondas dela."
     multicolor_hint: Criam as próprias cores (arco-íris, chuva, calor), então a cor não é usada.
 
+section_hint:
+  layout: "Muda sozinho ao trocar de dispositivo (Fn + Q…T, Fn + P)"
+
 section:
+  other_locks: Outros bloqueios
   layout: Windows ou Mac
   keys: Teclas
   side_lights: Luzes laterais
@@ -116,7 +120,7 @@ setting:
     label: Cor do Bluetooth
   caps_key:
     label: Tecla Caps Lock
-    help: "Auto: branco frio, ou tecla escura quando a iluminação é branca. Desligado: acende como as outras. Escura: a luz dela se apaga"
+    help: "Auto: branco frio, ou tecla escura quando a iluminação é branca. Escura: a luz dela se apaga. Desligado: acende como as outras"
   caps_key_color:
     label: Cor da tecla Caps Lock
   caps_side:
@@ -132,6 +136,9 @@ setting:
   fn_highlight:
     label: Destaque do Fn
     help: Enquanto Fn está pressionado, só as teclas com função Fn ficam acesas
+  win_lock:
+    label: Bloqueio da tecla Win
+    help: Fn + Win também alterna; a tecla Win apaga enquanto bloqueada
   lights_off_after:
     label: Apagar a iluminação após
   sleep_after:
@@ -144,7 +151,7 @@ setting:
     label: Diminuir a iluminação na bateria
     help: Teclas e luzes laterais; o brilho total volta ao conectar
   dim_level:
-    label: Nível na bateria
+    label: Nível
 
 note:
   side_brightness_follows: As luzes laterais usam o brilho das teclas. Desligue “Mesmo brilho das teclas” para definir um próprio.
@@ -209,6 +216,9 @@ devices:
   windows: Windows
   mac: Mac
   in_use: Em uso
+  win: Win
+  wired_key: Cabo USB
+  bluetooth_key: Fn + %{key}
 
 controls:
   not_available: indisponível
@@ -229,6 +239,23 @@ firmware:
   available: Disponíveis
   from_file: De um arquivo…
   check_again: Verificar de novo
+  up_to_date: Atualizado
+  update_available: "%{version} disponível"
+  other: Outro firmware
+  other_detail: Instale uma compilação sua (.bin) ou volte ao firmware original V1.12 da Royal Kludge.
+  restore_original: Restaurar o firmware original
+  recovery_title: O teclado não responde?
+  recovery_detail: O bootloader embutido do chip não pode ser sobrescrito, então uma atualização que falhou sempre tem conserto. O guia de recuperação mostra o método do pad BOOT passo a passo.
+  recovery_link: Abrir o guia de recuperação →
+  stage:
+    get: Obter o firmware
+    get_detail: Da versão no GitHub, ou do seu arquivo
+    flash_mode: Modo flash
+    flash_mode_detail: O teclado reinicia no bootloader
+    write: Gravar
+    write_detail: O novo firmware vai para o chip
+    start: Iniciar
+    start_detail: De volta à digitação, com seus ajustes
   asking_github: Consultando o GitHub…
   github_failed: "Não foi possível obter a lista do GitHub: %{error}"
   show_older: Mostrar %{count} versões anteriores
@@ -285,6 +312,8 @@ power:
   link_connecting: conectando…
   link_pairing: pareando…
   link_idle: sem conexão
+  battery_source: o módulo Bluetooth informa alta, média ou baixa
+  battery_needs_usb: Mostrado com o teclado conectado por USB
 
 menu:
   about: Sobre o Keycandle
