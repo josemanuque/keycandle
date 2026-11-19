@@ -122,6 +122,8 @@ pub struct Model {
     bluetooth: Option<btlink::Queue>,
     /// Values changed since the cache was last written.
     cache_dirty: bool,
+    /// The firmware version last seen over USB (remembered across runs), for while on Bluetooth.
+    pub last_firmware: Option<u32>,
     /// Over USB: show "saved" / "receiving" until then.
     saved_until: Option<Instant>,
     received_until: Option<Instant>,
@@ -180,7 +182,13 @@ impl Model {
     /// Only on Bluetooth: the keyboard's firmware turned out not to report its values (older than
     /// v0.9), so changes made on the keyboard don't show here.
     pub fn bluetooth_one_way(&self) -> bool {
-        self.bluetooth.as_ref().and_then(btlink::Queue::keyboard_reports) == Some(false)
+        // Firmware seen over USB that reports isn't one-way, however quiet it is (asleep).
+        !self.reports_expected() && self.bluetooth.as_ref().and_then(btlink::Queue::keyboard_reports) == Some(false)
+    }
+
+    /// The firmware last seen over USB reports its values over Bluetooth.
+    fn reports_expected(&self) -> bool {
+        self.last_firmware.is_some_and(|v| v >= keyboard::current().bluetooth_reports_since)
     }
 
     /// What's going on between the app and the keyboard right now, over either connection.
@@ -333,7 +341,7 @@ impl Model {
     pub fn recheck_bluetooth(&mut self) -> bool {
         self.flush_cache();
         if let Some(queue) = &self.bluetooth {
-            queue.ask_again_if_unheard();
+            queue.ask_again_if_unheard(self.reports_expected());
         }
         let busy = matches!(self.bluetooth_status(), Some(btlink::Status::Sending(_)));
         if !busy && (Keyboard::open().is_ok() || !btlink::available()) {

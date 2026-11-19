@@ -49,6 +49,8 @@ pub struct Profile {
     pub bluetooth: Ids,
     /// The firmware's state report: VIA value id and length (see `ui::model::KeyboardState`).
     pub state_value: (u8, usize),
+    /// The first firmware version (0x00MMmmpp) that reports its values over Bluetooth.
+    pub bluetooth_reports_since: u32,
     /// The Win-key lock's VIA value id (channel 0).
     pub win_lock_value: u8,
     /// What the keyboard reports over Bluetooth, slot by slot: the VIA value and which of its bytes.

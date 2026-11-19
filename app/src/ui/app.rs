@@ -84,6 +84,7 @@ impl Configurator {
             sidebar_focus: cx.focus_handle(),
             status_mark: Default::default(),
         };
+        this.model.last_firmware = this.last_firmware;
         this.connect(window, cx);
         if this.check_updates_on_start {
             this.updater.check(); // in the background; the notice shows when the answer is in

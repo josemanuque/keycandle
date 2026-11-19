@@ -194,6 +194,8 @@ struct Shared {
     heard: bool,
     /// Our request for the keyboard's values couldn't be delivered.
     unanswered: bool,
+    /// The request on its way is a quiet retry: no "receiving" unless values really arrive.
+    retrying: bool,
     /// The keyboard confirmed our request for its values; they're due by then.
     answer_due: Option<Instant>,
 }
@@ -286,7 +288,9 @@ impl Queue {
                 s.sending = false;
                 if result.is_ok() {
                     if s.asking {
-                        s.receiving_until = Some(Instant::now() + SYNC_ANSWER);
+                        if !s.retrying {
+                            s.receiving_until = Some(Instant::now() + SYNC_ANSWER);
+                        }
                         s.answer_due = Some(Instant::now() + ANSWER_TIMEOUT);
                     } else {
                         s.saved_until = Some(Instant::now() + SAVED_SHOWN);
@@ -311,14 +315,17 @@ impl Queue {
         std::mem::take(&mut self.0 .0.lock().unwrap().updates)
     }
 
-    /// Ask for the keyboard's values again if they never came because sending failed (it was asleep,
-    /// or out of range, when the app found it). Call now and then.
-    pub fn ask_again_if_unheard(&self) {
+    /// Ask for the keyboard's values again if they never came: sending failed (it was asleep, or out
+    /// of range, when the app found it), or, when its firmware is known to report (`expected`), it
+    /// confirmed but stayed quiet (asleep: the module answers for it). Call now and then.
+    pub fn ask_again_if_unheard(&self, expected: bool) {
         let ask = {
             let s = self.0 .0.lock().unwrap();
-            !s.heard && !s.sending && s.pending.is_empty() && s.unanswered
+            let quiet = expected && s.answer_due.is_some_and(|due| Instant::now() >= due);
+            !s.heard && !s.sending && s.pending.is_empty() && (s.unanswered || quiet)
         };
         if ask {
+            self.0 .0.lock().unwrap().retrying = true;
             self.push(SYNC_CHANNEL, 0, &[0]);
         }
     }
@@ -354,7 +361,7 @@ impl Queue {
         let now = Instant::now();
         let ours = s.pending.iter().filter(|((channel, _), _)| *channel != SYNC_CHANNEL).count();
         let busy = ours + (s.sending && !s.asking) as usize;
-        let asking = s.asking || ours < s.pending.len();
+        let asking = (s.asking || ours < s.pending.len()) && !s.retrying;
         if busy > 0 {
             Status::Sending(busy)
         } else if asking || s.receiving_until.is_some_and(|until| now < until) {

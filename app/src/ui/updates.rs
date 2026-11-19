@@ -15,7 +15,7 @@ use super::app::Configurator;
 use super::page::Page;
 use super::widgets::{card, card_title, muted};
 use crate::prefs::Prefs;
-use crate::releases::{format_version, parse_version, Release};
+use crate::releases::{format_version, parse_version, update_over, Release};
 use crate::tr;
 use crate::updater::Releases;
 
@@ -57,12 +57,8 @@ fn firmware_version(app: &Configurator) -> Option<u32> {
 
 pub fn available(app: &Configurator) -> Available {
     let Releases::Loaded(list) = app.updater.releases() else { return Available::default() };
-    let newest = |pick: &dyn Fn(&Release) -> bool| {
-        list.iter().filter(|r| !r.stock && pick(r)).max_by_key(|r| r.version().unwrap_or(0)).cloned()
-    };
-    let app_update = newest(&|r| r.has_app()).filter(|r| r.version().is_some_and(|v| v > app_version()));
-    let installed = firmware_version(app);
-    let firmware = newest(&|_| true).filter(|r| matches!((r.version(), installed), (Some(v), Some(i)) if v > i));
+    let app_update = update_over(&list, Some(app_version()), true);
+    let firmware = update_over(&list, firmware_version(app), false);
     Available { app: app_update, firmware }
 }
 
@@ -109,6 +105,7 @@ impl Configurator {
         let Some(v) = self.model.firmware_version().filter(|v| *v != 0) else { return };
         if self.last_firmware != Some(v) {
             self.last_firmware = Some(v);
+            self.model.last_firmware = Some(v);
             let mut prefs = Prefs::load();
             prefs.last_firmware = Some(v);
             prefs.save();

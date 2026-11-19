@@ -20,6 +20,7 @@ pub static PROFILE: Profile = Profile {
     // The Bluetooth module keeps the stock id.
     bluetooth: Ids { vid: 0x05AC, pid: 0x024F },
     state_value: (52, 6),
+    bluetooth_reports_since: 0x0900,
     win_lock_value: 56,
     // keyboard/rk71_rgb/rk71_rgb.c, rk71_btcfg_read: brightness, effect, speed, hue, saturation,
     // Win/Mac per device, then the packed state.

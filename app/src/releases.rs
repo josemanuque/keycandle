@@ -128,6 +128,15 @@ pub fn fetch() -> Result<Vec<Release>> {
     Ok(list)
 }
 
+/// The newest of this project's releases, if it's newer than `installed` (an update). A build newer
+/// than every release (one of your own, or not released yet) gets nothing. `app`: only releases with
+/// this computer's app build.
+pub fn update_over(list: &[Release], installed: Option<u32>, app: bool) -> Option<Release> {
+    let installed = installed?;
+    let newest = list.iter().filter(|r| !r.stock && (!app || r.has_app())).max_by_key(|r| r.version().unwrap_or(0))?;
+    newest.version().filter(|v| *v > installed).map(|_| newest.clone())
+}
+
 /// "v0.7b" -> 0x00000700, "v0.5.5b" -> 0x00000505. None for tags without a version.
 pub fn parse_version(tag: &str) -> Option<u32> {
     let digits: Vec<u32> = tag
@@ -169,6 +178,33 @@ fn hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn release(tag: &str, stock: bool) -> Release {
+        let asset = |name: &str| Asset { name: name.into(), browser_download_url: String::new() };
+        Release {
+            tag: tag.into(),
+            prerelease: true,
+            stock,
+            date: String::new(),
+            notes: String::new(),
+            page: String::new(),
+            firmware: asset("fw.bin"),
+            sums: None,
+            app: Some(asset(APP_ASSET)),
+        }
+    }
+
+    #[test]
+    fn updates_only_when_a_release_is_newer() {
+        let list = [release("v0.8.3b", false), release("v0.8.2b", false), release("stock-v1.12", true)];
+        // Older installed: the newest release is offered.
+        assert_eq!(update_over(&list, Some(0x0802), false).map(|r| r.tag), Some("v0.8.3b".into()));
+        // The same, or a build newer than any release (unreleased): nothing.
+        assert!(update_over(&list, Some(0x0803), false).is_none());
+        assert!(update_over(&list, Some(0x0900), true).is_none());
+        // Unknown installed version: nothing to compare with.
+        assert!(update_over(&list, None, false).is_none());
+    }
 
     #[test]
     fn versions_from_tags() {
