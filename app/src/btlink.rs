@@ -21,6 +21,8 @@ const BT_PID: u16 = 0x024F;
 /// Bluetooth HID (the service class in the device path; the same id over USB is stock firmware).
 const BT_HID: &str = "00001124";
 const ATTEMPTS: usize = 4;
+/// Time per symbol: the LED report has to cross Bluetooth and the module.
+const SYMBOL: Duration = Duration::from_millis(30);
 const ACK_WAIT: Duration = Duration::from_millis(700);
 
 /// The message: 4 start symbols, then channel, id, two value bytes and a CRC-8, 2 bits per symbol.
@@ -43,6 +45,11 @@ fn crc8(data: &[u8]) -> u8 {
         }
         crc
     })
+}
+
+/// Time per symbol; KEYCANDLE_BT_SYMBOL_MS overrides it (for trying other computers).
+fn symbol_time() -> Duration {
+    std::env::var("KEYCANDLE_BT_SYMBOL_MS").ok().and_then(|v| v.parse().ok()).map(Duration::from_millis).unwrap_or(SYMBOL)
 }
 
 /// The usage the keyboard confirms a message with.
@@ -201,7 +208,6 @@ impl Acks {
 mod imp {
     use std::ffi::c_void;
     use std::thread::sleep;
-    use std::time::Duration;
 
     use anyhow::{bail, Result};
     use windows_sys::core::GUID;
@@ -221,8 +227,6 @@ mod imp {
     const SCROLL: u16 = 1;
     const NUM: u16 = 2;
     const CAPS: u16 = 4;
-    /// Time per symbol: the LED report has to cross Bluetooth and the module.
-    const SYMBOL: Duration = Duration::from_millis(30);
 
     /// The RK71's Bluetooth keyboard interface (classic HID, its main keyboard collection).
     pub fn find() -> Option<Vec<u16>> {
@@ -304,7 +308,7 @@ mod imp {
         let original = dev.leds()?; // LED flags in the high 16 bits, unit id in the low ones
         let unit = original & 0xFFFF;
         let mut clock = (original >> 16) as u16 & SCROLL != 0;
-        let symbol = std::env::var("KEYCANDLE_BT_SYMBOL_MS").ok().and_then(|v| v.parse().ok()).map(Duration::from_millis).unwrap_or(SYMBOL);
+        let symbol = super::symbol_time();
         for &d in symbols {
             clock = !clock;
             let flags = if d & 1 != 0 { NUM } else { 0 } | if d & 2 != 0 { CAPS } else { 0 } | if clock { SCROLL } else { 0 };
@@ -316,16 +320,107 @@ mod imp {
     }
 }
 
+/// macOS and Linux (untested so far): these don't keep keyboards from apps, so the LED state goes
+/// out as an ordinary HID output report. macOS asks for Input Monitoring the first time; Linux needs
+/// access to the hidraw device (tools/udev).
 #[cfg(not(windows))]
 mod imp {
-    use anyhow::{bail, Result};
+    use std::thread::sleep;
 
-    pub fn find() -> Option<Vec<u16>> {
+    use anyhow::{Context, Result};
+    use hidapi::{BusType, DeviceInfo, HidApi, HidDevice};
+
+    /// HID LED bits, the order the keyboard sees.
+    const CAPS: u8 = 0x02;
+    const SCROLL: u8 = 0x04;
+
+    /// The RK71's keyboard collection, over Bluetooth.
+    fn keyboard(api: &HidApi) -> Option<&DeviceInfo> {
+        api.device_list().find(|d| {
+            d.vendor_id() == super::BT_VID
+                && d.product_id() == super::BT_PID
+                && d.bus_type() == BusType::Bluetooth
+                && d.usage_page() == 0x01
+                && d.usage() == 0x06
+        })
+    }
+
+    pub fn find() -> Option<()> {
+        let api = HidApi::new().ok()?;
+        keyboard(&api).map(|_| ())
+    }
+
+    pub fn send(symbols: &[u8]) -> Result<()> {
+        let api = HidApi::new()?;
+        let info = keyboard(&api).context("no RK71 connected over Bluetooth")?;
+        let dev = info.open_device(&api).context(if cfg!(target_os = "macos") {
+            "couldn't open the RK71's Bluetooth keyboard (allow Keycandle in System Settings > Privacy & Security > Input Monitoring)"
+        } else {
+            "couldn't open the RK71's Bluetooth keyboard (no access to its hidraw device: see tools/udev)"
+        })?;
+        let id = led_report_id(&dev);
+        let set = |leds: u8| dev.write(&[id, leds]).context("couldn't set the keyboard's LEDs");
+        let symbol = super::symbol_time();
+        // The LEDs' state isn't known here: start from Scroll off, so the first symbol is a clock edge.
+        set(0)?;
+        sleep(symbol);
+        let mut clock = false;
+        for &d in symbols {
+            clock = !clock;
+            set(d & 3 | if clock { SCROLL } else { 0 })?;
+            sleep(symbol);
+        }
+        sleep(symbol * 4); // let the keyboard finish before the LEDs go back
+        set(if caps_lock_on() { CAPS } else { 0 })?;
+        Ok(())
+    }
+
+    /// The report id of the keyboard's LED output report, from its report descriptor (1 if it
+    /// can't be read).
+    fn led_report_id(dev: &HidDevice) -> u8 {
+        let mut buf = [0u8; 4096];
+        let Ok(n) = dev.get_report_descriptor(&mut buf) else { return 1 };
+        led_report_in(&buf[..n]).unwrap_or(1)
+    }
+
+    /// Walk a HID report descriptor: the report id in force at the first Output item on the LED page.
+    pub(super) fn led_report_in(d: &[u8]) -> Option<u8> {
+        let (mut i, mut page, mut id) = (0, 0u32, 0u8);
+        while i < d.len() {
+            let prefix = d[i];
+            if prefix == 0xFE {
+                i += 3 + *d.get(i + 1)? as usize; // long item
+                continue;
+            }
+            let size = [0, 1, 2, 4][(prefix & 3) as usize];
+            let value = (0..size).fold(0u32, |v, k| v | (*d.get(i + 1 + k).unwrap_or(&0) as u32) << (8 * k));
+            match prefix & 0xFC {
+                0x04 => page = value,     // Usage Page
+                0x84 => id = value as u8, // Report ID
+                0x90 if page == 0x08 => return Some(id), // Output, on the LED page
+                _ => {}
+            }
+            i += 1 + size;
+        }
         None
     }
 
-    pub fn send(_symbols: &[u8]) -> Result<()> {
-        bail!("settings over Bluetooth are only available on Windows so far")
+    /// Whether Caps Lock is on, so its light is put back right. Linux: unknown here (the light
+    /// catches up at the next lock-key press).
+    fn caps_lock_on() -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            #[link(name = "CoreGraphics", kind = "framework")]
+            extern "C" {
+                fn CGEventSourceFlagsState(state: i32) -> u64;
+            }
+            const HID_SYSTEM_STATE: i32 = 1;
+            const ALPHA_SHIFT: u64 = 0x0001_0000;
+            // SAFETY: a plain query with no pointers.
+            unsafe { CGEventSourceFlagsState(HID_SYSTEM_STATE) & ALPHA_SHIFT != 0 }
+        }
+        #[cfg(not(target_os = "macos"))]
+        false
     }
 }
 
@@ -343,5 +438,13 @@ mod tests {
         assert_eq!(crc8(b"123456789"), 0xF4); // the CRC-8 (poly 0x07) check value
         let crc = crc8(&[0, 8, 2, 0]);
         assert_eq!(ack_usage(&s), 0x3F0 | (crc & 0x0F) as u16);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn led_report_id_from_descriptor() {
+        // Report 1: a keyboard with 5 LED outputs (page 0x08), as boot keyboards describe them.
+        let d = [0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, 0x01, 0x05, 0x07, 0x81, 0x02, 0x05, 0x08, 0x19, 0x01, 0x29, 0x05, 0x91, 0x02, 0xC0];
+        assert_eq!(imp::led_report_in(&d), Some(1));
     }
 }
