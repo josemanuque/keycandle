@@ -238,6 +238,8 @@ firmware:
   flash_mode_detail: The keyboard is waiting for new firmware. Install one below, or leave flash mode to use it as it is.
   not_connected: Not connected
   not_connected_detail: Connect the keyboard with the USB cable to update it.
+  on_bluetooth: On Bluetooth
+  on_bluetooth_detail: Firmware is installed over the USB cable only. Plug it in to update.
   leave_flash_mode: Leave flash mode
   available: Available
   from_file: From a file…
@@ -302,6 +304,10 @@ settings:
   appearance_light: Light
   appearance_dark: Dark
   appearance_help: "System follows your computer's light or dark mode."
+  slider_values: Slider values
+  slider_percent: Percent
+  slider_raw: Keyboard values
+  slider_values_help: "Keyboard values are the numbers the keyboard stores, such as 0-31 for the side-light calibration."
 
 power:
   charging: Charging over USB
@@ -316,7 +322,7 @@ power:
   link_pairing: pairing…
   link_idle: not connected
   battery_source: reported by the Bluetooth module as high, medium or low
-  battery_needs_usb: Shown while the keyboard is connected by USB
+  battery_needs_usb: Shown over USB, and over Bluetooth with firmware v0.9 or newer
 
 menu:
   about: About Keycandle

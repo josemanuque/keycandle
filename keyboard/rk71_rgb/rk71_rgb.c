@@ -1274,7 +1274,10 @@ void rk71_btcfg_read(uint8_t values[BTCFG_SLOTS]) {
         }
         values[i] = data[3 + slots[i].index];
     }
-    values[BTCFG_SLOTS - 1] = kb_config.host; /* the device slot in use: the app marks it */
+    /* The keyboard's state, packed: device slot in use (bits 0-2), battery level 0-3 (bits 3-4),
+     * battery low (bit 5), Win-key lock (bit 6). Reported when any of it changes. */
+    values[BTCFG_SLOTS - 1] = (kb_config.host & 7) | (battery_level & 3) << 3 | (battery_low ? 0x20 : 0) |
+                              (keymap_config.no_gui ? 0x40 : 0);
 #else
     memset(values, 0, BTCFG_SLOTS);
 #endif

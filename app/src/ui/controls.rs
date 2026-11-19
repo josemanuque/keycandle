@@ -201,14 +201,15 @@ fn control_element(app: &Configurator, setting: &'static Setting, cx: &mut Conte
                 Kind::Range { max, .. } => max.max(1) as u32,
                 _ => 255,
             };
-            let percent = (app.model.byte(id) as u32 * 100 + max / 2) / max;
+            let value = app.model.byte(id) as u32;
+            let shown = if app.raw_values { value.to_string() } else { format!("{}%", (value * 100 + max / 2) / max) };
             h_flex()
                 .gap_3()
                 .w(px(300.))
                 .flex_shrink(1.)
                 .min_w(px(160.))
                 .child(div().flex_1().child(Slider::new(state)))
-                .child(div().w(px(40.)).text_right().text_color(theme.muted_foreground).child(format!("{percent}%")))
+                .child(div().w(px(40.)).text_right().text_color(theme.muted_foreground).child(shown))
                 .into_any_element()
         }
         Some(Control::Choice(state)) => div().w(px(300.)).child(Select::new(state)).into_any_element(),
@@ -246,8 +247,7 @@ fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Contex
     let id = setting.value_id();
     let mask = app.model.byte(id);
     // The device in use, when the keyboard says (USB with firmware v0.8+, Bluetooth with v0.9+).
-    let in_use = app.model.state().map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
-    let in_use = in_use.or(app.model.bluetooth_device().map(usize::from));
+    let in_use = app.model.state().copied().or(app.model.bluetooth_state()).map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
     let view = cx.entity().downgrade();
     // Even rows: 6 across, or 3 by 2, or 2 by 3, never a lone card stretched along a row of its own.
     // The section spans the page; the card's padding and border come off.

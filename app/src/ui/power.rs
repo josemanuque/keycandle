@@ -24,7 +24,8 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
 
 fn battery_card(app: &Configurator, width: f32, cx: &mut Context<Configurator>) -> impl IntoElement {
     let theme = cx.theme().clone();
-    let state = app.model.state().copied();
+    // Over USB the keyboard says everything; over Bluetooth (firmware v0.9+) its battery and device.
+    let state = app.model.state().copied().or(app.model.bluetooth_state());
     let (level, title) = match state {
         Some(s) => match s.battery {
             Battery::High => (3, tr!("power.battery_high")),

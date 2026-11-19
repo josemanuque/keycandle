@@ -7,11 +7,14 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
+#[serde(default)] // preferences saved by older versions lack the newer ones
 pub struct Prefs {
     /// Locale code, or None to follow the system.
     pub language: Option<String>,
     /// "light" or "dark", or None to follow the system.
     pub appearance: Option<String>,
+    /// Sliders show the keyboard's own numbers (e.g. 0-31) instead of percent.
+    pub raw_values: bool,
 }
 
 impl Prefs {

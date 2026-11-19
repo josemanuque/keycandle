@@ -47,7 +47,7 @@ fn half(width: f32) -> f32 {
 
 /// A file of your own, or back to Royal Kludge's firmware.
 fn other_firmware(app: &Configurator, theme: &Theme, width: f32, cx: &mut Context<Configurator>) -> impl IntoElement {
-    let busy = app.updater.step().is_busy() || app.pending_install.is_some();
+    let busy = app.updater.step().is_busy() || app.pending_install.is_some() || !app.model.can_install();
     let view = cx.entity().downgrade();
     let from_file = view.clone();
     let stock = match app.updater.releases() {
@@ -133,6 +133,7 @@ fn installed(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) 
         (true, Some(v), _) => (format_version(v), tr!("firmware.connected_detail")),
         (true, None, _) => (tr!("firmware.unknown"), tr!("firmware.connected_detail")),
         (false, _, false) if model.on_stock_firmware() => (tr!("firmware.stock"), tr!("firmware.stock_detail")),
+        (false, _, false) if model.on_bluetooth() => (tr!("firmware.on_bluetooth"), tr!("firmware.on_bluetooth_detail")),
         (false, _, true) => (tr!("firmware.flash_mode"), tr!("firmware.flash_mode_detail")),
         (false, _, false) => (tr!("firmware.not_connected"), tr!("firmware.not_connected_detail")),
     };
@@ -181,7 +182,7 @@ fn update_status(app: &Configurator, theme: &Theme, cx: &mut Context<Configurato
                 .into_any_element(),
         );
     }
-    let busy = app.updater.step().is_busy() || app.pending_install.is_some();
+    let busy = app.updater.step().is_busy() || app.pending_install.is_some() || !app.model.can_install();
     let view = cx.entity().downgrade();
     let tag = newest.tag.clone();
     Some(
@@ -333,7 +334,7 @@ fn confirmation(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator
 }
 
 fn available(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement {
-    let busy = app.updater.step().is_busy() || app.pending_install.is_some();
+    let busy = app.updater.step().is_busy() || app.pending_install.is_some() || !app.model.can_install();
     let installed = app.model.firmware_version();
     let view = cx.entity().downgrade();
     let refresh = view.clone();

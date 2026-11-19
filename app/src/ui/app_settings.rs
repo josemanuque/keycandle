@@ -25,7 +25,26 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
         .gap(px(GAP))
         .child(div().w(px(card_width)).child(language(&theme, cx)))
         .child(div().w(px(card_width)).child(appearance(&theme, cx)))
+        .child(div().w(px(card_width)).child(slider_values(app, &theme, cx)))
         .into_any_element()
+}
+
+fn slider_values(app: &Configurator, theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement {
+    let view = cx.entity().downgrade();
+    card(theme)
+        .gap_3()
+        .child(card_title(tr!("settings.slider_values")))
+        .child(segmented(theme).children([(false, tr!("settings.slider_percent")), (true, tr!("settings.slider_raw"))].into_iter().map(
+            |(raw, label)| {
+                let view = view.clone();
+                segment(theme, ("slider-values", raw as usize), app.raw_values == raw)
+                    .on_click(move |_, _, cx| {
+                        let _ = view.update(cx, |this, cx| this.set_raw_values(raw, cx));
+                    })
+                    .child(label)
+            },
+        )))
+        .child(muted(theme, tr!("settings.slider_values_help")))
 }
 
 fn language(theme: &Theme, cx: &mut Context<Configurator>) -> impl IntoElement {

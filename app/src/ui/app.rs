@@ -43,6 +43,8 @@ pub struct Configurator {
     restore_after_update: Option<Values>,
     started: Instant,
     pub(super) backdrop: Backdrop,
+    /// Sliders show the keyboard's numbers rather than percent (a preference).
+    pub(super) raw_values: bool,
     /// The native material (and glass) behind the sidebar, on macOS.
     sidebar_views: Option<SidebarViews>,
     /// The sidebar, as a stop for Tab; the arrow keys then move through its sections.
@@ -66,6 +68,7 @@ impl Configurator {
             restore_after_update: None,
             started: Instant::now(),
             backdrop,
+            raw_values: crate::prefs::Prefs::load().raw_values,
             sidebar_views,
             sidebar_focus: cx.focus_handle(),
             status_mark: Default::default(),
@@ -217,6 +220,15 @@ impl Configurator {
         cx.notify();
     }
 
+    /// Percent or the keyboard's own numbers on the sliders; remembered.
+    pub fn set_raw_values(&mut self, raw: bool, cx: &mut Context<Self>) {
+        self.raw_values = raw;
+        let mut prefs = crate::prefs::Prefs::load();
+        prefs.raw_values = raw;
+        prefs.save();
+        cx.notify();
+    }
+
     /// Ask before installing firmware.
     pub fn request_install(&mut self, source: Source, cx: &mut Context<Self>) {
         self.pending_install = Some(source);
@@ -226,6 +238,10 @@ impl Configurator {
     /// Install the firmware chosen in `request_install`.
     pub fn confirm_install(&mut self, cx: &mut Context<Self>) {
         let Some(source) = self.pending_install.take() else { return };
+        if !self.model.can_install() {
+            cx.notify(); // the cable was pulled while asking: nothing starts
+            return;
+        }
         let to_stock = matches!(&source, Source::Release(r) if r.stock);
         if self.model.is_connected() && !to_stock {
             self.restore_after_update = Some(self.model.snapshot());

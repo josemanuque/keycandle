@@ -128,6 +128,9 @@ pub struct Model {
     received_until: Option<Instant>,
 }
 
+/// The Win-key lock's VIA value.
+const WIN_LOCK: value::Id = (CHANNEL_KEYBOARD, 56);
+
 /// KEYCANDLE_PREVIEW is set: pages show remembered values without a keyboard.
 fn preview() -> bool {
     std::env::var_os("KEYCANDLE_PREVIEW").is_some()
@@ -157,9 +160,23 @@ impl Model {
         self.bluetooth.as_ref().map(btlink::Queue::status)
     }
 
-    /// Only on Bluetooth: the device slot in use (0..4), once the keyboard has reported it.
-    pub fn bluetooth_device(&self) -> Option<u8> {
-        self.bluetooth.as_ref().and_then(btlink::Queue::device_in_use)
+    /// Only on Bluetooth: the keyboard's device slot and battery, once it has reported them
+    /// (firmware v0.9+). Over USB, `state` says this and more.
+    pub fn bluetooth_state(&self) -> Option<KeyboardState> {
+        let packed = self.bluetooth.as_ref()?.keyboard_state()?;
+        Some(KeyboardState {
+            bluetooth: true,
+            slot: packed & 7,
+            link: Link::Connected,
+            battery: match packed >> 3 & 3 {
+                1 => Battery::Low,
+                2 => Battery::Medium,
+                3 => Battery::High,
+                _ => Battery::Unknown,
+            },
+            battery_low: packed & 0x20 != 0,
+            ..Default::default()
+        })
     }
 
     /// Only on Bluetooth: the keyboard's firmware turned out not to report its values (older than
@@ -211,6 +228,12 @@ impl Model {
 
     pub fn in_flash_mode(&self) -> bool {
         self.connection == Connection::FlashMode
+    }
+
+    /// Firmware can be installed: the keyboard is on the cable (this project's firmware, the
+    /// original, or already in flash mode). Never over Bluetooth: the bootloader is USB-only.
+    pub fn can_install(&self) -> bool {
+        self.is_connected() || self.in_flash_mode() || self.on_stock_firmware()
     }
 
     pub fn on_stock_firmware(&self) -> bool {
@@ -334,6 +357,16 @@ impl Model {
                 *slot = byte;
                 if !changed.contains(&id) {
                     changed.push(id);
+                }
+            }
+        }
+        // The Win-key lock comes with the keyboard's state rather than as a value of its own.
+        if let Some(packed) = self.bluetooth.as_ref().and_then(btlink::Queue::keyboard_state) {
+            let locked = packed >> 6 & 1;
+            if let Some(slot) = self.values.get_mut(&WIN_LOCK).and_then(|v| v.first_mut()) {
+                if *slot != locked {
+                    *slot = locked;
+                    changed.push(WIN_LOCK);
                 }
             }
         }

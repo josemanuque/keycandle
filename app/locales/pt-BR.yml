@@ -237,6 +237,8 @@ firmware:
   flash_mode_detail: O teclado está esperando um firmware novo. Instale um abaixo, ou saia do modo de gravação para usá-lo como está.
   not_connected: Desconectado
   not_connected_detail: Conecte o teclado com o cabo USB para atualizá-lo.
+  on_bluetooth: Pelo Bluetooth
+  on_bluetooth_detail: O firmware só é instalado pelo cabo USB. Conecte-o para atualizar.
   leave_flash_mode: Sair do modo de gravação
   available: Disponíveis
   from_file: De um arquivo…
@@ -301,6 +303,10 @@ settings:
   appearance_light: Claro
   appearance_dark: Escuro
   appearance_help: "Sistema segue o modo claro ou escuro do seu computador."
+  slider_values: Valores dos controles deslizantes
+  slider_percent: Porcentagem
+  slider_raw: Valores do teclado
+  slider_values_help: "Valores do teclado são os números que ele guarda, como 0-31 na calibração das luzes laterais."
 
 power:
   charging: Carregando via USB
@@ -315,7 +321,7 @@ power:
   link_pairing: pareando…
   link_idle: sem conexão
   battery_source: o módulo Bluetooth informa alta, média ou baixa
-  battery_needs_usb: Mostrado com o teclado conectado por USB
+  battery_needs_usb: Mostrado por USB, e por Bluetooth com firmware v0.9 ou mais novo
 
 menu:
   about: Sobre o Keycandle

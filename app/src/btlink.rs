@@ -59,11 +59,12 @@ const SAVED_SHOWN: Duration = Duration::from_millis(1500);
 /// How long to wait before trying again to listen to the keyboard.
 const LISTEN_RETRY: Duration = Duration::from_secs(1);
 /// What each reported slot is: the value's id and which of its bytes (keep in step with the firmware's
-/// rk71_btcfg_read). The last one isn't a setting: the Bluetooth device slot in use (firmware v0.9+).
+/// rk71_btcfg_read). The last one isn't a setting: the keyboard's state, packed (firmware v0.9+):
+/// device slot in use (bits 0-2), battery level (3-4), battery low (5), Win-key lock (6).
 const SLOTS: [((u8, u8), usize); 7] =
-    [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0), (DEVICE_IN_USE, 0)];
-/// Stands for the device slot in use among the reported values (no VIA value has this id).
-const DEVICE_IN_USE: (u8, u8) = (0xFF, 0);
+    [((3, 1), 0), ((3, 2), 0), ((3, 3), 0), ((3, 4), 0), ((3, 4), 1), ((0, 55), 0), (KEYBOARD_STATE, 0)];
+/// Stands for the keyboard's state among the reported values (no VIA value has this id).
+const KEYBOARD_STATE: (u8, u8) = (0xFF, 0);
 
 /// One byte of a value, as the keyboard reported it.
 pub type Update = ((u8, u8), usize, u8);
@@ -194,8 +195,8 @@ struct Shared {
     closed: bool,
     /// Reported by the keyboard, not yet picked up by the app.
     updates: Vec<Update>,
-    /// The Bluetooth device slot in use (0..4), once the keyboard has said.
-    device_in_use: Option<u8>,
+    /// The keyboard's packed state (see SLOTS), once it has said.
+    keyboard_state: Option<u8>,
     /// The keyboard has reported something since the queue started.
     heard: bool,
     /// Our request for the keyboard's values couldn't be delivered.
@@ -222,8 +223,8 @@ fn listen(link: Link) {
                 if let Some(update) = usage_in(&buf[..n]).and_then(|usage| reports.feed(usage)) {
                     let mut s = link.0.lock().unwrap();
                     s.heard = true;
-                    if update.0 == DEVICE_IN_USE {
-                        s.device_in_use = Some(update.2);
+                    if update.0 == KEYBOARD_STATE {
+                        s.keyboard_state = Some(update.2);
                         continue;
                     }
                     s.updates.push(update);
@@ -329,9 +330,9 @@ impl Queue {
         }
     }
 
-    /// The Bluetooth device slot in use (0..4), if the keyboard reported it.
-    pub fn device_in_use(&self) -> Option<u8> {
-        self.0 .0.lock().unwrap().device_in_use
+    /// The keyboard's packed state (see SLOTS), if it reported it.
+    pub fn keyboard_state(&self) -> Option<u8> {
+        self.0 .0.lock().unwrap().keyboard_state
     }
 
     /// Whether the keyboard reports its values: None until it's known, false for firmware that
@@ -701,9 +702,9 @@ mod tests {
         assert_eq!(r.feed(0x3D1), Some(((0, 55), 0, 0x21)));
         assert_eq!(r.feed(0x34F), None);
         assert_eq!(r.feed(0x3CF), Some(((3, 4), 1, 0xFF)));
-        // The device slot in use (slot 6) = 2.
-        assert_eq!(r.feed(0x360), None);
-        assert_eq!(r.feed(0x3E2), Some((DEVICE_IN_USE, 0, 2)));
+        // The keyboard's state (slot 6): device 3, battery high, Win-key lock = 0x5A.
+        assert_eq!(r.feed(0x365), None);
+        assert_eq!(r.feed(0x3EA), Some((KEYBOARD_STATE, 0, 0x5A)));
         // A low half without its high half, or from another slot, is dropped.
         assert_eq!(r.feed(0x388), None);
         assert_eq!(r.feed(0x301), None);
