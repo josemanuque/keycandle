@@ -3,7 +3,7 @@
 use gpui::{div, prelude::*, rgb, Context, FontWeight, Rgba};
 use gpui_component::{
     h_flex,
-    sidebar::{Sidebar, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuItem},
+    sidebar::{Sidebar, SidebarFooter, SidebarMenu, SidebarMenuItem},
     v_flex, ActiveTheme as _,
 };
 
@@ -13,11 +13,18 @@ use super::page::Page;
 use super::widgets::muted;
 use crate::tr;
 
+/// The sidebar's width, and with only icons (gpui-component's defaults).
+pub const WIDTH: f32 = 255.0;
+pub const COMPACT_WIDTH: f32 = 48.0;
+
 /// `compact`: icons only (narrow windows).
 pub fn render(app: &Configurator, compact: bool, cx: &mut Context<Configurator>) -> impl IntoElement {
     let theme = cx.theme().clone();
+    // Room for the window buttons, which sit in the sidebar when there's no title bar.
+    let title_bar = app.backdrop.title_bar_height();
     let view = cx.entity().downgrade();
-    let menu = SidebarMenu::new().children(Page::ALL.map(|page| {
+    // Rows close together, like a native source list.
+    let menu = SidebarMenu::new().gap_0p5().children(Page::ALL.map(|page| {
         let view = view.clone();
         SidebarMenuItem::new(page.title()).icon(page.icon()).active(page == app.page).on_click(move |_, _, cx| {
             let _ = view.update(cx, |this, cx| this.open(page, cx));
@@ -29,12 +36,17 @@ pub fn render(app: &Configurator, compact: bool, cx: &mut Context<Configurator>)
     Sidebar::new("sections")
         .collapsible(true)
         .collapsed(compact)
-        .when(!compact, |el| {
-            el.header(SidebarHeader::new().child(
-                v_flex()
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(tr!("app.name")))
-                    .child(muted(&theme, tr!("app.subtitle"))),
-            ))
+        // A plain header: gpui-component's SidebarHeader is a hoverable button, which lit up the
+        // title bar strip behind the window buttons.
+        .header(if compact {
+            div().h(title_bar)
+        } else {
+            v_flex()
+                .px_2()
+                .pb_2()
+                .pt(title_bar)
+                .child(div().font_weight(FontWeight::SEMIBOLD).child(tr!("app.name")))
+                .child(muted(&theme, tr!("app.subtitle")))
         })
         .child(menu)
         .footer(SidebarFooter::new().child(if compact {

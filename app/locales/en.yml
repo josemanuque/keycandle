@@ -262,3 +262,30 @@ power:
   link_connecting: connecting…
   link_pairing: pairing…
   link_idle: not connected
+
+menu:
+  about: About Keycandle
+  settings: Settings…
+  services: Services
+  hide: Hide Keycandle
+  hide_others: Hide Others
+  show_all: Show All
+  quit: Quit Keycandle
+  view: View
+  full_screen: Toggle Full Screen
+  keyboard: Keyboard
+  reconnect: Reconnect
+  check_updates: Check for Firmware Updates…
+  window: Window
+  minimize: Minimize
+  zoom: Zoom
+  close: Close Window
+  help: Help
+  guide: Keycandle User Guide
+  releases: Release Notes
+  report_issue: Report an Issue…
+
+busy:
+  title: A firmware update is in progress
+  detail: Wait until it finishes. Closing Keycandle now would leave the keyboard in flash mode.
+  ok: OK

@@ -25,5 +25,11 @@ gpui-component = "0.10"
 gpui-kit-assets = "0.10"
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# Liquid Glass sidebar, window appearance and the About panel (AppKit calls GPUI doesn't wrap)
+objc2 = "0.6"
+objc2-foundation = "0.3"
+raw-window-handle = "0.6"
+
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

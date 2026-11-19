@@ -2,6 +2,7 @@
 //! bootloader, write, start the new firmware. The UI polls `status()`; nothing here blocks it.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -11,6 +12,14 @@ use anyhow::{Context, Result};
 use crate::device::Keyboard;
 use crate::isp::{self, Bootloader};
 use crate::releases::{self, Release};
+
+/// Set while any install or bootloader job runs, whichever window started it.
+static FLASHING: AtomicBool = AtomicBool::new(false);
+
+/// True while the keyboard is being written to or restarted: quitting now would leave it in flash mode.
+pub fn flashing() -> bool {
+    FLASHING.load(Ordering::SeqCst)
+}
 
 /// Where the new firmware comes from.
 #[derive(Clone)]
@@ -113,12 +122,14 @@ impl Updater {
         let step = self.step.clone();
         let set = move |s: Step| *step.lock().unwrap() = s;
         set(Step::Downloading);
+        FLASHING.store(true, Ordering::SeqCst);
         thread::spawn(move || {
             let result = run_install(&source, keyboard, &set);
             set(match result {
                 Ok(()) => Step::Done(source.describe()),
                 Err(e) => Step::Failed(format!("{e:#}")),
             });
+            FLASHING.store(false, Ordering::SeqCst);
         });
     }
 
@@ -126,12 +137,14 @@ impl Updater {
     pub fn leave_bootloader(&self) {
         let step = self.step.clone();
         *step.lock().unwrap() = Step::Starting;
+        FLASHING.store(true, Ordering::SeqCst);
         thread::spawn(move || {
             let result = Bootloader::open().and_then(|bl| bl.start_firmware());
             *step.lock().unwrap() = match result {
                 Ok(()) => Step::LeftFlashMode,
                 Err(e) => Step::Failed(format!("{e:#}")),
             };
+            FLASHING.store(false, Ordering::SeqCst);
         });
     }
 

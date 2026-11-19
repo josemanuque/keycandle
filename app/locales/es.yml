@@ -261,3 +261,30 @@ power:
   link_connecting: conectando…
   link_pairing: emparejando…
   link_idle: sin conexión
+
+menu:
+  about: Acerca de Keycandle
+  settings: Ajustes…
+  services: Servicios
+  hide: Ocultar Keycandle
+  hide_others: Ocultar otros
+  show_all: Mostrar todo
+  quit: Salir de Keycandle
+  view: Visualización
+  full_screen: Activar/desactivar pantalla completa
+  keyboard: Teclado
+  reconnect: Reconectar
+  check_updates: Buscar actualizaciones de firmware…
+  window: Ventana
+  minimize: Minimizar
+  zoom: Zoom
+  close: Cerrar ventana
+  help: Ayuda
+  guide: Guía de usuario de Keycandle
+  releases: Notas de la versión
+  report_issue: Reportar un problema…
+
+busy:
+  title: Se está actualizando el firmware
+  detail: Espera a que termine. Cerrar Keycandle ahora dejaría el teclado en modo de flasheo.
+  ok: OK

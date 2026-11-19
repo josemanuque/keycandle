@@ -1,8 +1,9 @@
 //! Light or dark: follow the system, or the user's choice (kept in the app's preferences).
 
-use gpui::{App, Window};
+use gpui::{transparent_black, App, Window};
 use gpui_component::{Theme, ThemeMode};
 
+use super::chrome::{self, Backdrop};
 use crate::prefs::Prefs;
 use crate::tr;
 
@@ -52,9 +53,23 @@ impl Appearance {
 
 /// Apply the saved choice; called at start-up and whenever the system's appearance changes.
 pub fn apply(window: &mut Window, cx: &mut App) {
-    match Appearance::saved() {
+    let saved = Appearance::saved();
+    match saved {
         Appearance::System => Theme::sync_system_appearance(Some(window), cx),
         Appearance::Light => Theme::change(ThemeMode::Light, Some(window), cx),
         Appearance::Dark => Theme::change(ThemeMode::Dark, Some(window), cx),
     }
+    chrome::set_dark(window, saved.code().map(|code| code == "dark"));
+    let backdrop = Backdrop::detect();
+    if backdrop.is_translucent() {
+        // The window's backdrop shows where nothing is drawn: under the sidebar. The page paints
+        // its own (opaque) background.
+        let theme = Theme::global_mut(cx);
+        theme.tokens.background = transparent_black().into();
+        theme.tokens.sidebar = transparent_black().into();
+        if backdrop == Backdrop::FloatingGlass {
+            theme.colors.sidebar_border = transparent_black();
+        }
+    }
+    super::menu::set_menus(cx);
 }

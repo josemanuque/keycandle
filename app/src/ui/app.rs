@@ -10,9 +10,10 @@ use super::controls::Controls;
 use super::layout::{Layout, MAX_CONTENT};
 use super::lighting::EffectGroup;
 use super::model::{Connection, Model, Poll, Values};
+use super::chrome::{Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, firmware, lighting, overview, power, settings_page, sidebar};
+use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -41,10 +42,14 @@ pub struct Configurator {
     /// Settings to put back once the keyboard returns from a firmware update.
     restore_after_update: Option<Values>,
     started: Instant,
+    pub(super) backdrop: Backdrop,
+    /// The native material (and glass) behind the sidebar, on macOS.
+    sidebar_views: Option<SidebarViews>,
 }
 
 impl Configurator {
-    pub fn new(page: Page, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(page: Page, backdrop: Backdrop, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let sidebar_views = SidebarViews::install(backdrop, window, sidebar::WIDTH);
         let mut this = Self {
             page,
             model: Model::default(),
@@ -57,6 +62,8 @@ impl Configurator {
             open_notes: Default::default(),
             restore_after_update: None,
             started: Instant::now(),
+            backdrop,
+            sidebar_views,
         };
         this.connect(window, cx);
         this.open(page, cx);
@@ -156,12 +163,29 @@ impl Configurator {
         self.controls.show_choice(setting, index, window, cx);
     }
 
-    /// Switch the app's language; controls are rebuilt so their option lists follow.
+    /// Look for the keyboard again now (Keyboard ▸ Reconnect).
+    pub fn reconnect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.updater.step().is_busy() {
+            self.connect(window, cx);
+            cx.notify();
+        }
+    }
+
+    /// Fetch the release list again and show it.
+    pub fn check_for_updates(&mut self, cx: &mut Context<Self>) {
+        if !matches!(self.updater.releases(), Releases::Checking) {
+            self.updater.check();
+        }
+        self.open(Page::Firmware, cx);
+    }
+
+    /// Switch the app's language; controls and menus are rebuilt so their labels follow.
     pub fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
         i18n::set(code);
         if self.model.is_connected() {
             self.controls = Controls::build(&self.model, window, cx);
         }
+        menu::set_menus(cx);
         cx.notify();
     }
 
@@ -240,23 +264,36 @@ impl Render for Configurator {
         )
         .absolute()
         .size_full();
+        if let Some(views) = &mut self.sidebar_views {
+            views.set_width(if compact { sidebar::COMPACT_WIDTH } else { sidebar::WIDTH });
+        }
+        // Translucent windows (macOS) have no title bar: the page keeps clear of its strip, which
+        // still moves the window. Only the page is opaque; the backdrop shows under the sidebar.
+        let title_bar = self.backdrop.title_bar_height();
+        let scroll = v_flex()
+            .id("page")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .px_8()
+            .pb_8()
+            .when(title_bar == px(0.), |el| el.pt_8())
+            .gap_2()
+            .child(div().text_3xl().font_weight(FontWeight::SEMIBOLD).child(self.page.title()))
+            .child(div().pb_4().text_color(theme.muted_foreground).child(self.page.subtitle()))
+            .child(div().relative().w_full().min_w_0().max_w(px(MAX_CONTENT)).child(measure).child(page));
         h_flex()
             .size_full()
-            .bg(theme.background)
             .text_color(theme.foreground)
             .child(sidebar::render(self, compact, cx))
             .child(
                 v_flex()
-                    .id("page")
                     .flex_1()
                     .min_w_0() // shrink to the window, not grow with the content (the width is measured below)
                     .h_full()
-                    .overflow_y_scroll()
-                    .p_8()
-                    .gap_2()
-                    .child(div().text_3xl().font_weight(FontWeight::SEMIBOLD).child(self.page.title()))
-                    .child(div().pb_4().text_color(theme.muted_foreground).child(self.page.subtitle()))
-                    .child(div().relative().w_full().min_w_0().max_w(px(MAX_CONTENT)).child(measure).child(page)),
+                    .bg(theme.background)
+                    .child(div().flex_none().h(title_bar))
+                    .child(scroll),
             )
     }
 }

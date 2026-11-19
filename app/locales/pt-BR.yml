@@ -261,3 +261,30 @@ power:
   link_connecting: conectando…
   link_pairing: pareando…
   link_idle: sem conexão
+
+menu:
+  about: Sobre o Keycandle
+  settings: Ajustes…
+  services: Serviços
+  hide: Ocultar Keycandle
+  hide_others: Ocultar Outros
+  show_all: Mostrar Tudo
+  quit: Encerrar Keycandle
+  view: Visualizar
+  full_screen: Alternar Tela Cheia
+  keyboard: Teclado
+  reconnect: Reconectar
+  check_updates: Procurar Atualizações de Firmware…
+  window: Janela
+  minimize: Minimizar
+  zoom: Zoom
+  close: Fechar Janela
+  help: Ajuda
+  guide: Guia do Usuário do Keycandle
+  releases: Notas da Versão
+  report_issue: Relatar um Problema…
+
+busy:
+  title: Uma atualização de firmware está em andamento
+  detail: Aguarde até terminar. Fechar o Keycandle agora deixaria o teclado no modo de gravação.
+  ok: OK
