@@ -116,7 +116,7 @@ setting:
     label: Color Bluetooth
   caps_key:
     label: Tecla Bloq Mayús
-    help: "Auto: blanco frío, o tecla oscura cuando la iluminación es blanca"
+    help: "Auto: blanco frío, o tecla oscura cuando la iluminación es blanca. Apagado: se ilumina como las demás. Oscura: su luz se apaga"
   caps_key_color:
     label: Color de la tecla Bloq Mayús
   caps_side:
@@ -162,6 +162,7 @@ option:
   wave: Ola
   auto: Auto
   custom_color: Color propio
+  dark: Oscura
   sec_5: 5 s
   sec_10: 10 s
   sec_30: 30 s

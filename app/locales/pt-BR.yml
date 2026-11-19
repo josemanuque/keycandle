@@ -116,7 +116,7 @@ setting:
     label: Cor do Bluetooth
   caps_key:
     label: Tecla Caps Lock
-    help: "Auto: branco frio, ou tecla escura quando a iluminação é branca"
+    help: "Auto: branco frio, ou tecla escura quando a iluminação é branca. Desligado: acende como as outras. Escura: a luz dela se apaga"
   caps_key_color:
     label: Cor da tecla Caps Lock
   caps_side:
@@ -162,6 +162,7 @@ option:
   wave: Onda
   auto: Auto
   custom_color: Cor própria
+  dark: Escura
   sec_5: 5 s
   sec_10: 10 s
   sec_30: 30 s

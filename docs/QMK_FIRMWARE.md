@@ -142,8 +142,8 @@ gradients, chevron, rain effects, reactive (lights up on key press), splash, typ
 with Fn+\\ or in VIA, where you also get hue, saturation, brightness and speed.
 
 * **Caps Lock:** the Caps key turns cool white (as on stock). On white or pale lighting, where that wouldn't
-  stand out, it turns dark instead. In VIA (*Indicators*) you can turn this off or pick your own colour, and
-  show Caps Lock on the nearest side light too.
+  stand out, it turns dark instead. In VIA (*Indicators*) or the app you can turn this off, pick your own colour
+  (white by default) or always turn the key's light off, and show Caps Lock on the nearest side light too.
 * **Fn highlight** (VIA, *Indicators*): while Fn is held, only keys that do something with Fn stay lit.
 * **Computer asleep:** all lighting goes off.
 * **On battery:** lighting turns off after 5 minutes without typing (adjustable in VIA, *Power*), and comes back

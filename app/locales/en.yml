@@ -117,7 +117,7 @@ setting:
     label: Bluetooth color
   caps_key:
     label: Caps key
-    help: "Auto: cool white, or a dark key when the lighting is white"
+    help: "Auto: cool white, or a dark key when the lighting is white. Off: lit like the other keys. Dark: its light goes off"
   caps_key_color:
     label: Caps key color
   caps_side:
@@ -163,6 +163,7 @@ option:
   wave: Wave
   auto: Auto
   custom_color: Custom color
+  dark: Dark
   sec_5: 5 s
   sec_10: 10 s
   sec_30: 30 s

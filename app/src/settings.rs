@@ -120,7 +120,7 @@ pub static KEY_EFFECT: Setting = s(RGB, 2, "key_effect", Kind::Choice(KEY_EFFECT
 
 const SIDE_MODES: &[&str] = &["follow_keyboard", "fixed_color", "off"];
 const SIDE_EFFECTS: &[&str] = &["static", "breathing", "color_cycle", "type_pulse", "wave"];
-const CAPS_KEY_MODES: &[&str] = &["auto", "off", "custom_color"];
+const CAPS_KEY_MODES: &[&str] = &["auto", "off", "custom_color", "dark"];
 const LIGHTS_OFF_TIMES: &[&str] = &["min_1", "min_2", "min_5", "min_10", "min_30", "never"];
 const SLEEP_TIMES: &[&str] = &["sec_5", "sec_10", "sec_30", "min_1", "min_5", "never"];
 

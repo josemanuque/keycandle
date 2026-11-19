@@ -518,7 +518,8 @@
               "options": [
                 "Auto",
                 "Off",
-                "Custom colour"
+                "Custom colour",
+                "Dark"
               ],
               "content": [
                 "id_caps_key_mode",

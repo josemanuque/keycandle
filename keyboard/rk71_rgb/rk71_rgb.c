@@ -80,8 +80,9 @@ static kb_config_t kb_config;
 #define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
 #define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
 
-/* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off, or a custom colour. */
-enum { CAPS_KEY_AUTO, CAPS_KEY_OFF, CAPS_KEY_CUSTOM };
+/* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off (lit as the effect has it),
+ * a custom colour, or Dark (its light goes off). */
+enum { CAPS_KEY_AUTO, CAPS_KEY_OFF, CAPS_KEY_CUSTOM, CAPS_KEY_DARK };
 
 /* Side-light effects (applied to the main colour; status and indicators are not animated). */
 enum { SIDE_FX_STATIC, SIDE_FX_BREATHING, SIDE_FX_CYCLE, SIDE_FX_PULSE, SIDE_FX_WAVE, SIDE_FX_COUNT };
@@ -174,7 +175,7 @@ static bool typing_recently(void) {
 #define DEF_SIDE_FIXED ((hs_t){0, 0})      /* white */
 #define DEF_CAPS_SIDE ((hs_t){0, 255})     /* red */
 #define DEF_FROW_SIDE ((hs_t){43, 255})    /* yellow */
-#define DEF_CAPS_KEY ((hs_t){0, 255})      /* red */
+#define DEF_CAPS_KEY ((hs_t){0, 0})        /* white */
 #define DEF_STATUS_WIRED ((hs_t){85, 255}) /* green */
 #define DEF_STATUS_BT ((hs_t){170, 255})   /* blue */
 
@@ -917,7 +918,9 @@ static void caps_key(uint8_t led_min, uint8_t led_max) {
     if (!host_keyboard_led_state().caps_lock) return;
     uint8_t mode = kb_extra.caps_key_mode;
     if (mode == CAPS_KEY_OFF) return;
-    if (mode == CAPS_KEY_CUSTOM) {
+    if (mode == CAPS_KEY_DARK) {
+        light(KEY_CAPS, 0, 0, 0, led_min, led_max);
+    } else if (mode == CAPS_KEY_CUSTOM) {
         rgb_t c = hs_rgb(kb_extra.caps_key, DEF_CAPS_KEY, RGB_MATRIX_MAXIMUM_BRIGHTNESS);
         light(KEY_CAPS, c.r, c.g, c.b, led_min, led_max);
     } else if (rgb_matrix_get_sat() < 64) {
@@ -1134,7 +1137,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_STATUS_BRIGHT: kb_extra.status_bright = (value[0] & 31) ^ DEF_STATUS_BRIGHT; break;
                 case ID_CAPS_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_CAPS, value[0]); break;
                 case ID_FROW_ON_SIDE: set_flag(&kb_extra.side_flags, SIDE_FLAG_FROW, value[0]); break;
-                case ID_CAPS_KEY_MODE: kb_extra.caps_key_mode = value[0] <= CAPS_KEY_CUSTOM ? value[0] : CAPS_KEY_AUTO; break;
+                case ID_CAPS_KEY_MODE: kb_extra.caps_key_mode = value[0] <= CAPS_KEY_DARK ? value[0] : CAPS_KEY_AUTO; break;
                 case ID_SIDE_EFFECT: kb_extra.side_effect = value[0] < SIDE_FX_COUNT ? value[0] : SIDE_FX_STATIC; break;
                 case ID_SIDE_FX_SPEED: kb_extra.side_fx_speed = (value[0] & 31) ^ DEF_FX_SPEED; break;
                 case ID_LIGHTS_OFF: kb_extra.lights_off = (value[0] % TIME_CHOICES) ^ DEF_LIGHTS_OFF; break;
