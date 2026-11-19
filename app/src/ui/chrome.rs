@@ -6,6 +6,7 @@
 use gpui::{px, Pixels, Point, Window, WindowBackgroundAppearance};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS is translucent
 pub enum Backdrop {
     Opaque,
     /// The system's sidebar material, flush with the window's edges.
@@ -15,8 +16,10 @@ pub enum Backdrop {
 }
 
 /// Gap between the floating pane and the window's edges.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const PANE_INSET: f64 = 8.0;
 /// Concentric with the window's corners.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const PANE_RADIUS: f64 = 18.0;
 
 impl Backdrop {
