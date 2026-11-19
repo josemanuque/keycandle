@@ -45,6 +45,12 @@ done
 done
 
 (cd "$QMK_DIR" && qmk compile -kb royal_kludge/rk71_rgb -km "$KM")
+# The firmware must end below the macro storage at 60 KB (keyboard/rk71_rgb/nvm_dynamic_keymap.c).
+read -r text data _ < <(arm-none-eabi-size "$QMK_DIR/.build/royal_kludge_rk71_rgb_${KM}.elf" | tail -1)
+if [ $((text + data)) -gt $((60 * 1024)) ]; then
+  echo "error: firmware is $((text + data)) bytes and would overlap the macro storage at 60 KB" >&2
+  exit 1
+fi
 mkdir -p "$(dirname "$OUT")"
 cp "$QMK_DIR/royal_kludge_rk71_rgb_${KM}.bin" "$OUT"
 echo "Built: $OUT"

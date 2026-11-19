@@ -1,6 +1,6 @@
 [package]
 name = "keycandle"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 description = "Configurator for the RK71 QMK firmware (Windows, macOS, Linux)"
 license = "GPL-2.0-or-later"

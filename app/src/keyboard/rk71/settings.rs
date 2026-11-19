@@ -98,6 +98,9 @@ pub const KEYS: &[Section] = &[
     Section { key: "layout", settings: &[s(KB, 55, "device_layouts", Kind::DeviceLayouts)], wide: true },
 ];
 
+/// Macros play Ctrl as Cmd on devices set to Mac (firmware v0.10). On the Macros page.
+pub static MACRO_MATCH_OS: Setting = s(KB, 57, "macro_match_os", Kind::Toggle);
+
 /// The battery bar toggle sits in the Power page's battery card.
 pub static BATTERY_BAR: Setting = s(KB, 24, "battery_bar", Kind::Toggle);
 

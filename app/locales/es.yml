@@ -16,6 +16,9 @@ page:
   keys:
     title: Teclas e indicadores
     subtitle: Windows o Mac para cada dispositivo, cómo se muestran los bloqueos y qué resalta Fn.
+  macros:
+    title: Macros
+    subtitle: Texto y secuencias de teclas con Fn + una tecla. Se guardan en el teclado y funcionan en cualquier computadora.
   power:
     title: Energía
     subtitle: El ahorro de batería aplica en Bluetooth sin el cable. Conectado, el teclado nunca se duerme.
@@ -139,6 +142,9 @@ setting:
   win_lock:
     label: Bloqueo de la tecla Win
     help: Fn + Win también lo cambia; la tecla Win se apaga mientras está bloqueada
+  macro_match_os:
+    label: Ctrl o Cmd según el dispositivo
+    help: Ctrl + C se envía como Cmd + C en dispositivos configurados como Mac
   lights_off_after:
     label: Apagar la iluminación tras
   sleep_after:
@@ -377,3 +383,52 @@ updates:
   check_now: Buscar ahora
   check_on_start: Buscar actualizaciones al abrir Keycandle
   check_on_start_help: Consulta las versiones más nuevas en GitHub. No se instala nada sin ti.
+
+macros:
+  needs_cable: "Las macros se editan por el cable USB. Una vez guardadas, también funcionan por Bluetooth."
+  default_name: "Macro %{number}"
+  empty: "Vacía"
+  new: "Nueva macro"
+  slots: "%{used} de %{total} en uso · los nombres quedan en esta computadora"
+  runs_on: "Se ejecuta con"
+  no_key: "Sin tecla"
+  choose_key: "Elegir tecla…"
+  clear: "Vaciar"
+  pick_title: "Elige la tecla que la ejecuta con Fn"
+  pick_help: "La tecla sigue funcionando normal; Fn + tecla ejecuta la macro. Las teclas atenuadas ya hacen algo con Fn."
+  no_steps: "Aún no hay pasos. Escribe texto abajo, graba teclas o empieza con un ejemplo."
+  text_placeholder: "Texto a escribir (Enter lo añade)"
+  add_text: "Añadir texto"
+  update_text: "Actualizar texto"
+  edit: "Editar"
+  record: "Grabar teclas"
+  stop_recording: "Detener"
+  record_hint: "Grabar teclas añade lo que pulses aquí: lo escrito se vuelve texto; otras teclas y atajos, pasos."
+  recording_hint: "Grabando… pulsa teclas o atajos. Haz clic en Detener al terminar."
+  add_wait: "+ Esperar %{ms} ms"
+  step_text: "Texto"
+  step_shortcut: "Atajo"
+  step_key: "Tecla"
+  step_hold: "Mantener"
+  step_release: "Soltar"
+  step_wait: "Esperar"
+  try: "Pruébala: haz clic en el cuadro y pulsa %{key}"
+  try_placeholder: "La macro escribe aquí"
+  storage: "%{used} de %{room} bytes"
+  unsaved: "Cambios sin guardar"
+  discard: "Descartar"
+  save: "Guardar en el teclado"
+  examples: "Empieza con un ejemplo"
+  examples_hint: "Cada uno se vuelve una macro que puedes cambiar"
+  tpl_signoff: "Despedida de correo"
+  tpl_signoff_what: "Tu frase de cierre y tu nombre"
+  tpl_duplicate: "Duplicar línea"
+  tpl_duplicate_what: "Copia la línea actual debajo, en la mayoría de editores"
+  tpl_link: "Convertir en enlace"
+  tpl_link_what: "Convierte la selección en [texto]() con el cursor dentro"
+  tpl_commit: "Mensaje de commit"
+  tpl_commit_what: "Escribe git commit -m \"\" con el cursor entre comillas"
+  tpl_form: "Rellenar un campo"
+  tpl_form_what: "Tu correo y luego Tab al siguiente campo (nunca una contraseña)"
+  tpl_reply: "Respuesta rápida"
+  tpl_reply_what: "Un mensaje que envías a menudo"

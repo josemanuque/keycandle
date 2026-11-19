@@ -21,6 +21,8 @@ pub struct Prefs {
     pub dismissed_updates: Vec<String>,
     /// The firmware version last seen on the keyboard, to tell about updates while it's on Bluetooth.
     pub last_firmware: Option<u32>,
+    /// Names of the keyboard's macros, by slot (the keyboard has no room for them).
+    pub macro_names: Vec<String>,
 }
 
 impl Prefs {

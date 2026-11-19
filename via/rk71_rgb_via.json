@@ -572,6 +572,79 @@
       ]
     },
     {
+      "label": "Windows or Mac",
+      "content": [
+        {
+          "label": "Windows or Mac",
+          "content": [
+            {
+              "label": "Bluetooth device 1 is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_1",
+                0,
+                58
+              ]
+            },
+            {
+              "label": "Bluetooth device 2 is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_2",
+                0,
+                59
+              ]
+            },
+            {
+              "label": "Bluetooth device 3 is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_3",
+                0,
+                60
+              ]
+            },
+            {
+              "label": "Bluetooth device 4 is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_4",
+                0,
+                61
+              ]
+            },
+            {
+              "label": "Bluetooth device 5 is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_5",
+                0,
+                62
+              ]
+            },
+            {
+              "label": "Cable (USB) is a Mac",
+              "type": "toggle",
+              "content": [
+                "id_mac_device_6",
+                0,
+                63
+              ]
+            },
+            {
+              "label": "Macros: Ctrl as Cmd on Mac devices",
+              "type": "toggle",
+              "content": [
+                "id_macro_match_os",
+                0,
+                57
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "label": "Power",
       "content": [
         {

@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::btlink;
+use crate::macros::Step;
+use super::macro_store::Macros;
 use crate::keyboard;
 use crate::device::{Keyboard, CHANNEL_KEYBOARD};
 use crate::preview::effects::{Scene, SideScene};
@@ -124,6 +126,8 @@ pub struct Model {
     cache_dirty: bool,
     /// The firmware version last seen over USB (remembered across runs), for while on Bluetooth.
     pub last_firmware: Option<u32>,
+    /// The macros and their keys (over USB; editing them needs the cable).
+    macros: Option<Macros>,
     /// Over USB: show "saved" / "receiving" until then.
     saved_until: Option<Instant>,
     received_until: Option<Instant>,
@@ -189,6 +193,35 @@ impl Model {
     /// The firmware last seen over USB reports its values over Bluetooth.
     fn reports_expected(&self) -> bool {
         self.last_firmware.is_some_and(|v| v >= keyboard::current().bluetooth_reports_since)
+    }
+
+    /// The keyboard's macros (over USB).
+    pub fn macros(&self) -> Option<&Macros> {
+        self.macros.as_ref().filter(|_| self.keyboard.is_some())
+    }
+
+    /// Store all macros on the keyboard.
+    pub fn save_macros(&mut self, all: &[Vec<Step>]) -> anyhow::Result<()> {
+        let (Some(kb), Some(m)) = (&self.keyboard, &mut self.macros) else { anyhow::bail!("connect the keyboard with the USB cable") };
+        m.save(kb, all)?;
+        self.saved_until = Some(Instant::now() + ACTIVITY_SHOWN);
+        Ok(())
+    }
+
+    /// Run macro `n` with Fn + `key` (or no key).
+    pub fn assign_macro(&mut self, n: usize, key: Option<usize>) -> anyhow::Result<()> {
+        let (Some(kb), Some(m)) = (&self.keyboard, &mut self.macros) else { anyhow::bail!("connect the keyboard with the USB cable") };
+        m.assign(kb, n, key)?;
+        self.saved_until = Some(Instant::now() + ACTIVITY_SHOWN);
+        Ok(())
+    }
+
+    /// Put macros back after a firmware update.
+    pub fn restore_macros(&mut self, backup: &Macros) -> anyhow::Result<()> {
+        let Some(kb) = &self.keyboard else { anyhow::bail!("not connected") };
+        backup.restore(kb)?;
+        self.macros = Macros::read(kb).ok();
+        Ok(())
     }
 
     /// What's going on between the app and the keyboard right now, over either connection.
@@ -308,11 +341,13 @@ impl Model {
                 self.write_error = None;
                 self.state = kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).ok().map(|v| KeyboardState::from_bytes(&v));
                 self.values = read_all(&kb);
+                self.macros = Macros::read(&kb).ok();
                 self.keyboard = Some(kb);
                 cache::save(&self.values);
             }
             Err(e) => {
                 self.keyboard = None;
+            self.macros = None;
                 self.connection = if crate::isp::is_present() {
                     Connection::FlashMode
                 } else if crate::isp::stock_present() {
@@ -399,6 +434,7 @@ impl Model {
         };
         let Ok(fresh) = fresh else {
             self.keyboard = None;
+            self.macros = None;
             self.values.clear();
             self.state = None;
             self.connection = Connection::Unplugged;

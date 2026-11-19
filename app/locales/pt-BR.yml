@@ -16,6 +16,9 @@ page:
   keys:
     title: Teclas e indicadores
     subtitle: Windows ou Mac para cada dispositivo, como os bloqueios aparecem e o que o Fn destaca.
+  macros:
+    title: Macros
+    subtitle: Texto e sequências de teclas com Fn + uma tecla. Ficam no teclado e funcionam em qualquer computador.
   power:
     title: Energia
     subtitle: A economia de bateria vale no Bluetooth sem o cabo. Conectado, o teclado nunca dorme.
@@ -139,6 +142,9 @@ setting:
   win_lock:
     label: Bloqueio da tecla Win
     help: Fn + Win também alterna; a tecla Win apaga enquanto bloqueada
+  macro_match_os:
+    label: Ctrl ou Cmd conforme o dispositivo
+    help: Ctrl + C é enviado como Cmd + C em dispositivos configurados como Mac
   lights_off_after:
     label: Apagar a iluminação após
   sleep_after:
@@ -377,3 +383,52 @@ updates:
   check_now: Verificar agora
   check_on_start: Procurar atualizações ao abrir o Keycandle
   check_on_start_help: Consulta as versões mais novas no GitHub. Nada é instalado sem você.
+
+macros:
+  needs_cable: "As macros são editadas pelo cabo USB. Depois de salvas, funcionam pelo Bluetooth também."
+  default_name: "Macro %{number}"
+  empty: "Vazia"
+  new: "Nova macro"
+  slots: "%{used} de %{total} em uso · os nomes ficam neste computador"
+  runs_on: "Roda com"
+  no_key: "Sem tecla"
+  choose_key: "Escolher tecla…"
+  clear: "Limpar"
+  pick_title: "Escolha a tecla que a roda com Fn"
+  pick_help: "A tecla continua normal; Fn + tecla roda a macro. Teclas esmaecidas já fazem algo com Fn."
+  no_steps: "Ainda sem passos. Digite texto abaixo, grave teclas ou comece por um exemplo."
+  text_placeholder: "Texto a digitar (Enter adiciona)"
+  add_text: "Adicionar texto"
+  update_text: "Atualizar texto"
+  edit: "Editar"
+  record: "Gravar teclas"
+  stop_recording: "Parar"
+  record_hint: "Gravar teclas adiciona o que você pressionar aqui: digitação vira texto; outras teclas e atalhos, passos."
+  recording_hint: "Gravando… pressione teclas ou atalhos. Clique em Parar ao terminar."
+  add_wait: "+ Esperar %{ms} ms"
+  step_text: "Texto"
+  step_shortcut: "Atalho"
+  step_key: "Tecla"
+  step_hold: "Segurar"
+  step_release: "Soltar"
+  step_wait: "Esperar"
+  try: "Teste: clique na caixa e pressione %{key}"
+  try_placeholder: "A macro digita aqui"
+  storage: "%{used} de %{room} bytes"
+  unsaved: "Alterações não salvas"
+  discard: "Descartar"
+  save: "Salvar no teclado"
+  examples: "Comece por um exemplo"
+  examples_hint: "Cada um vira uma macro que você pode mudar"
+  tpl_signoff: "Despedida de e-mail"
+  tpl_signoff_what: "Sua frase de encerramento e seu nome"
+  tpl_duplicate: "Duplicar linha"
+  tpl_duplicate_what: "Copia a linha atual para baixo, na maioria dos editores"
+  tpl_link: "Transformar em link"
+  tpl_link_what: "Transforma a seleção em [texto]() com o cursor dentro"
+  tpl_commit: "Mensagem de commit"
+  tpl_commit_what: "Digita git commit -m \"\" com o cursor entre as aspas"
+  tpl_form: "Preencher um campo"
+  tpl_form_what: "Seu e-mail e depois Tab para o próximo campo (nunca uma senha)"
+  tpl_reply: "Resposta rápida"
+  tpl_reply_what: "Uma mensagem que você envia com frequência"

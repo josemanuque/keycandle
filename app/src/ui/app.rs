@@ -13,7 +13,7 @@ use super::model::{Connection, Model, Poll, Values};
 use super::chrome::{self, Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar, updates};
+use super::{app_settings, firmware, lighting, macros_page, menu, overview, power, settings_page, sidebar, updates};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -41,6 +41,10 @@ pub struct Configurator {
     pub(super) open_notes: std::collections::HashSet<String>,
     /// Settings to put back once the keyboard returns from a firmware update.
     restore_after_update: Option<Values>,
+    /// Macros and their keys, put back after a firmware update too.
+    restore_macros_after_update: Option<super::macro_store::Macros>,
+    /// The Macros page's draft and inputs.
+    pub(super) macro_ui: macros_page::MacroUi,
     started: Instant,
     pub(super) backdrop: Backdrop,
     /// Sliders show the keyboard's numbers rather than percent (a preference).
@@ -73,6 +77,8 @@ impl Configurator {
             show_all_releases: false,
             open_notes: Default::default(),
             restore_after_update: None,
+            restore_macros_after_update: None,
+            macro_ui: macros_page::MacroUi::new(window, cx),
             started: Instant::now(),
             backdrop,
             raw_values: prefs.raw_values,
@@ -109,6 +115,9 @@ impl Configurator {
         }
         if let Some(saved) = self.restore_after_update.take() {
             let _ = self.model.restore(&saved);
+        }
+        if let Some(macros) = self.restore_macros_after_update.take() {
+            let _ = self.model.restore_macros(&macros);
         }
         self.remember_firmware();
         self.effect_group = EffectGroup::of(self.model.byte(value::KEY_EFFECT));
@@ -261,6 +270,7 @@ impl Configurator {
         let to_stock = matches!(&source, Source::Release(r) if r.stock);
         if self.model.is_connected() && !to_stock {
             self.restore_after_update = Some(self.model.snapshot());
+            self.restore_macros_after_update = self.model.macros().cloned();
         }
         let keyboard = self.model.take_keyboard();
         self.controls = Controls::default();
@@ -268,10 +278,11 @@ impl Configurator {
         cx.notify();
     }
 
-    fn render_page(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn render_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        // These work without a keyboard too.
+        // These work without a keyboard too (Macros explains it needs the cable).
         match self.page {
+            Page::Macros => return macros_page::render(self, window, cx),
             Page::Firmware => return firmware::render(self, cx),
             Page::Settings => return app_settings::render(self, cx),
             _ => {}
@@ -295,7 +306,7 @@ impl Configurator {
             Page::Lighting => lighting::render(self, cx),
             Page::Keys => settings_page::render(self, self.page.sections(), self.layout.width, cx),
             Page::Power => power::render(self, cx),
-            Page::Firmware | Page::Settings => unreachable!("handled above"),
+            Page::Macros | Page::Firmware | Page::Settings => unreachable!("handled above"),
         }
     }
 }
@@ -307,7 +318,7 @@ impl Render for Configurator {
         let viewport = window.viewport_size();
         let compact = f32::from(viewport.width) < COMPACT_BELOW;
         self.layout.window_height = f32::from(viewport.height);
-        let page = self.render_page(cx);
+        let page = self.render_page(window, cx);
         let mark = self.status_mark.update(sidebar::outcome(&self.model), Instant::now());
         if mark.is_some_and(|mark| mark.moving) {
             window.request_animation_frame();

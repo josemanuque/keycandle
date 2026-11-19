@@ -56,6 +56,12 @@ pub struct Profile {
     /// What the keyboard reports over Bluetooth, slot by slot: the VIA value and which of its bytes.
     /// `None` is the packed state byte (device slot, battery, Win-key lock).
     pub bluetooth_slots: &'static [Option<((u8, u8), usize)>],
+    /// The key matrix (rows, columns), as the firmware's key map is laid out.
+    pub matrix: (usize, usize),
+    /// The Fn layer: macros go there, so the key keeps its normal job.
+    pub fn_layer: usize,
+    /// The physical keys (label, place, matrix position).
+    pub keys: &'static [rk71::layout::Key],
     /// The Fn + key that picks each Bluetooth device; their number is the number of devices. The
     /// cable's bit in the Win/Mac value comes right after them.
     pub bluetooth_device_keys: &'static [&'static str],

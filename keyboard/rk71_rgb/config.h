@@ -4,7 +4,7 @@
 
 /* Firmware version, read by the configurator over VIA (id_firmware_version) to offer updates.
  * 0x00MMmmpp = major, minor, patch: 0x00000802 is v0.8.2. Bump it with every release tag. */
-#define VIA_FIRMWARE_VERSION 0x00000901
+#define VIA_FIRMWARE_VERSION 0x00000A00
 
 /*
  * LED row pins, three per LED row in R, B, G order (the order the sn32f2xx driver expects).
@@ -45,6 +45,7 @@
 
 /* Saved keyboard settings (kb_data_t in rk71_rgb.c), with room to spare for new ones. */
 #define EECONFIG_KB_DATA_SIZE 48
+
 
 /* Layer numbers the keyboard code relies on (enum layers in the keymaps). */
 #define RK71_WIN_LAYER 0  /* Windows base layer */

@@ -145,6 +145,8 @@ if len(sys.argv) > 2:
                         "content": ["id_fn_highlight", 0, 16]},
                        {"label": "Win-key lock (Fn + Win)", "type": "toggle",
                         "content": ["id_win_lock", 0, 56]}]}]},
+               # Windows or Mac per device (value ids 58..63, one bit of 55 each) and macros (57)
+               {"label": "Windows or Mac", "content": [{"label": "Windows or Mac", "content": [{"label": "Bluetooth device 1 is a Mac", "type": "toggle", "content": ["id_mac_device_1", 0, 58]}, {"label": "Bluetooth device 2 is a Mac", "type": "toggle", "content": ["id_mac_device_2", 0, 59]}, {"label": "Bluetooth device 3 is a Mac", "type": "toggle", "content": ["id_mac_device_3", 0, 60]}, {"label": "Bluetooth device 4 is a Mac", "type": "toggle", "content": ["id_mac_device_4", 0, 61]}, {"label": "Bluetooth device 5 is a Mac", "type": "toggle", "content": ["id_mac_device_5", 0, 62]}, {"label": "Cable (USB) is a Mac", "type": "toggle", "content": ["id_mac_device_6", 0, 63]}, {"label": "Macros: Ctrl as Cmd on Mac devices", "type": "toggle", "content": ["id_macro_match_os", 0, 57]}]}]},
                # Battery saving (value ids 22..26): whole keyboard
                {"label": "Power", "content": [{"label": "Power", "content": [
                        {"label": "On battery, lighting off after", "type": "dropdown",

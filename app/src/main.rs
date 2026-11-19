@@ -21,6 +21,7 @@ mod device;
 mod i18n;
 mod isp;
 mod keyboard;
+mod macros;
 mod prefs;
 mod preview;
 mod releases;
@@ -48,6 +49,7 @@ fn main() -> Result<()> {
         Some("--set") => set_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--get") => get_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--bt-set") => bt_set(&std::env::args().skip(2).collect::<Vec<_>>()),
+        Some("--timing") => timing(),
         Some("--bt-listen") => btlink::listen_for(std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(6)),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
@@ -225,3 +227,20 @@ fn attach_console() {
         }
     }
 }
+
+/// Diagnostics (--timing): how long each step of finding the keyboard takes, as the app does it.
+fn timing() -> Result<()> {
+    use std::time::Instant;
+    let time = |name: &str, f: &dyn Fn() -> String| {
+        let t = Instant::now();
+        let result = f();
+        println!("{:>6} ms  {name}: {result}", t.elapsed().as_millis());
+    };
+    time("HID scan", &|| device::hid_api().map(|a| format!("{} devices", a.device_list().count())).unwrap_or_else(|e| e.to_string()));
+    time("USB keyboard", &|| Keyboard::open().map(|_| "found".into()).unwrap_or_else(|e| e.to_string()));
+    time("flash mode", &|| isp::is_present().to_string());
+    time("original firmware", &|| isp::stock_present().to_string());
+    time("Bluetooth keyboard", &|| btlink::available().to_string());
+    Ok(())
+}
+

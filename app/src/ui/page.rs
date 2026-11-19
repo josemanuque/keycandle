@@ -9,6 +9,8 @@ pub enum Page {
     Overview,
     Lighting,
     Keys,
+    /// Macros: text and key sequences on Fn + a key.
+    Macros,
     Power,
     Firmware,
     /// The app's own settings (language, appearance).
@@ -16,7 +18,8 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 6] = [Page::Overview, Page::Lighting, Page::Keys, Page::Power, Page::Firmware, Page::Settings];
+    pub const ALL: [Page; 7] =
+        [Page::Overview, Page::Lighting, Page::Keys, Page::Macros, Page::Power, Page::Firmware, Page::Settings];
 
     /// Stable name: the translation key part and the `--page` argument.
     pub fn name(self) -> &'static str {
@@ -24,6 +27,7 @@ impl Page {
             Page::Overview => "overview",
             Page::Lighting => "lighting",
             Page::Keys => "keys",
+            Page::Macros => "macros",
             Page::Power => "power",
             Page::Firmware => "firmware",
             Page::Settings => "settings",
@@ -49,6 +53,7 @@ impl Page {
             Page::Overview => "icons/layout-dashboard.svg",
             Page::Lighting => "icons/sun.svg",
             Page::Keys => "icons/keyboard.svg",
+            Page::Macros => "icons/square-play.svg",
             Page::Power => "icons/battery-full.svg",
             Page::Firmware => "icons/download.svg",
             Page::Settings => "icons/settings.svg",
@@ -62,7 +67,7 @@ impl Page {
             Page::Lighting => LIGHTING,
             Page::Keys => KEYS,
             Page::Power => POWER,
-            Page::Overview | Page::Firmware | Page::Settings => &[],
+            Page::Overview | Page::Macros | Page::Firmware | Page::Settings => &[],
         }
     }
 

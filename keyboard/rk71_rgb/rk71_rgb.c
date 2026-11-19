@@ -21,6 +21,10 @@
 #include "rk71_keyled.h"
 #include "rk71_btcfg.h"
 #include "rk71_defaults.h"
+#ifdef VIA_ENABLE
+#    include "nvm_dynamic_keymap.h"
+#    include "send_string.h"
+#endif
 #include "lib/lib8tion/lib8tion.h"
 #include "bluetooth.h"
 #include "connection.h"
@@ -84,6 +88,7 @@ static kb_config_t kb_config;
 #define SIDE_FLAG_CAPS 0x02           /* Caps Lock shown on the nearest side light */
 #define SIDE_FLAG_FROW 0x04           /* F-row lock shown on the farthest side light */
 #define KEY_FLAG_FN_HIGHLIGHT 0x01    /* while Fn is held, only keys with an Fn function stay lit */
+#define KEY_FLAG_MACRO_KEEP_CTRL 0x02 /* macros play Ctrl as Ctrl on Mac devices too (off: as Cmd) */
 
 /* Caps Lock key: Auto (stock cool white, or dark on white-ish lighting), Off (lit as the effect has it),
  * a custom colour, or Dark (its light goes off). */
@@ -188,13 +193,13 @@ static void load_config(void) {
  * that, eeconfig_init_kb() may already save, and QMK already sets the default layer. */
 static bool kb_ready;
 
-static void flash_write_begin(void) {
+void rk71_flash_write_begin(void) {
     if (!kb_ready) return;
     rk71_leds_pause();
     side_pause();
 }
 
-static void flash_write_end(void) {
+void rk71_flash_write_end(void) {
     if (!kb_ready) return;
     side_resume();
     rk71_leds_resume();
@@ -202,9 +207,9 @@ static void flash_write_end(void) {
 
 static void save_config(void) {
     kb_data_t data = {.config = kb_config.raw, .extra = kb_extra};
-    flash_write_begin();
+    rk71_flash_write_begin();
     eeconfig_update_kb_datablock(&data, 0, sizeof(data));
-    flash_write_end();
+    rk71_flash_write_end();
 }
 
 void eeconfig_init_kb(void) {
@@ -448,8 +453,69 @@ static void show_battery_bar(void) {
     bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
 }
 
+#ifdef VIA_ENABLE
+/* ---- macros: Ctrl and Cmd to match the device ------------------------------------------------
+ * VIA's macros are a run of strings in the settings storage: text, and key steps written as
+ * SS_QMK_PREFIX, an action (tap / down / up / delay) and a key code (a delay: digits, then '|').
+ * On a device set to Mac the keyboard plays them itself, reading through a filter that swaps
+ * Ctrl and Cmd (GUI) in key steps, so one macro (Ctrl + C) does the same thing on both systems.
+ * Only stack memory: RAM has no room to spare. */
+typedef struct {
+    uint32_t offset;
+    uint8_t  step; /* 0 text, 1 after the prefix, 2 a key code is next, 3 in a delay's digits */
+} macro_reader_t;
+
+static uint8_t swap_ctrl_cmd(uint8_t kc) {
+    switch (kc) {
+        case KC_LCTL: return KC_LGUI;
+        case KC_LGUI: return KC_LCTL;
+        case KC_RCTL: return KC_RGUI;
+        case KC_RGUI: return KC_RCTL;
+        default: return kc;
+    }
+}
+
+static char macro_next(void *arg) {
+    macro_reader_t *r = arg;
+    uint8_t         c;
+    nvm_dynamic_keymap_macro_read_buffer(r->offset++, 1, &c);
+    switch (r->step) {
+        case 0: r->step = c == SS_QMK_PREFIX; break;
+        case 1: r->step = c >= SS_TAP_CODE && c <= SS_UP_CODE ? 2 : c == SS_DELAY_CODE ? 3 : 0; break;
+        case 2: r->step = 0; c = swap_ctrl_cmd(c); break;
+        case 3: r->step = c >= '0' && c <= '9' ? 3 : 0; break;
+    }
+    return c;
+}
+
+/* Play macro `id` with Ctrl and Cmd swapped (what dynamic_keymap_macro_send does, through the filter). */
+static void play_macro_for_mac(uint8_t id) {
+    uint32_t end = nvm_dynamic_keymap_macro_size(), offset = 0;
+    uint8_t  c;
+    nvm_dynamic_keymap_macro_read_buffer(end - 1, 1, &c);
+    if (c != 0) return; /* a write was cut short */
+    while (id > 0) {
+        if (offset == end) return;
+        nvm_dynamic_keymap_macro_read_buffer(offset++, 1, &c);
+        if (c == 0) id--;
+    }
+    macro_reader_t r = {.offset = offset};
+    send_string_with_delay_impl(macro_next, &r, TAP_CODE_DELAY);
+}
+
+static bool macro_swaps_now(void) {
+    return !(kb_extra.key_flags & KEY_FLAG_MACRO_KEEP_CTRL) && get_highest_layer(default_layer_state) == RK71_MAC_LAYER;
+}
+#endif
+
 bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
     if (!process_record_user(keycode, record)) return false;
+#ifdef VIA_ENABLE
+    if (IS_QK_MACRO(keycode) && macro_swaps_now()) {
+        if (record->event.pressed) play_macro_for_mac(keycode - QK_MACRO);
+        return false;
+    }
+#endif
     if (keycode == BT_BATT) {
         if (record->event.pressed) show_battery_bar();
         return false;
@@ -654,9 +720,9 @@ static uint32_t woke_at;
 static void flush_pending_saves(void) {
     if (save_pending) save_config();
     if (rgb_save_pending) {
-        flash_write_begin();
+        rk71_flash_write_begin();
         eeconfig_force_flush_rgb_matrix();
-        flash_write_end();
+        rk71_flash_write_end();
     }
     save_pending = rgb_save_pending = false;
 }
@@ -1045,6 +1111,9 @@ enum {
     ID_BTCFG_STATS  = 54, /* diagnostics: settings over Bluetooth: messages ok, bad, symbols seen */
     ID_MAC_DEVICES  = 55, /* Mac layout per device: bit n = Bluetooth device n+1 (0..4), bit 5 = wired */
     ID_WIN_LOCK     = 56, /* Win-key lock (Fn+Win), QMK's keymap_config.no_gui */
+    ID_MACRO_MATCH_OS = 57, /* macros swap Ctrl and Cmd on devices set to Mac */
+    ID_MAC_DEVICE_FIRST = 58, /* 58..63: one device's bit of ID_MAC_DEVICES each, for VIA's toggles */
+    ID_MAC_DEVICE_LAST  = 63,
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1149,6 +1218,11 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     kb_extra.mac_devices = value[0] & 0x3F;
                     apply_device_layout(); /* the device in use switches layout right away */
                     break;
+                case ID_MACRO_MATCH_OS: set_flag(&kb_extra.key_flags, KEY_FLAG_MACRO_KEEP_CTRL, !value[0]); break;
+                case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
+                    set_flag(&kb_extra.mac_devices, 1 << (value_id - ID_MAC_DEVICE_FIRST), value[0]);
+                    apply_device_layout();
+                    break;
                 case ID_WIN_LOCK:
                     keymap_config.no_gui = value[0] != 0;
                     eeconfig_update_keymap(&keymap_config); /* saved by QMK, as Fn+Win does */
@@ -1212,6 +1286,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
                 case ID_MAC_DEVICES: value[0] = kb_extra.mac_devices; break;
                 case ID_WIN_LOCK: value[0] = keymap_config.no_gui; break;
+                case ID_MACRO_MATCH_OS: value[0] = !(kb_extra.key_flags & KEY_FLAG_MACRO_KEEP_CTRL); break;
+                case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
+                    value[0] = kb_extra.mac_devices >> (value_id - ID_MAC_DEVICE_FIRST) & 1;
+                    break;
                 default: *command_id = id_unhandled; break;
             }
             break;

@@ -28,6 +28,7 @@ actions!(
         ShowOverview,
         ShowLighting,
         ShowKeys,
+        ShowMacros,
         ShowPower,
         ShowFirmware,
         ShowSettings,
@@ -66,8 +67,9 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(key!("1"), ShowOverview, None),
         KeyBinding::new(key!("2"), ShowLighting, None),
         KeyBinding::new(key!("3"), ShowKeys, None),
-        KeyBinding::new(key!("4"), ShowPower, None),
-        KeyBinding::new(key!("5"), ShowFirmware, None),
+        KeyBinding::new(key!("4"), ShowMacros, None),
+        KeyBinding::new(key!("5"), ShowPower, None),
+        KeyBinding::new(key!("6"), ShowFirmware, None),
         KeyBinding::new(key!("r"), Reconnect, None),
         KeyBinding::new("tab", FocusNext, None),
         KeyBinding::new("shift-tab", FocusPrevious, None),
@@ -102,6 +104,7 @@ pub fn init(cx: &mut App) {
     show::<ShowOverview>(cx, Page::Overview);
     show::<ShowLighting>(cx, Page::Lighting);
     show::<ShowKeys>(cx, Page::Keys);
+    show::<ShowMacros>(cx, Page::Macros);
     show::<ShowPower>(cx, Page::Power);
     show::<ShowFirmware>(cx, Page::Firmware);
     show::<ShowSettings>(cx, Page::Settings);
@@ -147,6 +150,7 @@ pub fn set_menus(cx: &mut App) {
             MenuItem::action(Page::Overview.title(), ShowOverview),
             MenuItem::action(Page::Lighting.title(), ShowLighting),
             MenuItem::action(Page::Keys.title(), ShowKeys),
+            MenuItem::action(Page::Macros.title(), ShowMacros),
             MenuItem::action(Page::Power.title(), ShowPower),
             MenuItem::action(Page::Firmware.title(), ShowFirmware),
             MenuItem::separator(),

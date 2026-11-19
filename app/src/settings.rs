@@ -129,7 +129,7 @@ pub use crate::keyboard::rk71::settings::*;
 
 /// Every setting on every page.
 pub fn all() -> impl Iterator<Item = &'static Setting> {
-    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter()).chain([&KEY_EFFECT, &BATTERY_BAR])
+    [LIGHTING, KEYS, POWER].into_iter().flatten().flat_map(|s| s.settings.iter()).chain([&KEY_EFFECT, &BATTERY_BAR, &MACRO_MATCH_OS])
 }
 
 /// The setting for a value id.

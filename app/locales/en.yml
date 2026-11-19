@@ -17,6 +17,9 @@ page:
   keys:
     title: Keys & indicators
     subtitle: Windows or Mac for each device, how locks show and what Fn highlights.
+  macros:
+    title: Macros
+    subtitle: Text and key sequences on Fn + a key. Stored on the keyboard, so they work on any computer.
   power:
     title: Power
     subtitle: Battery saving applies on Bluetooth without the cable. Plugged in, the keyboard never sleeps.
@@ -140,6 +143,9 @@ setting:
   win_lock:
     label: Win-key lock
     help: Fn + Win switches it too; the Win key goes dark while locked
+  macro_match_os:
+    label: Ctrl or Cmd, to match the device
+    help: Ctrl + C plays as Cmd + C on devices set to Mac
   lights_off_after:
     label: Lighting off after
   sleep_after:
@@ -378,3 +384,52 @@ updates:
   check_now: Check now
   check_on_start: Check for updates when Keycandle opens
   check_on_start_help: Asks GitHub for the newest releases. Nothing is installed without you.
+
+macros:
+  needs_cable: "Macros are edited over the USB cable. Once saved, they run over Bluetooth too."
+  default_name: "Macro %{number}"
+  empty: "Empty"
+  new: "New macro"
+  slots: "%{used} of %{total} used · names stay on this computer"
+  runs_on: "Runs on"
+  no_key: "No key"
+  choose_key: "Choose key…"
+  clear: "Clear"
+  pick_title: "Pick the key that runs it with Fn"
+  pick_help: "The key keeps its normal job; Fn + key runs the macro. Dimmed keys already do something with Fn."
+  no_steps: "No steps yet. Type text below, record keys, or start from an example."
+  text_placeholder: "Text to type (Enter adds it)"
+  add_text: "Add text"
+  update_text: "Update text"
+  edit: "Edit"
+  record: "Record keys"
+  stop_recording: "Stop recording"
+  record_hint: "Record keys adds what you press here: typing becomes text, other keys and shortcuts become steps."
+  recording_hint: "Recording… press keys or shortcuts. Click Stop recording when done."
+  add_wait: "+ Wait %{ms} ms"
+  step_text: "Text"
+  step_shortcut: "Shortcut"
+  step_key: "Key"
+  step_hold: "Hold"
+  step_release: "Release"
+  step_wait: "Wait"
+  try: "Try it: click the box and press %{key}"
+  try_placeholder: "The macro types here"
+  storage: "%{used} of %{room} bytes"
+  unsaved: "Unsaved changes"
+  discard: "Discard"
+  save: "Save to keyboard"
+  examples: "Start from an example"
+  examples_hint: "Each one becomes a macro you can change"
+  tpl_signoff: "Email sign-off"
+  tpl_signoff_what: "Your closing line and name"
+  tpl_duplicate: "Duplicate line"
+  tpl_duplicate_what: "Copies the current line below it, in most editors"
+  tpl_link: "Wrap as a link"
+  tpl_link_what: "Turns the selection into [text]() with the cursor inside"
+  tpl_commit: "Commit message"
+  tpl_commit_what: "Types git commit -m \"\" with the cursor in the quotes"
+  tpl_form: "Fill a form field"
+  tpl_form_what: "Your email, then Tab to the next field (never a password)"
+  tpl_reply: "Quick reply"
+  tpl_reply_what: "A message you send often"

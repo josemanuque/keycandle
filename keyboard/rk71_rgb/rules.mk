@@ -11,3 +11,8 @@ EXTRALDFLAGS += -Wl,--wrap=sn32f2xx_set_color -Wl,--wrap=sn32f2xx_set_color_all
 
 # Per-key debounce: a bouncy switch (seen as double letters) is filtered without slowing other keys.
 DEBOUNCE_TYPE = sym_defer_pk
+
+# Settings storage: QMK's own code (copied into nvm_*.c here), except that macros get 2 KB of their
+# own flash, read in place (nvm_dynamic_keymap.c). The emulated EEPROM is mirrored in RAM.
+NVM_DRIVER = custom
+SRC += nvm_dynamic_keymap.c nvm_via.c
