@@ -18,6 +18,9 @@ pub enum Kind {
     Choice(&'static [&'static str]),
     /// Hue and saturation, as two bytes.
     Color,
+    /// Windows or Mac for each device the keyboard connects to: one byte, bit n = Bluetooth device
+    /// n + 1 (0..4), bit 5 = the cable.
+    DeviceLayouts,
 }
 
 #[derive(Clone, Copy)]
@@ -156,6 +159,7 @@ pub const LIGHTING: &[Section] = &[
 ];
 
 pub const KEYS: &[Section] = &[
+    Section { key: "layout", settings: &[s(KB, 55, "device_layouts", Kind::DeviceLayouts)] },
     Section {
         key: "caps_lock",
         settings: &[

@@ -16,7 +16,7 @@ use gpui_component::{
 
 use super::app::Configurator;
 use super::model::Model;
-use super::widgets::{muted, segment, segmented};
+use super::widgets::{badge, muted, segment, segmented};
 use crate::color;
 use crate::settings::{self, value, Kind, Setting};
 use crate::tr;
@@ -32,6 +32,8 @@ const MAX_SEGMENTS: usize = 4;
 enum Control {
     Toggle,
     Segments,
+    /// Windows or Mac per device (drawn from the value, like segments).
+    Devices,
     Range(Entity<SliderState>),
     Choice(Entity<ChoiceState>),
     Color(Entity<ColorPickerState>),
@@ -85,6 +87,7 @@ impl Controls {
 fn control(setting: &'static Setting, current: &[u8], window: &mut Window, cx: &mut Context<Configurator>) -> Control {
     match setting.kind {
         Kind::Toggle => Control::Toggle,
+        Kind::DeviceLayouts => Control::Devices,
         Kind::Range { min, max } => {
             let state = cx.new(|_| {
                 SliderState::new().min(min as f32).max(max as f32).step(1.0).default_value(current[0] as f32)
@@ -127,6 +130,10 @@ pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Confi
     let id = setting.value_id();
     let theme = cx.theme().clone();
     let help = setting.help();
+
+    if let Some(Control::Devices) = app.controls.0.get(&id) {
+        return device_layouts(app, setting, cx);
+    }
 
     if let Some(Control::Segments) = app.controls.0.get(&id) {
         // As in the design: label above, the options across the full width, help below.
@@ -176,8 +183,56 @@ pub fn row(app: &Configurator, setting: &'static Setting, cx: &mut Context<Confi
             .into_any_element(),
         Some(Control::Choice(state)) => div().w(px(300.)).child(Select::new(state)).into_any_element(),
         Some(Control::Color(state)) => ColorPicker::new(state).into_any_element(),
-        Some(Control::Segments) => unreachable!("drawn above"),
+        Some(Control::Segments | Control::Devices) => unreachable!("drawn above"),
         None => muted(&theme, tr!("controls.not_available")).into_any_element(),
     };
     h_flex().gap_6().py_3().items_center().child(label).child(control).into_any_element()
+}
+
+/// The devices the keyboard connects to, in the bit order of the DeviceLayouts value.
+const DEVICES: usize = 6;
+const WIRED: usize = 5;
+
+/// One row per device (Bluetooth 1..5 and the cable), each with Windows / Mac.
+fn device_layouts(app: &Configurator, setting: &'static Setting, cx: &mut Context<Configurator>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let id = setting.value_id();
+    let mask = app.model.byte(id);
+    // The device in use, when the keyboard says (USB with firmware v0.8+).
+    let in_use = app.model.state().map(|s| if s.bluetooth { s.slot as usize } else { WIRED });
+    let view = cx.entity().downgrade();
+    let rows = (0..DEVICES).map(|device| {
+        let name = if device == WIRED { tr!("devices.wired") } else { tr!("devices.bluetooth", number = device + 1) };
+        let mac = mask >> device & 1 != 0;
+        let options = [(false, tr!("devices.windows")), (true, tr!("devices.mac"))].map(|(is_mac, label)| {
+            let view = view.clone();
+            let new = if is_mac { mask | 1 << device } else { mask & !(1 << device) };
+            segment(&theme, SharedString::from(format!("layout-{device}-{is_mac}")), mac == is_mac)
+                .on_click(move |_, _, cx| {
+                    let _ = view.update(cx, |this, cx| this.write(setting, &[new], cx));
+                })
+                .child(label)
+        });
+        h_flex()
+            .gap_4()
+            .py_2()
+            .items_center()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .flex_1()
+                    .min_w_0()
+                    .items_center()
+                    .child(div().child(name))
+                    .when(in_use == Some(device), |el| el.child(badge(&theme, tr!("devices.in_use")))),
+            )
+            .child(div().w(px(240.)).flex_shrink(1.).min_w(px(150.)).child(segmented(&theme).children(options)))
+    });
+    v_flex()
+        .gap_1()
+        .py_3()
+        .child(div().child(setting.label()))
+        .when_some(setting.help(), |el, help| el.child(muted(&theme, help)))
+        .child(v_flex().pt_2().children(rows))
+        .into_any_element()
 }

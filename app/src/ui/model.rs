@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use crate::btlink;
 use crate::device::{Keyboard, CHANNEL_KEYBOARD};
 use crate::preview::effects::{Scene, SideScene};
 use crate::settings::{self, value, Setting};
@@ -26,6 +27,8 @@ pub enum Connection {
     FlashMode,
     /// It runs the original Royal Kludge firmware.
     Stock,
+    /// Only on Bluetooth: settings go one way, the values shown are from the last USB connection.
+    Bluetooth,
 }
 
 /// What the keyboard reports about itself (firmware v0.8+, VIA value 52).
@@ -115,11 +118,31 @@ pub struct Model {
     firmware_version: Option<u32>,
     /// None for firmware older than v0.8, which doesn't report it.
     state: Option<KeyboardState>,
+    /// Sends settings while the keyboard is only on Bluetooth.
+    bluetooth: Option<btlink::Queue>,
+    /// Values changed since the cache was last written.
+    cache_dirty: bool,
 }
 
 impl Model {
+    /// Connected over USB (VIA: reads, writes and firmware updates).
     pub fn is_connected(&self) -> bool {
         self.keyboard.is_some()
+    }
+
+    /// There are settings to show and change: over USB, or over Bluetooth with values remembered
+    /// from the last USB connection.
+    pub fn has_settings(&self) -> bool {
+        self.is_connected() || (self.on_bluetooth() && !self.values.is_empty())
+    }
+
+    pub fn on_bluetooth(&self) -> bool {
+        self.connection == Connection::Bluetooth
+    }
+
+    /// The Bluetooth sender's progress (None unless only on Bluetooth).
+    pub fn bluetooth_status(&self) -> Option<btlink::Status> {
+        self.bluetooth.as_ref().map(btlink::Queue::status)
     }
 
     pub fn connection(&self) -> &Connection {
@@ -198,6 +221,7 @@ impl Model {
                 self.state = kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).ok().map(|v| KeyboardState::from_bytes(&v));
                 self.values = read_all(&kb);
                 self.keyboard = Some(kb);
+                cache::save(&self.values);
             }
             Err(e) => {
                 self.keyboard = None;
@@ -205,6 +229,10 @@ impl Model {
                     Connection::FlashMode
                 } else if crate::isp::stock_present() {
                     Connection::Stock
+                } else if btlink::available() {
+                    self.values = cache::load();
+                    self.state = None;
+                    Connection::Bluetooth
                 } else if self.connection == Connection::Unplugged {
                     Connection::Unplugged
                 } else {
@@ -212,12 +240,39 @@ impl Model {
                 };
             }
         }
+        if self.on_bluetooth() {
+            self.bluetooth.get_or_insert_with(btlink::Queue::new);
+        } else {
+            self.bluetooth = None;
+        }
         self.is_connected()
+    }
+
+    /// Only on Bluetooth: has the cable come back (connect again), or has the keyboard gone?
+    /// Returns whether the connection changed.
+    pub fn recheck_bluetooth(&mut self) -> bool {
+        self.flush_cache();
+        let busy = matches!(self.bluetooth_status(), Some(btlink::Status::Sending(_)));
+        if !busy && (Keyboard::open().is_ok() || !btlink::available()) {
+            self.connection = Connection::NotFound;
+            self.bluetooth = None;
+            self.values.clear();
+            return true;
+        }
+        false
+    }
+
+    /// Write the remembered values if they changed (at most once per poll, not per slider step).
+    fn flush_cache(&mut self) {
+        if std::mem::take(&mut self.cache_dirty) {
+            cache::save(&self.values);
+        }
     }
 
     /// Check on the keyboard: still there? Changed anything on its own? Settings are re-read only
     /// when its change counter moved (firmware v0.8+; older firmware is just pinged).
     pub fn poll(&mut self) -> Poll {
+        self.flush_cache();
         let Some(kb) = &self.keyboard else { return Poll::Same };
         let fresh = match self.state {
             Some(_) => kb.get(CHANNEL_KEYBOARD, STATE_ID, STATE_LEN).map(|v| Some(KeyboardState::from_bytes(&v))),
@@ -241,6 +296,7 @@ impl Model {
         let now = read_all(kb);
         let changed: Vec<value::Id> = now.iter().filter(|(id, v)| self.values.get(id) != Some(v)).map(|(id, _)| *id).collect();
         self.values = now;
+        self.cache_dirty |= !changed.is_empty();
         if changed.is_empty() { Poll::StateChanged } else { Poll::Changed(changed) }
     }
 
@@ -276,8 +332,11 @@ impl Model {
             if let Err(e) = kb.set(setting.channel, setting.id, value).and_then(|_| kb.save(setting.channel)) {
                 self.write_error = Some(format!("{e:#}"));
             }
+        } else if let Some(queue) = &self.bluetooth {
+            queue.push(setting.channel, setting.id, value);
         }
         self.values.insert(id, value.to_vec());
+        self.cache_dirty = true;
         true
     }
 
@@ -323,4 +382,34 @@ fn read_all(kb: &Keyboard) -> Values {
     settings::all()
         .filter_map(|setting| kb.get(setting.channel, setting.id, setting.len()).ok().map(|v| (setting.value_id(), v)))
         .collect()
+}
+
+/// The keyboard's values from the last USB connection, shown while it is only on Bluetooth (the
+/// keyboard can't be read over Bluetooth). Kept next to the app's preferences.
+mod cache {
+    use super::Values;
+
+    fn path() -> Option<std::path::PathBuf> {
+        dirs::config_dir().map(|d| d.join("keycandle").join("keyboard.json"))
+    }
+
+    pub fn load() -> Values {
+        let entries: Vec<(u8, u8, Vec<u8>)> = path()
+            .and_then(|p| std::fs::read(p).ok())
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default();
+        entries.into_iter().map(|(channel, id, v)| ((channel, id), v)).collect()
+    }
+
+    pub fn save(values: &Values) {
+        let Some(path) = path() else { return };
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let mut entries: Vec<(u8, u8, &Vec<u8>)> = values.iter().map(|((c, i), v)| (*c, *i, v)).collect();
+        entries.sort();
+        if let Ok(json) = serde_json::to_vec(&entries) {
+            let _ = std::fs::write(path, json);
+        }
+    }
 }

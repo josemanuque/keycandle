@@ -4,6 +4,8 @@
 
 fn main() {
     println!("cargo:rerun-if-changed=assets/icon/icon-light.ico");
+    // The translations are compiled in by a macro (rust_i18n::i18n!), which cargo doesn't watch.
+    println!("cargo:rerun-if-changed=locales");
     #[cfg(windows)]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winresource::WindowsResource::new();

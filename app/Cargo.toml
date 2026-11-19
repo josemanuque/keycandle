@@ -33,3 +33,7 @@ raw-window-handle = "0.6"
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
+
+# Settings over Bluetooth (btlink.rs): the keyboard's LED indicators through Windows' keyboard driver
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Security"] }

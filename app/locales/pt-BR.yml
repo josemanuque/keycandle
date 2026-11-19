@@ -15,7 +15,7 @@ page:
     subtitle: Escolha um efeito para vê-lo aqui e no teclado. As mudanças são salvas quando você para de ajustar.
   keys:
     title: Teclas e indicadores
-    subtitle: Como os bloqueios aparecem e o que o Fn destaca. Windows/Mac é lembrado por dispositivo (Fn + A / Fn + S).
+    subtitle: Windows ou Mac para cada dispositivo, como os bloqueios aparecem e o que o Fn destaca.
   power:
     title: Energia
     subtitle: A economia de bateria vale no Bluetooth sem o cabo. Conectado, o teclado nunca dorme.
@@ -39,6 +39,9 @@ connection:
   page_not_connected: O teclado não está conectado por USB.
   page_flash_mode: O teclado está em modo de gravação. Abra Firmware para instalar uma atualização ou sair do modo de gravação.
   page_stock: O teclado está com o firmware original da Royal Kludge, que este app não consegue configurar. Abra Firmware para instalar o firmware deste projeto.
+  bluetooth: Bluetooth
+  bluetooth_detail: As configurações vão em um só sentido
+  page_bluetooth_no_values: O teclado está no Bluetooth. Conecte-o uma vez por USB para o app ler as configurações; depois você também pode mudá-las pelo Bluetooth.
 
 overview:
   key_lighting: Iluminação das teclas
@@ -60,6 +63,7 @@ lighting:
     multicolor_hint: Criam as próprias cores (arco-íris, chuva, calor), então a cor não é usada.
 
 section:
+  layout: Windows ou Mac
   keys: Teclas
   side_lights: Luzes laterais
   status: Status nas luzes laterais
@@ -68,6 +72,9 @@ section:
   on_battery: Na bateria
 
 setting:
+  device_layouts:
+    label: Layout para cada dispositivo
+    help: Mac transforma as teclas ao lado do espaço em Cmd e Option. Fn + A / Fn + S escolhem para o dispositivo em uso.
   key_effect:
     label: Efeito
   key_color:
@@ -185,6 +192,20 @@ effect:
   reactive_wide: Reativo (amplo, múltiplo)
   splash: Respingo
   multi_splash: Respingo múltiplo
+
+bluetooth:
+  title: No Bluetooth
+  sending: Enviando alterações (%{count})…
+  saved: Todas as alterações salvas no teclado
+  failed: "Não entregue: %{error}"
+  detail: As alterações chegam ao teclado pelo Bluetooth, e ele confirma cada uma. Os valores mostrados são da última conexão USB, então mudanças feitas com as teclas Fn desde então não aparecem. Atualizar o firmware exige o cabo.
+
+devices:
+  bluetooth: Dispositivo Bluetooth %{number}
+  wired: Cabo (USB)
+  windows: Windows
+  mac: Mac
+  in_use: Em uso
 
 controls:
   not_available: indisponível

@@ -19,6 +19,7 @@
 #include "rk71_side.h"
 #include "rk71_sleep.h"
 #include "rk71_keyled.h"
+#include "rk71_btcfg.h"
 #include "lib/lib8tion/lib8tion.h"
 #include "bluetooth.h"
 #include "connection.h"
@@ -252,6 +253,7 @@ void rk71_bt_received(const uint8_t *p, uint8_t len) {
     if (p[0] == 0xB1) {
         pending_leds  = p[1] & 0x07;
         pending_since = timer_read32();
+        btcfg_leds(p[1], pending_since); /* settings sent over Bluetooth (rk71_btcfg.c) */
     } else if (p[0] == 0xB6 && p[1] == 0x51) {
         switch (p[2]) {
             case 0x76: set_link(LINK_CONNECTED); break;
@@ -846,7 +848,7 @@ void housekeeping_task_kb(void) {
         rgb_off_for_idle = false;
     }
 
-    if ((save_pending || rgb_save_pending) && TIMER_DIFF_32(now, save_requested_at) > SAVE_DELAY_MS) {
+    if ((save_pending || rgb_save_pending) && TIMER_DIFF_32(now, save_requested_at) > SAVE_DELAY_MS && !btcfg_active(now)) {
         flush_pending_saves();
     }
 
@@ -1037,6 +1039,8 @@ enum {
     ID_LED_SWITCH   = 51, /* row switch time, average and longest since last read (timer ticks) */
     ID_STATE        = 52, /* change counter, mode, device, link, battery, flags (see state_report) */
     ID_SIDE_TIMING  = 53, /* diagnostics: side-light delay loops per tick, loops per colour switch */
+    ID_BTCFG_STATS  = 54, /* diagnostics: settings over Bluetooth: messages ok, bad, symbols seen */
+    ID_MAC_DEVICES  = 55, /* Mac layout per device: bit n = Bluetooth device n+1 (0..4), bit 5 = wired */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1137,6 +1141,10 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_DIM_LEVEL: kb_extra.dim_level = (value[0] & 31) ^ DEF_DIM_LEVEL; break;
                 case ID_SIDE_CALIBRATE: side_calibrating = value[0]; break;
                 case ID_FN_HIGHLIGHT: set_flag(&kb_extra.key_flags, KEY_FLAG_FN_HIGHLIGHT, value[0]); break;
+                case ID_MAC_DEVICES:
+                    kb_extra.mac_devices = value[0] & 0x3F;
+                    apply_device_layout(); /* the device in use switches layout right away */
+                    break;
                 default: *command_id = id_unhandled; break;
             }
             side_set_tuning(SIDE_RED_V, SIDE_GREEN_V, SIDE_BLUE_V);
@@ -1148,6 +1156,12 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     value[1] = led_row_rate & 0xFF;
                     break;
                 case ID_STATE: state_report(value); break;
+                case ID_BTCFG_STATS:
+                    value[0] = btcfg_stats.ok;
+                    value[1] = btcfg_stats.bad;
+                    value[2] = btcfg_stats.symbols >> 8;
+                    value[3] = btcfg_stats.symbols & 0xFF;
+                    break;
                 case ID_SIDE_TIMING: {
                     extern uint32_t side_switch_loops;
                     uint32_t        lpt = side_loops_per_tick();
@@ -1188,6 +1202,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_DIM_LEVEL: value[0] = DIM_LEVEL_V; break;
                 case ID_SIDE_CALIBRATE: value[0] = side_calibrating; break;
                 case ID_FN_HIGHLIGHT: value[0] = !!(kb_extra.key_flags & KEY_FLAG_FN_HIGHLIGHT); break;
+                case ID_MAC_DEVICES: value[0] = kb_extra.mac_devices; break;
                 default: *command_id = id_unhandled; break;
             }
             break;
@@ -1203,3 +1218,29 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
     }
 }
 #endif
+
+/* A setting sent over Bluetooth (rk71_btcfg.c): applied exactly like the same VIA write over USB,
+ * and saved once changes settle. */
+void rk71_btcfg_apply(uint8_t channel, uint8_t id, uint8_t v0, uint8_t v1) {
+#ifdef VIA_ENABLE
+    uint8_t data[32] = {id_custom_set_value, channel, id, v0, v1}; /* a VIA packet */
+    if (channel == id_custom_channel) {
+        via_custom_value_command_kb(data, sizeof(data));
+        save_pending = true;
+    } else if (channel == id_qmk_rgb_matrix_channel) {
+        via_qmk_rgb_matrix_command(data, sizeof(data));
+        rgb_save_pending = true;
+    } else {
+        return;
+    }
+    save_requested_at = timer_read32();
+#else
+    (void)channel, (void)id, (void)v0, (void)v1;
+#endif
+}
+
+/* Confirm a setting that arrived over Bluetooth (rk71_btcfg.c): a reserved media-key usage, then a release. */
+void rk71_btcfg_ack(uint16_t usage) {
+    bluetooth_send_consumer(usage);
+    bluetooth_send_consumer(0);
+}

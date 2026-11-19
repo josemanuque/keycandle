@@ -9,11 +9,13 @@
 //!   keycandle --install <file.bin>  install firmware, like the Firmware page
 //!   keycandle --set <channel> <id> <byte>…   write and save one VIA value
 //!   keycandle --get <channel> <id> <length>   read one VIA value
+//!   keycandle --bt-set <channel> <id> <byte>…  send one VIA value over Bluetooth (Windows)
 
 // A windowed app on Windows (no console window when double-clicked); see attach_console() for the
 // command-line options.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod btlink;
 mod color;
 mod device;
 mod i18n;
@@ -44,6 +46,7 @@ fn main() -> Result<()> {
         Some("--install") => install(std::env::args().nth(2).as_deref()),
         Some("--set") => set_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--get") => get_value(&std::env::args().skip(2).collect::<Vec<_>>()),
+        Some("--bt-set") => bt_set(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
             Ok(())
@@ -187,6 +190,20 @@ fn get_value(args: &[String]) -> Result<()> {
     };
     let kb = Keyboard::open()?;
     println!("{channel}/{id} = {:?}", kb.get(*channel as u8, *id as u8, *len)?);
+    Ok(())
+}
+
+/// Command-line Bluetooth write (`--bt-set 0 8 20`): sends one value through the lock LEDs.
+fn bt_set(args: &[String]) -> Result<()> {
+    let numbers: Vec<u8> = args.iter().map(|a| a.parse()).collect::<Result<_, _>>()?;
+    let [channel, id, value @ ..] = numbers.as_slice() else {
+        anyhow::bail!("usage: --bt-set <channel> <id> <byte> [byte]");
+    };
+    if value.is_empty() || value.len() > 2 {
+        anyhow::bail!("usage: --bt-set <channel> <id> <byte> [byte]");
+    }
+    let attempts = btlink::send(*channel, *id, value)?;
+    println!("Set {channel}/{id} = {value:?} over Bluetooth (confirmed, attempt {attempts})");
     Ok(())
 }
 

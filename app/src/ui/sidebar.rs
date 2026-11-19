@@ -76,5 +76,6 @@ fn connection_text(connection: &Connection, write_error: Option<&str>) -> (Rgba,
         Connection::Unplugged => (red, tr!("connection.not_connected"), Some(tr!("connection.unplugged"))),
         Connection::Missing(reason) => (red, tr!("connection.not_connected"), Some(reason.clone())),
         Connection::NotFound => (red, tr!("connection.not_connected"), None),
+        Connection::Bluetooth => (rgb(0x60A5FA), tr!("connection.bluetooth"), Some(tr!("connection.bluetooth_detail"))),
     }
 }

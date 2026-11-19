@@ -16,7 +16,7 @@ page:
     subtitle: Pick an effect to see it here and on the keyboard. Changes are saved once you stop adjusting.
   keys:
     title: Keys & indicators
-    subtitle: How locks show and what Fn highlights. Windows/Mac is remembered per device (Fn + A / Fn + S).
+    subtitle: Windows or Mac for each device, how locks show and what Fn highlights.
   power:
     title: Power
     subtitle: Battery saving applies on Bluetooth without the cable. Plugged in, the keyboard never sleeps.
@@ -40,6 +40,9 @@ connection:
   page_not_connected: The keyboard isn't connected over USB.
   page_flash_mode: The keyboard is in flash mode. Open Firmware to install an update or leave flash mode.
   page_stock: The keyboard has its original Royal Kludge firmware, which this app can't configure. Open Firmware to install this project's firmware.
+  bluetooth: Bluetooth
+  bluetooth_detail: Settings are sent one way
+  page_bluetooth_no_values: The keyboard is on Bluetooth. Connect it by USB once so the app can read its settings; after that you can change them over Bluetooth too.
 
 overview:
   key_lighting: Key lighting
@@ -61,6 +64,7 @@ lighting:
     multicolor_hint: These make their own colors (rainbows, rain, heat), so the color isn't used.
 
 section:
+  layout: Windows or Mac
   keys: Keys
   side_lights: Side lights
   status: Status on the side lights
@@ -69,6 +73,9 @@ section:
   on_battery: On battery
 
 setting:
+  device_layouts:
+    label: Layout for each device
+    help: Mac turns the keys next to Space into Cmd and Option. Fn + A / Fn + S set it for the device in use.
   key_effect:
     label: Effect
   key_color:
@@ -186,6 +193,20 @@ effect:
   reactive_wide: Reactive (wide, multi)
   splash: Splash
   multi_splash: Multi splash
+
+bluetooth:
+  title: On Bluetooth
+  sending: Sending changes (%{count})…
+  saved: All changes saved on the keyboard
+  failed: "Not delivered: %{error}"
+  detail: Changes go to the keyboard over Bluetooth, and it confirms each one. The values shown are from the last USB connection, so changes made with the Fn keys since then aren't shown. Firmware updates need the cable.
+
+devices:
+  bluetooth: Bluetooth device %{number}
+  wired: Cable (USB)
+  windows: Windows
+  mac: Mac
+  in_use: In use
 
 controls:
   not_available: not available

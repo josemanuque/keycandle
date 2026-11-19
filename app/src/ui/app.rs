@@ -13,7 +13,7 @@ use super::model::{Connection, Model, Poll, Values};
 use super::chrome::{Backdrop, SidebarViews};
 use super::page::Page;
 use super::widgets::muted;
-use super::{app_settings, firmware, lighting, menu, overview, power, settings_page, sidebar};
+use super::{app_settings, bluetooth, firmware, lighting, menu, overview, power, settings_page, sidebar};
 use crate::settings::{value, Setting};
 use crate::{i18n, tr};
 use crate::updater::{Releases, Source, Updater};
@@ -75,6 +75,11 @@ impl Configurator {
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.model.connect() {
             self.controls = Controls::default();
+            if self.model.has_settings() {
+                // Only on Bluetooth: the remembered values, sent one way.
+                self.effect_group = EffectGroup::of(self.model.byte(value::KEY_EFFECT));
+                self.controls = Controls::build(&self.model, window, cx);
+            }
             return;
         }
         if let Some(saved) = self.restore_after_update.take() {
@@ -95,7 +100,14 @@ impl Configurator {
                     if this.updater.step().is_busy() {
                         return; // the updater owns the USB device until it is done
                     }
-                    if this.model.is_connected() {
+                    if this.model.on_bluetooth() {
+                        if since_search >= SEARCH_EVERY {
+                            since_search = Duration::ZERO;
+                            if this.model.recheck_bluetooth() {
+                                this.connect(window, cx); // the cable came back, or it's gone
+                            }
+                        }
+                    } else if this.model.is_connected() {
                         match this.model.poll() {
                             Poll::Same => return,
                             Poll::Lost => this.controls = Controls::default(),
@@ -124,7 +136,7 @@ impl Configurator {
         cx.spawn_in(window, async move |this, cx| loop {
             cx.background_executor().timer(FRAME).await;
             let open = this.update(cx, |this, cx| {
-                let preview = this.page.is_animated() && this.model.is_connected();
+                let preview = this.page.is_animated() && this.model.has_settings();
                 let working = this.updater.step().is_busy() || matches!(this.updater.releases(), Releases::Checking);
                 if preview || (this.page == Page::Firmware && working) {
                     cx.notify();
@@ -182,7 +194,7 @@ impl Configurator {
     /// Switch the app's language; controls and menus are rebuilt so their labels follow.
     pub fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
         i18n::set(code);
-        if self.model.is_connected() {
+        if self.model.has_settings() {
             self.controls = Controls::build(&self.model, window, cx);
         }
         menu::set_menus(cx);
@@ -216,10 +228,11 @@ impl Configurator {
             Page::Settings => return app_settings::render(self, cx),
             _ => {}
         }
-        if !self.model.is_connected() {
+        if !self.model.has_settings() {
             let (text, detail) = match self.model.connection() {
                 Connection::FlashMode => (tr!("connection.page_flash_mode"), None),
                 Connection::Stock => (tr!("connection.page_stock"), None),
+                Connection::Bluetooth => (tr!("connection.page_bluetooth_no_values"), None),
                 Connection::Missing(reason) => (tr!("connection.page_not_connected"), Some(reason.clone())),
                 _ => (tr!("connection.page_not_connected"), None),
             };
@@ -229,13 +242,17 @@ impl Configurator {
                 .when_some(detail, |el, detail| el.child(muted(&theme, detail)))
                 .into_any_element();
         }
-        match self.page {
+        let page = match self.page {
             Page::Overview => overview::render(self, cx),
             Page::Lighting => lighting::render(self, cx),
             Page::Keys => settings_page::render(self, self.page.sections(), self.layout.width, cx),
             Page::Power => power::render(self, cx),
             Page::Firmware | Page::Settings => unreachable!("handled above"),
+        };
+        if !self.model.on_bluetooth() {
+            return page;
         }
+        v_flex().gap_6().child(bluetooth::banner(self, cx)).child(page).into_any_element()
     }
 }
 
