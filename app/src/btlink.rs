@@ -339,7 +339,7 @@ mod imp {
         api.device_list().find(|d| {
             d.vendor_id() == super::BT_VID
                 && d.product_id() == super::BT_PID
-                && d.bus_type() == BusType::Bluetooth
+                && matches!(d.bus_type(), BusType::Bluetooth)
                 && d.usage_page() == 0x01
                 && d.usage() == 0x06
         })
