@@ -200,6 +200,17 @@ impl Model {
         self.macros.as_ref().filter(|_| self.keyboard.is_some())
     }
 
+    /// Over USB with firmware older than the macros (v0.10): they need an update first.
+    pub fn macros_need_update(&self) -> bool {
+        self.keyboard.is_some() && self.firmware_version.is_none_or(|v| v < keyboard::current().macros_since)
+    }
+
+    /// Play macro `n` now, as its key would (it types where the cursor is).
+    pub fn play_macro(&self, n: usize) -> anyhow::Result<()> {
+        let Some(kb) = &self.keyboard else { anyhow::bail!("connect the keyboard with the USB cable") };
+        kb.set(CHANNEL_KEYBOARD, keyboard::current().macro_play_value, &[n as u8])
+    }
+
     /// Store all macros on the keyboard.
     pub fn save_macros(&mut self, all: &[Vec<Step>]) -> anyhow::Result<()> {
         let (Some(kb), Some(m)) = (&self.keyboard, &mut self.macros) else { anyhow::bail!("connect the keyboard with the USB cable") };
@@ -341,7 +352,9 @@ impl Model {
                 self.write_error = None;
                 self.state = kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).ok().map(|v| KeyboardState::from_bytes(&v));
                 self.values = read_all(&kb);
-                self.macros = Macros::read(&kb).ok();
+                // Older firmware keeps macros in a tiny space and can't play or match them: no editor.
+                let since = keyboard::current().macros_since;
+                self.macros = self.firmware_version.filter(|v| *v >= since).and_then(|_| Macros::read(&kb).ok());
                 self.keyboard = Some(kb);
                 cache::save(&self.values);
             }

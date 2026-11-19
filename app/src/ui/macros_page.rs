@@ -201,10 +201,17 @@ pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Conf
     let theme = cx.theme().clone();
     let width = app.layout.width;
     let Some(stored) = app.model.macros().cloned() else {
+        let view = cx.entity().downgrade();
+        let update = app.model.macros_need_update();
         return v_flex()
             .w(px(width))
             .gap_3()
-            .child(note(&theme, tr!("macros.needs_cable")))
+            .child(note(&theme, if update { tr!("macros.needs_update") } else { tr!("macros.needs_cable") }))
+            .when(update, |el| {
+                el.child(h_flex().child(Button::new("open-firmware").primary().label(tr!("macros.open_firmware")).on_click(move |_, _, cx| {
+                    let _ = view.update(cx, |this, cx| this.open(super::page::Page::Firmware, cx));
+                })))
+            })
             .into_any_element();
     };
     // Load the keyboard's macros into the editor (again after they change and nothing is unsaved).
@@ -573,7 +580,29 @@ pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Conf
                 .border_t_1()
                 .border_color(theme.border)
                 .child(muted(&theme, tr!("macros.try", key = key_label(n).unwrap_or_else(|| tr!("macros.no_key")))))
-                .child(Input::new(&ui.try_input)),
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(div().flex_1().child(Input::new(&ui.try_input)))
+                        .child({
+                            let view = view.clone();
+                            let unsaved = ui.dirty || steps.is_empty();
+                            Button::new("play")
+                                .outline()
+                                .icon(Icon::empty().path("icons/play.svg"))
+                                .label(tr!("macros.play"))
+                                .disabled(unsaved)
+                                .tooltip(if unsaved { tr!("macros.play_save_first") } else { tr!("macros.play_help") })
+                                .on_click(move |_, window, cx| {
+                                    let _ = view.update(cx, |this, cx| {
+                                        // Into the box, not wherever the focus was.
+                                        this.macro_ui.try_input.update(cx, |s, cx| s.focus(window, cx));
+                                        this.macro_ui.error = this.model.play_macro(n).err().map(|e| format!("{e:#}"));
+                                        cx.notify();
+                                    });
+                                })
+                        }),
+                ),
         )
         .when_some(ui.error.clone(), |el, e| el.child(note(&theme, e)))
         .child(save_bar);

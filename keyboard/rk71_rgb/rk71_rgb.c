@@ -23,6 +23,7 @@
 #include "rk71_defaults.h"
 #ifdef VIA_ENABLE
 #    include "nvm_dynamic_keymap.h"
+#    include "dynamic_keymap.h"
 #    include "send_string.h"
 #endif
 #include "lib/lib8tion/lib8tion.h"
@@ -506,13 +507,22 @@ static void play_macro_for_mac(uint8_t id) {
 static bool macro_swaps_now(void) {
     return !(kb_extra.key_flags & KEY_FLAG_MACRO_KEEP_CTRL) && get_highest_layer(default_layer_state) == RK71_MAC_LAYER;
 }
+
+/* Play macro n, Ctrl/Cmd matched to the device. */
+static void play_macro(uint8_t n) {
+    if (macro_swaps_now()) {
+        play_macro_for_mac(n);
+    } else {
+        dynamic_keymap_macro_send(n);
+    }
+}
 #endif
 
 bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
     if (!process_record_user(keycode, record)) return false;
 #ifdef VIA_ENABLE
     if (IS_QK_MACRO(keycode) && macro_swaps_now()) {
-        if (record->event.pressed) play_macro_for_mac(keycode - QK_MACRO);
+        if (record->event.pressed) play_macro(keycode - QK_MACRO);
         return false;
     }
 #endif
@@ -1114,6 +1124,7 @@ enum {
     ID_MACRO_MATCH_OS = 57, /* macros swap Ctrl and Cmd on devices set to Mac */
     ID_MAC_DEVICE_FIRST = 58, /* 58..63: one device's bit of ID_MAC_DEVICES each, for VIA's toggles */
     ID_MAC_DEVICE_LAST  = 63,
+    ID_MACRO_PLAY       = 64, /* set: play macro n now, as its key would (the app's Play / Try it) */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1219,6 +1230,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     apply_device_layout(); /* the device in use switches layout right away */
                     break;
                 case ID_MACRO_MATCH_OS: set_flag(&kb_extra.key_flags, KEY_FLAG_MACRO_KEEP_CTRL, !value[0]); break;
+                case ID_MACRO_PLAY: play_macro(value[0]); break;
                 case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
                     set_flag(&kb_extra.mac_devices, 1 << (value_id - ID_MAC_DEVICE_FIRST), value[0]);
                     apply_device_layout();
@@ -1287,6 +1299,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                 case ID_MAC_DEVICES: value[0] = kb_extra.mac_devices; break;
                 case ID_WIN_LOCK: value[0] = keymap_config.no_gui; break;
                 case ID_MACRO_MATCH_OS: value[0] = !(kb_extra.key_flags & KEY_FLAG_MACRO_KEEP_CTRL); break;
+                case ID_MACRO_PLAY: value[0] = 0; break;
                 case ID_MAC_DEVICE_FIRST ... ID_MAC_DEVICE_LAST:
                     value[0] = kb_extra.mac_devices >> (value_id - ID_MAC_DEVICE_FIRST) & 1;
                     break;

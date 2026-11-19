@@ -36,5 +36,7 @@ pub static PROFILE: Profile = Profile {
     bluetooth_device_keys: &["Q", "W", "E", "R", "T"],
     matrix: (5, 16),
     fn_layer: 3, // keyboard/rk71_rgb/config.h RK71_FN_LAYER
+    macros_since: 0x0A00,
+    macro_play_value: 64,
     keys: &layout::KEYS,
 };

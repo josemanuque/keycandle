@@ -50,6 +50,7 @@ fn main() -> Result<()> {
         Some("--get") => get_value(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--bt-set") => bt_set(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--timing") => timing(),
+        Some("--macros") => macros_cli(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--bt-listen") => btlink::listen_for(std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(6)),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
@@ -241,6 +242,59 @@ fn timing() -> Result<()> {
     time("flash mode", &|| isp::is_present().to_string());
     time("original firmware", &|| isp::stock_present().to_string());
     time("Bluetooth keyboard", &|| btlink::available().to_string());
+    Ok(())
+}
+
+/// Diagnostics: `--macros` lists them; `--macros set <n> <text>` (a literal \n for Enter),
+/// `--macros key <n> <key label>` puts macro n on Fn + key, `--macros play <n>` types it now.
+fn macros_cli(args: &[String]) -> Result<()> {
+    let kb = Keyboard::open()?;
+    let profile = keyboard::current();
+    let (count, size) = kb.macro_space()?;
+    let mut all = macros::decode_all(&kb.read_macros(size)?, count);
+    match args.first().map(String::as_str) {
+        None => {
+            println!("{count} macros, {size} bytes ({} used)", macros::size_of(&all));
+            for (n, m) in all.iter().enumerate().filter(|(_, m)| !m.is_empty()) {
+                println!("  {n}: {m:?}");
+            }
+            let (rows, cols) = profile.matrix;
+            let layer = kb.read_layer(profile.fn_layer, rows, cols)?;
+            for key in profile.keys {
+                if let Some(n) = macros::macro_of(layer[key.row * cols + key.col]) {
+                    println!("  Fn + {} runs macro {n}", key.label);
+                }
+            }
+        }
+        Some("set") => {
+            let n: usize = args.get(1).and_then(|a| a.parse().ok()).ok_or_else(|| anyhow::anyhow!("which macro?"))?;
+            let text = args.get(2).cloned().unwrap_or_default();
+            let mut steps = Vec::new();
+            for (i, part) in text.split("\\n").enumerate() {
+                if i > 0 {
+                    steps.push(macros::Step::Key(0x28));
+                }
+                if !part.is_empty() {
+                    steps.push(macros::Step::Text(part.to_string()));
+                }
+            }
+            all[n] = steps;
+            kb.write_macros(&macros::encode_all(&all), size)?;
+            println!("macro {n} saved");
+        }
+        Some("key") => {
+            let n: u16 = args.get(1).and_then(|a| a.parse().ok()).ok_or_else(|| anyhow::anyhow!("which macro?"))?;
+            let label = args.get(2).map(String::as_str).unwrap_or("");
+            let key = profile.keys.iter().find(|k| k.label.eq_ignore_ascii_case(label)).ok_or_else(|| anyhow::anyhow!("no key {label}"))?;
+            kb.set_key(profile.fn_layer as u8, key.row as u8, key.col as u8, macros::macro_keycode(n as usize))?;
+            println!("Fn + {} runs macro {n}", key.label);
+        }
+        Some("play") => {
+            let n: u8 = args.get(1).and_then(|a| a.parse().ok()).ok_or_else(|| anyhow::anyhow!("which macro?"))?;
+            kb.set(CHANNEL_KEYBOARD, profile.macro_play_value, &[n])?;
+        }
+        Some(other) => anyhow::bail!("unknown: {other}"),
+    }
     Ok(())
 }
 

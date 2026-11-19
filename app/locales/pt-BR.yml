@@ -432,3 +432,8 @@ macros:
   tpl_form_what: "Seu e-mail e depois Tab para o próximo campo (nunca uma senha)"
   tpl_reply: "Resposta rápida"
   tpl_reply_what: "Uma mensagem que você envia com frequência"
+  needs_update: "As macros precisam do firmware v0.10 ou mais novo. Atualize na página Firmware e volte."
+  open_firmware: "Abrir Firmware"
+  play: "Reproduzir"
+  play_help: "Digita a macro na caixa, como a tecla dela faria"
+  play_save_first: "Salve a macro primeiro"

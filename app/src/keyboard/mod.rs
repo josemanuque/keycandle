@@ -58,6 +58,10 @@ pub struct Profile {
     pub bluetooth_slots: &'static [Option<((u8, u8), usize)>],
     /// The key matrix (rows, columns), as the firmware's key map is laid out.
     pub matrix: (usize, usize),
+    /// The first firmware version (0x00MMmmpp) with this app's macros (2 KB, Ctrl/Cmd, play).
+    pub macros_since: u32,
+    /// VIA value (channel 0) that plays macro n when set to n.
+    pub macro_play_value: u8,
     /// The Fn layer: macros go there, so the key keeps its normal job.
     pub fn_layer: usize,
     /// The physical keys (label, place, matrix position).
