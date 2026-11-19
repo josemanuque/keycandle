@@ -335,6 +335,7 @@ power:
   battery_needs_usb: Mostrado por USB, e por Bluetooth com firmware v0.9 ou mais novo
 
 menu:
+  shortcuts: "Atalhos do teclado…"
   about: Sobre o Keycandle
   settings: Ajustes…
   services: Serviços
@@ -444,6 +445,8 @@ macros:
   play_save_first: "Salve a macro primeiro"
 
 shortcuts:
+  show: "Ver todos os atalhos"
+  card_hint: "Todo Fn + tecla deste teclado: dispositivos, layouts, bloqueios, iluminação e mídia"
   title: "Atalhos com Fn"
   hint: "O que Fn + uma tecla faz neste teclado"
   bt_device: "Dispositivo Bluetooth 1–5; segure 3 s para parear um novo nesse slot"

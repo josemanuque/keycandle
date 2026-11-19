@@ -7,7 +7,7 @@ use gpui_component::{h_flex, v_flex, ActiveTheme as _};
 use super::app::Configurator;
 use super::controls;
 use super::layout::{columns, GAP};
-use super::widgets::{card, card_title, muted, note};
+use super::widgets::{card, muted, note};
 use crate::settings::{Section, Setting};
 
 /// Narrowest a card gets before cards stack.
@@ -47,10 +47,11 @@ fn section_card(app: &Configurator, section: &'static Section, width: f32, cx: &
     }
     let title = h_flex()
         .justify_between()
-        .items_baseline()
+        .items_center()
         .gap_4()
         .flex_wrap()
-        .child(card_title(section.title()))
+        .pb_2()
+        .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(section.title()))
         .when_some(section.hint(), |el, hint| el.child(muted(&theme, hint)));
     card(&theme).w(px(width)).child(title).children(rows).into_any_element()
 }

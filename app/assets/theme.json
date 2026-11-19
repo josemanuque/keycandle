@@ -55,7 +55,8 @@
         "title_bar.border": "#232832",
         "scrollbar.background": "#0F111500",
         "scrollbar.thumb.background": "#2E3542",
-        "scrollbar.thumb.hover.background": "#3A4253"
+        "scrollbar.thumb.hover.background": "#3A4253",
+        "overlay": "#00000099"
       }
     },
     {
@@ -110,7 +111,8 @@
         "title_bar.border": "#DDE2EA",
         "scrollbar.background": "#F4F6F900",
         "scrollbar.thumb.background": "#C5CCD7",
-        "scrollbar.thumb.hover.background": "#AEB6C3"
+        "scrollbar.thumb.hover.background": "#AEB6C3",
+        "overlay": "#0000004d"
       }
     }
   ]

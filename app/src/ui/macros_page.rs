@@ -14,7 +14,7 @@ use gpui_component::{
 
 use super::app::Configurator;
 use super::controls;
-use super::widgets::{badge, card, card_title, muted, note};
+use super::widgets::{badge, card, muted, note};
 use crate::keyboard;
 use crate::macros::{self, key_name, typeable, usage_of, Step};
 use crate::prefs::Prefs;
@@ -612,7 +612,15 @@ pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Conf
     let examples = card(&theme)
         .w(px(width))
         .gap_3()
-        .child(h_flex().justify_between().items_baseline().child(card_title(tr!("macros.examples"))).child(muted(&theme, tr!("macros.examples_hint"))))
+        .child(
+            h_flex()
+                .justify_between()
+                .items_center()
+                .flex_wrap()
+                .gap_4()
+                .child(div().font_weight(FontWeight::SEMIBOLD).child(tr!("macros.examples")))
+                .child(muted(&theme, tr!("macros.examples_hint"))),
+        )
         .child(h_flex().flex_wrap().gap_2p5().children(tpl.into_iter().enumerate().map(|(i, (name, what, steps))| {
             let view = view.clone();
             let free = (0..stored.count).find(|n| draft[*n].is_empty() && stored.keys[*n].is_none());

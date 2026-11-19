@@ -307,7 +307,7 @@ impl Configurator {
             Page::Keys => v_flex()
                 .gap(px(super::layout::GAP))
                 .child(settings_page::render(self, self.page.sections(), self.layout.width, cx))
-                .child(shortcuts::render(self, self.layout.width, cx))
+                .child(shortcuts::render(self.layout.width, cx))
                 .into_any_element(),
             Page::Power => power::render(self, cx),
             Page::Macros | Page::Firmware | Page::Settings => unreachable!("handled above"),

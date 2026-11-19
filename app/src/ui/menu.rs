@@ -38,6 +38,7 @@ actions!(
         AppearanceLight,
         AppearanceDark,
         OpenGuide,
+        ShowShortcuts,
         OpenReleases,
         ReportIssue,
         FocusNext,
@@ -108,6 +109,7 @@ pub fn init(cx: &mut App) {
     show::<ShowPower>(cx, Page::Power);
     show::<ShowFirmware>(cx, Page::Firmware);
     show::<ShowSettings>(cx, Page::Settings);
+    cx.on_action(|_: &ShowShortcuts, cx| with_main(cx, |this, window, cx| super::shortcuts::open(this, window, cx)));
     cx.on_action(|_: &Reconnect, cx| with_main(cx, |this, window, cx| this.reconnect(window, cx)));
     cx.on_action(|_: &CheckForUpdates, cx| with_main(cx, |this, _, cx| this.check_for_updates(cx)));
     cx.on_action(|_: &AppearanceSystem, cx| choose(Appearance::System, cx));
@@ -177,6 +179,7 @@ pub fn set_menus(cx: &mut App) {
             MenuItem::action(tr!("menu.close"), CloseWindow),
         ]),
         Menu::new(tr!("menu.help")).items([
+            MenuItem::action(tr!("menu.shortcuts"), ShowShortcuts),
             MenuItem::action(tr!("menu.guide"), OpenGuide),
             MenuItem::action(tr!("menu.releases"), OpenReleases),
             MenuItem::separator(),

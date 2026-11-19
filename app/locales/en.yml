@@ -336,6 +336,7 @@ power:
   battery_needs_usb: Shown over USB, and over Bluetooth with firmware v0.9 or newer
 
 menu:
+  shortcuts: "Keyboard shortcuts…"
   about: About Keycandle
   settings: Settings…
   services: Services
@@ -445,6 +446,8 @@ macros:
   play_save_first: "Save the macro first"
 
 shortcuts:
+  show: "Show all shortcuts"
+  card_hint: "Every Fn + key on this keyboard: devices, layouts, locks, lighting and media"
   title: "Fn shortcuts"
   hint: "What Fn + a key does on this keyboard"
   bt_device: "Bluetooth device 1–5; hold 3 s to pair a new one in that slot"
