@@ -33,7 +33,9 @@ The RK71 is a great little 70% keyboard held back by its factory firmware. It's 
 configures from a Windows app, and over Bluetooth you can't change anything. **Keycandle replaces the
 firmware with an open one built on [QMK](https://qmk.fm)** and fully compatible with [VIA](https://usevia.app).
 It also comes with a desktop app that shows the keyboard live and changes every setting, over the cable or
-over Bluetooth.
+over Bluetooth. The app is native, written in [Rust](https://www.rust-lang.org) with
+[GPUI](https://www.gpui.rs) (the GPU-accelerated UI framework behind the Zed editor), so it starts instantly and
+stays light.
 
 Installing takes a minute from the app. The original firmware is always one click away.
 
@@ -159,6 +161,10 @@ flowchart LR
   (the real lock states don't change). The keyboard decodes the pattern, confirms it, and sends its own
   values back as media-key codes that no operating system acts on. A full sync takes about 1.5 seconds, and
   typing is never blocked. [Details](docs/BLUETOOTH.md#settings-over-bluetooth).
+* **The app** is written in Rust with [GPUI](https://www.gpui.rs) and
+  [gpui-component](https://github.com/longbridge/gpui-component): one native binary per system, rendered on the
+  GPU, with no browser engine inside. It talks to the keyboard through hidapi, and its live previews run the same
+  effect formulas as the firmware.
 * **The firmware** is a QMK port written for this exact board. Every pin and the Bluetooth module's protocol
   were worked out by disassembling the factory firmware, not guessed. It has its own key-LED driver (for the
   refresh rate), a Bluetooth driver, a side-light driver, deep sleep, and macros stored in their own flash.
