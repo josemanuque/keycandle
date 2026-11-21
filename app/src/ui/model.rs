@@ -244,6 +244,12 @@ impl Model {
         !(known && answered)
     }
 
+    /// The values remembered from the last USB connection that the keyboard reports over Bluetooth
+    /// (for `--bt-listen N cached`).
+    pub fn cached_bluetooth_values() -> Option<Vec<u8>> {
+        Self { values: cache::load(), ..Default::default() }.bluetooth_known()
+    }
+
     /// The remembered values the keyboard reports over Bluetooth, in its slot order (all but the
     /// state), if every one is known.
     fn bluetooth_known(&self) -> Option<Vec<u8>> {

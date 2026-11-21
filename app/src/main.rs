@@ -51,7 +51,11 @@ fn main() -> Result<()> {
         Some("--bt-set") => bt_set(&std::env::args().skip(2).collect::<Vec<_>>()),
         Some("--timing") => timing(),
         Some("--macros") => macros_cli(&std::env::args().skip(2).collect::<Vec<_>>()),
-        Some("--bt-listen") => btlink::listen_for(std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(6)),
+        // `--bt-listen [seconds] [cached]`: with "cached", ask as the app does, with its remembered values.
+        Some("--bt-listen") => btlink::listen_for(
+            std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(6),
+            std::env::args().nth(3).filter(|a| a == "cached").and_then(|_| ui::model::Model::cached_bluetooth_values()),
+        ),
         Some("--page") => {
             ui::run(std::env::args().nth(2).as_deref());
             Ok(())

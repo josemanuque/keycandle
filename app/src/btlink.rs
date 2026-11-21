@@ -250,10 +250,15 @@ fn listen(link: Link) {
 }
 
 /// Diagnostics (--bt-listen): ask the keyboard for its values and print what arrives for `seconds`.
-pub fn listen_for(seconds: u64) -> Result<()> {
+/// With `known` (the values the app has), the request carries their CRC, as the app sends it.
+pub fn listen_for(seconds: u64, known: Option<Vec<u8>>) -> Result<()> {
     imp::ensure_access()?;
     let channel = Acks::open()?;
-    let asked = std::thread::spawn(|| send(SYNC_CHANNEL, 0, &[0]));
+    let request = match &known {
+        Some(values) => vec![SYNC_IF_CHANGED, crc8(values)],
+        None => vec![0],
+    };
+    let asked = std::thread::spawn(move || send(SYNC_CHANNEL, 0, &request));
     let start = Instant::now();
     let mut reports = Reports::default();
     let mut buf = [0u8; 16];
