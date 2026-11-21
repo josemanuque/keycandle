@@ -42,7 +42,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 a { color: inherit; }
-img { max-width: 100%; display: block; }
+img { max-width: 100%; height: auto; display: block; }
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
 .muted { color: var(--muted); }
 
@@ -152,6 +152,13 @@ h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -.03em; line-height: 1.1
 .frame { border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden; background: var(--bg-2);
   box-shadow: 0 30px 80px -40px var(--glow); }
 .frame img { width: 100%; }
+.frame a { display: block; }
+/* On a phone a whole window is too small to read: show the page itself (the sidebar is cropped off) larger,
+   and a tap opens the full screenshot. */
+@media (max-width: 700px) {
+  .frame img { aspect-ratio: 5 / 4; object-fit: cover; object-position: 100% 0; }
+  .caption::after { content: " Tap to see the whole window."; }
+}
 .caption { color: var(--muted); font-size: 15px; margin-top: 14px; min-height: 1.6em; }
 
 /* how it works */
@@ -201,6 +208,14 @@ footer a { color: var(--muted); }
 
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
 .reveal.in { opacity: 1; transform: none; }
+@media (max-width: 520px) {
+  .eyebrow { display: inline-block; line-height: 1.5; max-width: 100%; }
+  .eyebrow .dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+  .flow { gap: 6px; }
+  .node { padding: 6px 9px; font-size: 13px; }
+  .arrow { font-size: 12px; gap: 4px; }
+  .arrow i { width: 14px; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before { animation: none !important; transition: none !important; }
   .reveal { opacity: 1; transform: none; }
@@ -320,7 +335,7 @@ footer a { color: var(--muted); }
       <button class="tab" role="tab" aria-selected="false" data-img="power" data-cap="Power: battery and charging, the battery bar, and sleep times.">Power</button>
       <button class="tab" role="tab" aria-selected="false" data-img="firmware" data-cap="Firmware: one-click updates, your own builds, or back to the original.">Firmware</button>
     </div>
-    <div class="frame reveal"><img id="shot" src="media/overview.png" width="1584" height="992" alt="The Keycandle app"></div>
+    <div class="frame reveal"><a id="shot-link" href="media/overview.png"><img id="shot" src="media/overview.png" width="1584" height="992" alt="The Keycandle app"></a></div>
     <p class="caption" id="cap">Overview: the keyboard as it is now, and everything that's set.</p>
   </div>
 </section>
@@ -445,6 +460,7 @@ document.querySelectorAll(".tab").forEach(function (tab) {
   tab.addEventListener("click", function () {
     document.querySelectorAll(".tab").forEach(function (t) { t.setAttribute("aria-selected", t === tab); });
     document.getElementById("shot").src = "media/" + tab.dataset.img + ".png";
+    document.getElementById("shot-link").href = "media/" + tab.dataset.img + ".png";
     document.getElementById("cap").textContent = tab.dataset.cap;
   });
 });
