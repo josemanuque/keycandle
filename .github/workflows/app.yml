@@ -28,6 +28,7 @@ jobs:
           - os: ubuntu-22.04
             name: linux-x64
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30 # a build takes ~3 min; one Linux run once hung for GitHub's 6-hour limit
     defaults:
       run:
         shell: bash
@@ -117,4 +118,9 @@ jobs:
             gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 && break
             sleep 10
           done
-          gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          # Right after the release appears, uploading can still say "release not found": retry.
+          for i in $(seq 1 12); do
+            gh release upload "$GITHUB_REF_NAME" out/* --clobber && exit 0
+            sleep 10
+          done
+          exit 1
