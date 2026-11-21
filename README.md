@@ -125,10 +125,12 @@ translucent sidebar and a full menu bar.
 
 ## Get started
 
-1. **Download the app** for your computer from the [latest release](../../releases/latest):
-   * Windows: `keycandle-windows-x64.exe` (nothing to install, just run it)
-   * macOS (Apple Silicon and Intel): `keycandle-macos-universal.zip`
-   * Linux: `keycandle-linux-x64.tar.gz` (see its README.txt for USB access)
+1. **Download the app** for your computer from the [latest release](../../releases/latest). It's a single app
+   on every system, with no installer:
+   * Windows: `keycandle-windows-x64.exe`, run it
+   * macOS (Apple Silicon and Intel): `keycandle-macos-universal.zip`, unzip it and open Keycandle
+   * Linux: `keycandle-linux-x64.tar.gz`, unpack it and run `keycandle` (its README.txt has the one-line USB
+     permission setup)
 2. **Plug the keyboard in with the USB cable.** The app finds it, even on the original firmware.
 3. Open **Firmware** and click **Install**. The keyboard restarts on its own; about a minute later you're set.
 
@@ -217,17 +219,22 @@ app. The Bluetooth keys are under *Special ▸ Custom*.
 
 ## The firmware
 
+The factory column comes from disassembling the original V1.12 firmware
+([details](stock/FIRMWARE_NOTES.md#lighting-disassembled-2026-11-21)).
+
 | | Factory firmware | Keycandle |
 |---|---|---|
 | Source code | Closed | Open, GPL-2.0 ([`keyboard/rk71_rgb`](keyboard/rk71_rgb)) |
 | Configure from | Royal Kludge's Windows app | The Keycandle app (Windows, macOS, Linux), or [VIA](#via) with the provided JSON |
 | …over Bluetooth | No | Yes, both ways |
-| Light refresh | Not published | Keys ~1,400 Hz, side lights ~3,100 Hz, measured on the board |
-| Side lights | Status only | Follow the keys or a fixed colour, 5 effects, Caps Lock and F-row lock indicators, calibration |
-| Remapping | What the vendor app allows | Every key on all 5 layers, any QMK keycode |
-| Macros | – | 16, on Fn + any free key, Ctrl/Cmd matched to the device |
-| Windows/Mac | One switch | Remembered per Bluetooth device and for the cable |
-| Battery | – | High / medium / low, charging, in the app and on the side lights (Fn+Space) |
+| Key-light refresh | About 430 Hz | About 1,430 Hz, measured on the board |
+| Key lighting | 19 modes, stepped with Fn + Home | 20 effects with your colour, brightness and speed, chosen from live previews |
+| Side-light refresh | About 125 Hz (visible flicker range), 21 levels per colour | About 3,100 Hz |
+| Side lights | 9 modes with Fn + Ins: two rainbows, red, green, blue, yellow, magenta, cyan, off. No white, no colour of your own, no brightness | Follow the keys or any colour, 5 effects, own brightness, Caps Lock and F-row lock indicators, status colours, calibration |
+| Remapping | What the Windows app allows | Every key on all 5 layers, any QMK keycode |
+| Macros | In the Windows app | 16, on Fn + any free key, Ctrl/Cmd matched to the device, from any system |
+| Windows/Mac | One setting for every device | Remembered per Bluetooth device and for the cable |
+| Battery | A low-battery warning | High / medium / low and charging, in the app and on the side lights (Fn + Space) |
 | Sleep | Deep sleep | Deep sleep, instant wake, the waking key is typed; times are adjustable |
 | Switch chatter | Vendor default | 10 ms debounce per key |
 

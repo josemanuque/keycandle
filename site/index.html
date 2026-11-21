@@ -375,8 +375,9 @@ footer a { color: var(--muted); }
     <div class="kicker">The firmware</div>
     <h2>Factory vs. Keycandle.</h2>
     <p class="intro">With no schematic or source to go on, the original V1.12 firmware was disassembled to learn the
-      pin map, the LED drivers, the Bluetooth module's protocol and every factory feature. Keycandle keeps all of
-      it, on the same keyboard and the same Bluetooth pairings, and does a lot more.</p>
+      pin map, the LED drivers, the Bluetooth module's protocol and every factory feature. The factory column below
+      comes from that disassembly. Keycandle keeps all of it, on the same keyboard and the same Bluetooth pairings,
+      and does a lot more.</p>
     <div class="scroll reveal">
       <table class="table">
         <thead><tr><th></th><th>Factory firmware</th><th>Keycandle</th></tr></thead>
@@ -384,12 +385,14 @@ footer a { color: var(--muted); }
           <tr><td>Source code</td><td>Closed</td><td>Open, GPL-2.0</td></tr>
           <tr><td>Configure from</td><td>A Windows app</td><td>The Keycandle app on Windows, macOS and Linux, or VIA in the browser with the provided JSON</td></tr>
           <tr><td>Over Bluetooth</td><td>Nothing</td><td>Settings both ways, battery, device in use</td></tr>
-          <tr><td>Light refresh</td><td>Not published</td><td>Keys ~1,400 Hz, side lights ~3,100 Hz, measured</td></tr>
-          <tr><td>Side lights</td><td>Status only</td><td>Follow the keys or a fixed colour, 5 effects, lock indicators, calibration</td></tr>
-          <tr><td>Remapping</td><td>What the vendor app allows</td><td>Every key on all 5 layers</td></tr>
-          <tr><td>Macros</td><td>None</td><td>16, on Fn + any free key, with Ctrl and Cmd matched to the device</td></tr>
-          <tr><td>Windows / Mac</td><td>One switch</td><td>Per Bluetooth device and for the cable</td></tr>
-          <tr><td>Battery</td><td>None</td><td>High / medium / low and charging, in the app and on the side lights</td></tr>
+          <tr><td>Key-light refresh</td><td>About 430 Hz</td><td>About 1,430 Hz, measured</td></tr>
+          <tr><td>Key lighting</td><td>19 modes, stepped with Fn + Home</td><td>20 effects with your colour, brightness and speed, picked from live previews</td></tr>
+          <tr><td>Side-light refresh</td><td>About 125 Hz, in the visible flicker range</td><td>About 3,100 Hz</td></tr>
+          <tr><td>Side lights</td><td>9 modes: two rainbows, red, green, blue, yellow, magenta, cyan, off. No white or brightness</td><td>Follow the keys or any colour, 5 effects, own brightness, lock indicators, calibration</td></tr>
+          <tr><td>Remapping</td><td>What the Windows app allows</td><td>Every key on all 5 layers</td></tr>
+          <tr><td>Macros</td><td>In the Windows app</td><td>16, on Fn + any free key, with Ctrl and Cmd matched to the device</td></tr>
+          <tr><td>Windows / Mac</td><td>One setting for every device</td><td>Per Bluetooth device and for the cable</td></tr>
+          <tr><td>Battery</td><td>A low-battery warning</td><td>High / medium / low and charging, in the app and on the side lights</td></tr>
           <tr><td>Sleep</td><td>Deep sleep</td><td>Deep sleep, instant wake, the waking key is typed</td></tr>
         </tbody>
       </table>
@@ -404,7 +407,7 @@ footer a { color: var(--muted); }
     <p class="intro">For the RK71 RGB with Bluetooth (PCB 603-836/RGB-BT-HFD, chip SN32F248BF).</p>
     <div class="steps">
       <div class="card step reveal"><h3>Download the app</h3><p>For Windows, macOS (Apple Silicon and Intel) or Linux.
-        There's nothing to install on Windows.</p></div>
+        It's a single app with no installer: just open it.</p></div>
       <div class="card step reveal"><h3>Plug in the cable</h3><p>The app finds the keyboard, even on its original
         firmware.</p></div>
       <div class="card step reveal"><h3>Click Install</h3><p>On the Firmware page. The keyboard restarts on its own,

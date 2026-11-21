@@ -94,10 +94,45 @@ is used when the Mac flag is set. Action codes below `0x78` are ordinary keys. `
 | Win | `D1` | Win-key lock | likely |
 | ↑ / ↓ | `D4` / `D5` | Lighting brightness up / down | likely |
 | ← / → | `D7` / `D6` | Lighting effect speed | likely |
-| Ins / Home / End | `9D` / `D3` / `DA` | Lighting effect / colour selection | likely |
+| Ins | `9D` | Next side-light mode (9, see [Lighting](#lighting-disassembled-2026-11-21)) | confirmed |
+| Home | `D3` | Next key-lighting mode (19) | confirmed |
+| End | `DA` | Lighting colour selection | likely |
 | Z / X / C, LCtrl | `93` / `94` / `95`, `9C` | Unknown (each has its own handler; not traced) | – |
 
 Wired vs Bluetooth mode is saved at flash `0x8009`. The slide switch only connects the battery.
 
 The QMK port deliberately keeps the confirmed bindings (F-keys, Bluetooth keys, Fn+P, Pause = PrtSc) the same, so
 switching between the two feels familiar.
+
+## Lighting (disassembled 2026-11-21)
+
+Both kinds of light run from one timer interrupt (CT16B1, vector 32, handler `0x65C2` → `0x6392`). The chip runs on
+its internal 48 MHz oscillator with no divider (`0x6B1C`); the timer divides by 24 (prescaler `0x17`) and counts
+256 (`MR24 = 0xFF`), so it ticks at most **48 MHz / 24 / 256 ≈ 7.8 kHz**. The handler restarts the timer each
+time, so the real rate is a little lower.
+
+**Keys:** each tick lights one of 18 row phases (6 rows × red, green, blue; counter `0x2000026E` wraps at 18).
+A full frame is 18 ticks: **about 430 Hz**. Keycandle lights 15 phases (the 5 real rows) at about 1,430 Hz.
+
+**Key effects:** Fn + Home (action `D3`) steps a counter (`0x200001EA`) that wraps at 19: **19 lighting modes**.
+
+**Side lights** (`0x5F6A`): software PWM. Every tick moves to the next colour (`0x20000271`, 0–2) and a duty
+counter (`0x20000270`) that wraps at 63; a light's colour is on while its duty (red `0x2000025C`, green
+`…262`, blue `…268`, one byte per position) is above the counter. Because 63 is a multiple of 3, each colour
+sees 21 of the 63 counter values: **21 levels per colour, a full cycle every 63 ticks, about 125 Hz** (visible
+flicker range; Keycandle cycles them at about 3,100 Hz).
+
+The duties come from 9 modes, stepped by **Fn + Ins** (action `9D`, counter `0x200001E9` wraps at 9; switch at
+`0xA4B2`):
+
+| Mode | Side lights |
+|---|---|
+| 0 | Rainbow, all lights together (red, green, blue a third apart on a 192-step wave at `0xE89C`) |
+| 1 | Rainbow wave across the six lights (per-light offsets at `0xE67A`) |
+| 2–7 | Fixed red, green, blue, yellow, magenta, cyan, at full duty |
+| 8 | Off |
+
+There's no white, no colour of your own and no side-light brightness: fixed colours are always full on, and the
+update at `0xDF26` copies the mode's values to the lights unscaled. Two other routines set all six lights to one
+pure colour at a low duty (16 of 63): `0xADB0` steps green, blue, red together with the keys, and `0xE280` sets red.
+Not traced further; they look like test or reset indications.
