@@ -17,12 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Two jobs, as in GitHub's own Pages template: a deploy started right after the upload, in the same job, can
+  # find no artifact yet ("No artifacts named github-pages"; it happened twice on 2026-11-21).
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Assemble the site
@@ -35,5 +34,14 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
