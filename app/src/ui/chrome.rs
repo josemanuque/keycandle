@@ -190,7 +190,7 @@ mod win {
 /// The standard About panel (macOS); the version comes from the build.
 pub fn about() {
     #[cfg(target_os = "macos")]
-    mac::about(&crate::tr!("app.name"), env!("CARGO_PKG_VERSION"));
+    mac::about(&crate::tr!("app.name"), env!("CARGO_PKG_VERSION"), &crate::tr!("app.copyright_about", copyright = crate::COPYRIGHT));
 }
 
 #[cfg(target_os = "macos")]
@@ -318,9 +318,14 @@ mod mac {
         }
     }
 
-    pub fn about(name: &str, version: &str) {
-        let keys = [NSString::from_str("ApplicationName"), NSString::from_str("ApplicationVersion"), NSString::from_str("Version")];
-        let values = [NSString::from_str(name), NSString::from_str(version), NSString::from_str(version)];
+    pub fn about(name: &str, version: &str, copyright: &str) {
+        let keys = [
+            NSString::from_str("ApplicationName"),
+            NSString::from_str("ApplicationVersion"),
+            NSString::from_str("Version"),
+            NSString::from_str("Copyright"),
+        ];
+        let values = [NSString::from_str(name), NSString::from_str(version), NSString::from_str(version), NSString::from_str(copyright)];
         let options = NSDictionary::from_retained_objects(&keys.each_ref().map(|k| &**k), &values);
         // SAFETY: AppKit calls on the main thread.
         unsafe {

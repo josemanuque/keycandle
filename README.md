@@ -266,6 +266,8 @@ Everything about the keys, Fn shortcuts, lights and status colours is in the **[
 
 ## License
 
+© 2026 josemanuque · GPL-2.0-or-later · Not affiliated with Royal Kludge.
+
 The firmware, app and tools are GPL-2.0-or-later ([LICENSE](LICENSE)), like QMK. Keycandle is an independent
 project, not affiliated with or endorsed by Royal Kludge. Royal Kludge's firmware and programs (in `stock/` and
 on the [`stock-v1.12`](../../releases/tag/stock-v1.12) release) are their property. They're mirrored only so

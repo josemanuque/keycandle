@@ -12,6 +12,7 @@ fn main() {
         res.set_icon("assets/icon/icon-light.ico");
         res.set("ProductName", "Keycandle");
         res.set("FileDescription", "Keycandle");
+        res.set("LegalCopyright", "© 2026 josemanuque. GPL-2.0-or-later."); // as crate::COPYRIGHT
         res.compile().expect("could not embed the Windows icon");
     }
 }

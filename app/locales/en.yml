@@ -6,6 +6,8 @@ app:
   name: Keycandle
   subtitle: for the RK71
   language: Language
+  copyright: "%{copyright} · Open source, GPL-2.0-or-later · Not affiliated with Royal Kludge"
+  copyright_about: "%{copyright}. Open source, GPL-2.0-or-later. Not affiliated with Royal Kludge."
 
 page:
   overview:

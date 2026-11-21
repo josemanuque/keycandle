@@ -27,6 +27,12 @@ pub fn render(app: &Configurator, cx: &mut Context<Configurator>) -> AnyElement 
         .child(div().w(px(card_width)).child(language(&theme, cx)))
         .child(div().w(px(card_width)).child(appearance(&theme, cx)))
         .child(div().w(px(card_width)).child(slider_values(app, &theme, cx)))
+        .child(
+            div().w(px(app.layout.width)).pt_2().flex().justify_center().child(muted(
+                &theme,
+                format!("Keycandle {} · {}", env!("CARGO_PKG_VERSION"), tr!("app.copyright", copyright = crate::COPYRIGHT)),
+            )),
+        )
         .into_any_element()
 }
 

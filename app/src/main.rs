@@ -22,6 +22,9 @@ mod i18n;
 mod isp;
 mod keyboard;
 mod macros;
+
+/// Shown in the About panel (macOS), on Settings and in the Windows file properties (build.rs has its own copy).
+pub const COPYRIGHT: &str = "© 2026 josemanuque";
 mod prefs;
 mod preview;
 mod releases;
