@@ -26,12 +26,15 @@
  * doesn't flicker while a message arrives.
  *
  * Keyboard -> computer: values changed here (Fn keys) go out on the same media-key channel, as two
- * reserved usages per value, each followed by a release:
+ * reserved usages per value, then a release (the module sends about one report per 90 ms, so each
+ * report saved counts):
  *
  *   0x300 | slot << 4 | high 4 bits,  then  0x380 + (slot << 4) | low 4 bits      (slot 0..6)
  *
  * A message on BTCFG_SYNC_CHANNEL asks for all of them (the app does when it finds the keyboard), or
- * with id BTCFG_SYNC_STATE only the keyboard's state; either also checks the battery. The state goes
+ * with id BTCFG_SYNC_STATE only the keyboard's state; either also checks the battery. The app can send
+ * a CRC-8 of the values it already has (value bytes BTCFG_SYNC_IF_CHANGED, crc): when the keyboard's
+ * values give the same CRC, only the state is sent, so reconnecting usually takes one value, not seven. The state goes
  * first, so the battery shows at once. Nothing is reported while a message is arriving (sending could
  * cost an LED report): reports start BTCFG_REPORT_GAP_MS after the last symbol, two values a round.
  */
@@ -106,7 +109,15 @@ void btcfg_leds(uint8_t leds, uint32_t now) {
     }
     btcfg_stats.ok++;
     if (bytes[0] == BTCFG_SYNC_CHANNEL) {
-        requested |= bytes[1] == BTCFG_SYNC_STATE ? 1 << (BTCFG_SLOTS - 1) : (1 << BTCFG_SLOTS) - 1;
+        uint8_t want = (1 << BTCFG_SLOTS) - 1;
+        if (bytes[1] == BTCFG_SYNC_STATE) {
+            want = 1 << (BTCFG_SLOTS - 1);
+        } else if (bytes[2] == BTCFG_SYNC_IF_CHANGED) {
+            uint8_t values[BTCFG_SLOTS];
+            rk71_btcfg_read(values);
+            if (crc8(values, BTCFG_SLOTS - 1) == bytes[3]) want = 1 << (BTCFG_SLOTS - 1); /* the app has them */
+        }
+        requested |= want;
         rk71_btcfg_synced();
     } else {
         rk71_btcfg_apply(bytes[0], bytes[1], bytes[2], bytes[3]);
@@ -120,10 +131,10 @@ bool btcfg_active(uint32_t now) {
     return btcfg_stats.symbols && TIMER_DIFF_32(now, prev_at) < BTCFG_QUIET_MS;
 }
 
-/* One value: both halves, each followed by a release. False if the module's queue filled up. */
+/* One value: both halves, then a release. False if the module's queue filled up. */
 static bool report(uint8_t slot, uint8_t value) {
-    return rk71_btcfg_usage(0x300 | slot << 4 | value >> 4) && rk71_btcfg_usage(0) &&
-           rk71_btcfg_usage((0x380 + (slot << 4)) | (value & 0x0F)) && rk71_btcfg_usage(0);
+    return rk71_btcfg_usage(0x300 | slot << 4 | value >> 4) && rk71_btcfg_usage((0x380 + (slot << 4)) | (value & 0x0F)) &&
+           rk71_btcfg_usage(0);
 }
 
 void btcfg_task(uint32_t now, bool connected) {
@@ -135,7 +146,7 @@ void btcfg_task(uint32_t now, bool connected) {
     }
     /* Not in the middle of a message, nor right after a symbol (the next may be on its way). */
     if (!connected || symbols || (btcfg_stats.symbols && TIMER_DIFF_32(now, prev_at) < BTCFG_REPORT_GAP_MS)) return;
-    uint8_t budget = 2; /* values per round: 8 of the module's 16 queue places, typing keeps the rest */
+    uint8_t budget = 2; /* values per round: 6 of the module's 16 queue places, typing keeps the rest */
     for (uint8_t i = 0; i < BTCFG_SLOTS && budget; i++) {
         uint8_t slot = (i + BTCFG_SLOTS - 1) % BTCFG_SLOTS; /* the state (last slot) first */
         if (values[slot] == sent[slot] && !(requested >> slot & 1)) continue;

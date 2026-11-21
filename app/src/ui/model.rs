@@ -244,6 +244,17 @@ impl Model {
         !(known && answered)
     }
 
+    /// The remembered values the keyboard reports over Bluetooth, in its slot order (all but the
+    /// state), if every one is known.
+    fn bluetooth_known(&self) -> Option<Vec<u8>> {
+        keyboard::current()
+            .bluetooth_slots
+            .iter()
+            .flatten()
+            .map(|(id, index)| self.values.get(id).and_then(|v| v.get(*index)).copied())
+            .collect()
+    }
+
     /// Only on Bluetooth: the keyboard's firmware turned out not to report its values (older than
     /// v0.9), so changes made on the keyboard don't show here.
     pub fn bluetooth_one_way(&self) -> bool {
@@ -442,7 +453,7 @@ impl Model {
         if self.on_bluetooth() {
             if self.bluetooth.is_none() {
                 // Its first request for the keyboard's values has the battery checked too.
-                self.bluetooth = Some(btlink::Queue::new());
+                self.bluetooth = Some(btlink::Queue::new(self.bluetooth_known().as_deref()));
                 self.battery_asked = Some(Instant::now());
             }
         } else {

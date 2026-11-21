@@ -28,6 +28,8 @@ void btcfg_task(uint32_t now, bool connected);
 /* A message on this channel asks for every value to be reported; with this id, only the state. */
 #define BTCFG_SYNC_CHANNEL 0xF0
 #define BTCFG_SYNC_STATE 1
+/* First value byte of a request that carries the app's CRC-8 of slots 0..BTCFG_SLOTS-2 (second byte). */
+#define BTCFG_SYNC_IF_CHANGED 1
 
 /* Called when the app asks for values: check the battery, so the answer has it. */
 void rk71_btcfg_synced(void);

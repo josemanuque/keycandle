@@ -41,6 +41,12 @@ const ACK_WAIT: Duration = Duration::from_millis(700);
 /// with id SYNC_STATE only its state (battery, device), after checking the battery.
 const SYNC_CHANNEL: u8 = 0xF0;
 const SYNC_STATE: u8 = 1;
+/// First value byte of a request that carries the CRC-8 of the values the app has (firmware v0.10.1+:
+/// BTCFG_SYNC_IF_CHANGED). When the keyboard's values match, it sends only its state.
+const SYNC_IF_CHANGED: u8 = 1;
+/// After the state arrives, how long to wait for values to follow before "receiving" ends (a value
+/// takes about 0.2 s: the module sends one report per ~90 ms).
+const VALUES_AFTER_STATE: Duration = Duration::from_millis(450);
 /// The report the keyboard's confirmations and values arrive in. Other reports (typing, on macOS,
 /// where they share a device with it) are dropped unread.
 const REPORT_ID: u8 = 8;
@@ -228,6 +234,10 @@ fn listen(link: Link) {
                     if update.0 == KEYBOARD_STATE {
                         s.keyboard_state = Some(update.2);
                         s.state_at = Some(Instant::now());
+                        // The state comes first: if no values follow, the keyboard had nothing new.
+                        if !s.got_values && s.receiving_until.is_some_and(|until| Instant::now() < until) {
+                            s.receiving_until = Some(Instant::now() + VALUES_AFTER_STATE);
+                        }
                         continue;
                     }
                     s.updates.push(update);
@@ -270,7 +280,10 @@ pub fn listen_for(seconds: u64) -> Result<()> {
 pub struct Queue(Link);
 
 impl Queue {
-    pub fn new() -> Self {
+    /// Start sending, and ask the keyboard for its values. `known`: the values the app already has, in
+    /// the profile's slot order (all but the state), so a keyboard with the same values sends only its
+    /// state.
+    pub fn new(known: Option<&[u8]>) -> Self {
         let shared = std::sync::Arc::new((std::sync::Mutex::new(Shared::default()), std::sync::Condvar::new()));
         let listener = shared.clone();
         std::thread::spawn(move || listen(listener));
@@ -318,7 +331,11 @@ impl Queue {
             }
         });
         let queue = Self(shared);
-        queue.push(SYNC_CHANNEL, 0, &[0]); // ask for the keyboard's current values
+        // Ask for the keyboard's current values (older firmware ignores the CRC and sends them all).
+        match known {
+            Some(values) => queue.push(SYNC_CHANNEL, 0, &[SYNC_IF_CHANGED, crc8(values)]),
+            None => queue.push(SYNC_CHANNEL, 0, &[0]),
+        }
         queue
     }
 
@@ -744,6 +761,27 @@ mod tests {
         assert_eq!(r.feed(0x301), None);
         assert_eq!(r.feed(0x3F2), None);
         assert_eq!(r.feed(0x381), None);
+    }
+
+    #[test]
+    fn values_without_a_release_between_halves() {
+        // v0.10.1 sends high, low, release.
+        let mut r = Reports::default();
+        assert_eq!(r.feed(0x30C), None);
+        assert_eq!(r.feed(0x388), Some(((3, 1), 0, 0xC8)));
+        assert_eq!(r.feed(0), None);
+        assert_eq!(r.feed(0x310), None);
+        assert_eq!(r.feed(0x395), Some(((3, 2), 0, 0x05)));
+    }
+
+    #[test]
+    fn request_with_the_values_the_app_has() {
+        // The CRC the firmware compares with (rk71_btcfg.c, crc8 over slots 0..5).
+        let values = [200, 1, 127, 170, 255, 0];
+        let crc = crc8(&values);
+        let message = symbols(SYNC_CHANNEL, 0, &[SYNC_IF_CHANGED, crc]);
+        let bytes: Vec<u8> = message[4..20].chunks(4).map(|c| c.iter().fold(0, |b, s| b << 2 | s)).collect();
+        assert_eq!(bytes, [SYNC_CHANNEL, 0, SYNC_IF_CHANGED, crc]);
     }
 
     #[test]
