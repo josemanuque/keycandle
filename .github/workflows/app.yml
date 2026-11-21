@@ -38,9 +38,12 @@ jobs:
 
       - name: Linux libraries (HID, windowing, fonts, GPU)
         if: runner.os == 'Linux'
+        # apt waits forever on a stalled mirror (v0.9.1b hung 6 hours in apt-get update): time out and retry.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
+          apt="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $apt update
+          sudo apt-get $apt install -y pkg-config libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev \
             libvulkan-dev libasound2-dev libzstd-dev
 
@@ -113,12 +116,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         working-directory: .
         run: |
-          # build.yml creates the release; wait for it (up to 15 min).
+          # build.yml creates the release; wait until it's published (up to 15 min). `gh release create`
+          # makes a draft first and publishes it once the firmware is attached, and a draft can't be
+          # uploaded to by tag ("release not found"; v0.10b's Linux app hit that window).
           for i in $(seq 1 90); do
-            gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 && break
+            [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft -q .isDraft 2>/dev/null)" = "false" ] && break
             sleep 10
           done
-          # Right after the release appears, uploading can still say "release not found": retry.
           for i in $(seq 1 12); do
             gh release upload "$GITHUB_REF_NAME" out/* --clobber && exit 0
             sleep 10
