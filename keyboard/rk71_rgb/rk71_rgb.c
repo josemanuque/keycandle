@@ -46,6 +46,7 @@
 #define BOOT_SETTLE_MS 1000        /* let the module boot before the first command */
 #define BLINK_TIMEOUT_MS 60000     /* stop the pairing/connecting blink after this long */
 #define LEDS_STABLE_MS 200         /* right after connecting, a wrong lock-LED value can arrive */
+#define LINK_SETTLED_MS 1000       /* after this long connected, a Caps or Num change shows at once */
 #define FLASH_MS 1500              /* mode-change flash */
 #define BATTERY_SHOW_MS 3000       /* Fn+Space battery bar */
 #define BATTERY_WAIT_MS 1500       /* no answer from the module after this long: show "unknown" */
@@ -244,9 +245,16 @@ static void set_link(link_state_t s) {
 
 void rk71_bt_received(const uint8_t *p, uint8_t len) {
     if (p[0] == 0xB1) {
-        pending_leds  = p[1] & 0x07;
-        pending_since = timer_read32();
-        btcfg_leds(p[1], pending_since); /* settings sent over Bluetooth (rk71_btcfg.c) */
+        uint8_t  leds = p[1] & 0x07;
+        uint32_t now  = timer_read32();
+        /* Lock LEDs normally wait until they've been steady for LEDS_STABLE_MS. A lock key on the computer
+         * changes Caps or Num alone, while a settings message from the app flips Scroll with every
+         * symbol (rk71_btcfg.c): once the link has settled, the former shows at once. */
+        bool settled = link_connected && TIMER_DIFF_32(now, link_since) > LINK_SETTLED_MS;
+        if (settled && !((leds ^ pending_leds) & 0x04)) host_leds = leds;
+        pending_leds  = leds;
+        pending_since = now;
+        btcfg_leds(p[1], now); /* settings sent over Bluetooth (rk71_btcfg.c) */
     } else if (p[0] == 0xB6 && p[1] == 0x51) {
         switch (p[2]) {
             case 0x76: set_link(LINK_CONNECTED); break;
