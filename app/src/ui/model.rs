@@ -70,6 +70,20 @@ pub enum Battery {
 }
 
 impl KeyboardState {
+    /// The packed state the keyboard reports over Bluetooth (firmware v0.9+, rk71_btcfg_read): device
+    /// slot in bits 0-2, battery level in bits 3-4, battery low in bit 5 (bit 6, the Win-key lock, is
+    /// a setting of its own).
+    pub fn from_packed(packed: u8) -> Self {
+        Self {
+            bluetooth: true,
+            slot: packed & 7,
+            link: Link::Connected,
+            battery: battery_level(packed >> 3 & 3),
+            battery_low: packed & 0x20 != 0,
+            ..Default::default()
+        }
+    }
+
     fn from_bytes(v: &[u8]) -> Self {
         Self {
             changes: v[0],
@@ -81,12 +95,7 @@ impl KeyboardState {
                 3 => Link::Connected,
                 _ => Link::Idle,
             },
-            battery: match v[4] {
-                1 => Battery::Low,
-                2 => Battery::Medium,
-                3 => Battery::High,
-                _ => Battery::Unknown,
-            },
+            battery: battery_level(v[4]),
             cable: v[5] & 1 != 0,
             battery_low: v[5] & 2 != 0,
             lighting_on: v[5] & 4 != 0,
@@ -95,7 +104,15 @@ impl KeyboardState {
     }
 }
 
-/// The keyboard's state value id and length.
+/// The module's battery level as the firmware numbers it: 0 unknown, 1 low, 2 medium, 3 high.
+fn battery_level(level: u8) -> Battery {
+    match level {
+        1 => Battery::Low,
+        2 => Battery::Medium,
+        3 => Battery::High,
+        _ => Battery::Unknown,
+    }
+}
 
 /// What a poll found.
 pub enum Poll {
@@ -187,20 +204,7 @@ impl Model {
     /// Only on Bluetooth: the keyboard's device slot and battery, once it has reported them
     /// (firmware v0.9+). Over USB, `state` says this and more.
     pub fn bluetooth_state(&self) -> Option<KeyboardState> {
-        let packed = self.bluetooth.as_ref()?.keyboard_state()?;
-        Some(KeyboardState {
-            bluetooth: true,
-            slot: packed & 7,
-            link: Link::Connected,
-            battery: match packed >> 3 & 3 {
-                1 => Battery::Low,
-                2 => Battery::Medium,
-                3 => Battery::High,
-                _ => Battery::Unknown,
-            },
-            battery_low: packed & 0x20 != 0,
-            ..Default::default()
-        })
+        self.bluetooth.as_ref()?.keyboard_state().map(KeyboardState::from_packed)
     }
 
     /// Have the keyboard check its battery now, and say when it has (the Power page): over USB a value
@@ -651,5 +655,37 @@ mod cache {
         if let Ok(json) = serde_json::to_vec(&entries) {
             let _ = std::fs::write(path, json);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_over_usb() {
+        // Changes 7, Bluetooth, device 3, connected, battery medium; cable, lighting on, Mac.
+        let s = KeyboardState::from_bytes(&[7, 1, 2, 3, 2, 1 | 4 | 8]);
+        assert_eq!(s.changes, 7);
+        assert!(s.bluetooth && s.cable && s.lighting_on && s.mac && !s.battery_low);
+        assert_eq!(s.slot, 2);
+        assert!(s.link == Link::Connected && s.battery == Battery::Medium);
+        // Wired, idle, battery unknown, battery low.
+        let s = KeyboardState::from_bytes(&[0, 0, 0, 0, 0, 2]);
+        assert!(!s.bluetooth && !s.cable && s.battery_low);
+        assert!(s.link == Link::Idle && s.battery == Battery::Unknown);
+        // A level the firmware doesn't send is unknown, not a panic.
+        assert!(KeyboardState::from_bytes(&[0, 0, 0, 9, 7, 0]).battery == Battery::Unknown);
+    }
+
+    #[test]
+    fn state_over_bluetooth() {
+        // Device 3 (slot 2), battery high, low-battery flag, Win-key lock (bit 6, ignored here).
+        let s = KeyboardState::from_packed(2 | 3 << 3 | 0x20 | 0x40);
+        assert!(s.bluetooth && s.battery_low && !s.cable);
+        assert_eq!(s.slot, 2);
+        assert!(s.battery == Battery::High && s.link == Link::Connected);
+        assert!(KeyboardState::from_packed(1 << 3).battery == Battery::Low);
+        assert!(KeyboardState::from_packed(0).battery == Battery::Unknown);
     }
 }

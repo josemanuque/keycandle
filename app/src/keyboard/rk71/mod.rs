@@ -2,6 +2,8 @@
 
 pub mod layout;
 pub mod settings;
+#[cfg(test)]
+mod tests;
 
 use super::{Ids, Profile};
 
