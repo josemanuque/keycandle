@@ -5,7 +5,7 @@ name: Build app
 # A version tag also attaches them to that tag's release (created by build.yml).
 on:
   push:
-    branches: [main, "feature/**", "fix/**"]
+    branches: [main, "feature/**", "fix/**", "release/**"]
     tags: ["v*"]
     paths: ["app/**", ".github/workflows/app.yml"]
   pull_request:
