@@ -66,7 +66,11 @@ impl MacroUi {
             recording: false,
             editing: None,
             error: None,
-            names: Prefs::load().macro_names,
+            names: if super::model::preview() {
+                ["Email sign-off", "Quick reply", "Standup notes"].map(String::from).to_vec()
+            } else {
+                Prefs::load().macro_names
+            },
             name_input,
             text_input,
             try_input,

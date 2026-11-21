@@ -1,4 +1,4 @@
-# RK71 Bluetooth link — SN32 ↔ BT module
+# RK71 Bluetooth: the module, and settings over Bluetooth
 
 Reverse-engineered from the stock firmware `rk71_fw.bin` (V1.12) on 2026-11-06, using
 static disassembly only. Register meanings were checked against the SN32F240B datasheet v2.4.
@@ -111,10 +111,89 @@ stock firmware never touches its ADC), so a percentage would need a hardware cha
 * The only computer-to-keyboard data is the lock-LED output report (forwarded to the SN32 as `B1 xx`):
   * `HidD_SetOutputReport` from an app: refused (Windows keeps keyboards for itself).
   * `IOCTL_KEYBOARD_SET_INDICATORS` on the keyboard's own interface (`GUID_DEVINTERFACE_KEYBOARD`): **works**,
-    no admin rights, only that keyboard's LEDs change (not the Caps/Num/Scroll lock state). This is the basis
-    for one-way settings over Bluetooth in v0.9.
-* The media and system collections can be opened and read by apps, a possible keyboard-to-computer path (untested).
+    no admin rights, only that keyboard's LEDs change (not the Caps/Num/Scroll lock state). This carries
+    [settings over Bluetooth](#settings-over-bluetooth).
+* The media and system collections can be opened and read by apps: that's the way back from the keyboard.
 * Firmware updates over Bluetooth: no. The ROM bootloader is USB-only.
+
+## Settings over Bluetooth
+
+Since v0.9 the app changes settings over Bluetooth and hears the keyboard's own changes. The module offers the
+computer only keyboard and media interfaces, so both directions borrow something that already exists.
+Firmware: `keyboard/rk71_rgb/rk71_btcfg.c`. App: `app/src/btlink.rs`.
+
+### Computer → keyboard: the lock lights
+
+Every computer can set a keyboard's Num, Caps and Scroll Lock lights, and the module forwards each change to the
+chip as `B1 xx`. The app sets them directly, without touching the real lock states:
+* **Windows:** `IOCTL_KEYBOARD_SET_INDICATORS` on the keyboard's own interface, no admin rights.
+* **macOS:** an output report (needs Input Monitoring).
+* **Linux:** hidraw (the udev rule).
+
+* **Symbol:** one light state, held 30 ms. Scroll flips on every symbol (the clock); Num and Caps carry 2 bits.
+* **Message:** 4 start symbols (data 1, 2, 1, 2), then 5 bytes at 4 symbols each, high bits first:
+  1. channel;
+  2. value id;
+  3. value byte 0;
+  4. value byte 1;
+  5. CRC-8 (poly 0x07) of the first four.
+
+  24 symbols in all, about 0.72 s.
+* **Dropped:** a gap over 250 ms, a bad start or a bad CRC drops the message, so a half-received setting is never
+  applied.
+* **Confirmed:** an intact message is applied and confirmed with the media usage `0x3F0 | (CRC & 0x0F)`, then a
+  release. The app waits 0.7 s for it and sends again, up to 4 times. Applying a message twice is harmless.
+
+A lock key pressed during a message breaks it, and the app resends. Ordinary keys don't touch the lights. The Caps
+key's own light ignores changes shorter than 200 ms, so it doesn't flicker. While messages arrive, the keyboard
+puts off saving to flash for 1.5 s, because a flash write stalls the chip long enough to lose an LED report.
+
+### Keyboard → computer: media codes nobody uses
+
+Values go back as consumer (media-key) usages in a reserved range that operating systems ignore. Each value is
+two usages, each followed by a release:
+
+```
+0x300 | slot << 4 | high 4 bits,   then   0x380 + (slot << 4) | low 4 bits        (slot 0..6)
+```
+
+| Slot | Value |
+|---|---|
+| 0–4 | Key brightness, effect, speed, hue, saturation |
+| 5 | Windows or Mac per device |
+| 6 | The keyboard's state: device slot (bits 0–2), battery 0–3 (bits 3–4), battery low (bit 5), Win-key lock (bit 6) |
+
+The app reads them from the keyboard's media collection (report 8) and pairs up the halves.
+
+### The flow
+
+```
+App                                     Keyboard                         BT module
+ |-- "send everything" (lock lights) --->|  ~0.72 s                         |
+ |<-- confirmation 0x3F0 + CRC ----------|-- "battery level?" ------------->|
+ |                                       |<-- high / medium / low ----------|
+ |                                       |   0.25 s after the last symbol:
+ |<-- slot 6: battery, device -----------|   the state first
+ |<-- 2 values every 100 ms -------------|   brightness, effect, … Win/Mac
+```
+
+* **When the app finds the keyboard:** it sends the request above on channel `0xF0`. The answer is complete about
+  1.5 s later (about 4.7 s before v1.0, which waited 1.5 s and sent one value a round, the state last).
+* **When the Power page opens:** a request for the state only (`0xF0`, id 1), at most every 5 s. The keyboard
+  checks the battery first.
+* **If a request goes unanswered** (the keyboard was asleep or out of range): the app asks again every few seconds,
+  without showing it, until the keyboard answers.
+* **A setting changed in the app:** one message on the setting's own channel and id. The keyboard applies and
+  confirms it, and doesn't echo it back.
+* **A change made on the keyboard** (Fn keys, device switch, battery level): reported on its own, whether or not the
+  app is open. The keyboard compares its values every 100 ms, but sends only what changed.
+
+### Cost
+
+Reports share the module's 16-place queue with typing. The keyboard sends at most 2 values (8 packets) per 100 ms
+and leaves the rest for keystrokes, so typing during a sync waits a few milliseconds at most. In normal use it
+sends a value when an Fn key changes a setting and when the battery level changes. The battery check every minute
+stays between the chip and the module, and reaches the radio only when the level changed.
 
 ## macOS: Input Monitoring
 

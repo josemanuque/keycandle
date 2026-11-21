@@ -44,6 +44,24 @@ impl Macros {
         Ok(Self { count, size, saved, keys, fn_taken })
     }
 
+    /// Example macros for preview mode (KEYCANDLE_PREVIEW), as if read from a keyboard.
+    pub fn sample() -> Self {
+        let profile = keyboard::current();
+        let key = |label: &str| profile.keys.iter().position(|k| k.label == label);
+        const ENTER: u8 = 0x28;
+        const LEFT_CTRL: u8 = 0xE0;
+        const LEFT_SHIFT: u8 = 0xE1;
+        let mut saved = vec![Vec::new(); 16];
+        saved[0] = vec![Step::Text("Best regards,".into()), Step::Key(ENTER), Step::Text("Alex".into())];
+        saved[1] = vec![Step::Text("Thanks for the quick reply! I'll take a look today and get back to you.".into())];
+        saved[2] = vec![Step::Shortcut { mods: vec![LEFT_CTRL, LEFT_SHIFT], key: 0x11 }, Step::Wait(400), Step::Text("standup notes".into()), Step::Key(ENTER)];
+        let mut keys = vec![None; 16];
+        keys[0] = key("J");
+        keys[1] = key("K");
+        keys[2] = key("N");
+        Self { count: 16, size: 2048, saved, keys, fn_taken: vec![false; profile.keys.len()] }
+    }
+
     /// Bytes the macros would take (each ends with a 0); one byte of the buffer is kept free.
     pub fn room(&self) -> usize {
         self.size.saturating_sub(1)

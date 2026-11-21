@@ -1,0 +1,39 @@
+# The website (site/) on GitHub Pages, with the README's screenshots and animation (docs/media/).
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "docs/media/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/media
+          cp site/index.html _site/
+          cp docs/media/* _site/media/
+          cp app/assets/icon/png/dark-256.png _site/media/icon.png
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

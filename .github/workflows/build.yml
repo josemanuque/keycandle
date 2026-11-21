@@ -85,11 +85,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Until v1.0: the newest version is the "Latest" release (GitHub gives that badge only to regular
-          # releases), titled as a beta; every older version is marked a pre-release.
-          notes=$(grep -F "| \`$GITHUB_REF_NAME\` |" README.md | head -1 | cut -d'|' -f3 | sed 's/^ *//; s/ *$//')
-          [ -n "$notes" ] || notes="See the README's versions table."
-          gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME (beta)" --notes "$notes"             || gh release upload "$GITHUB_REF_NAME" out/* --clobber
-          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^v'); do
+          # Notes: the version's row in CHANGELOG.md. Versions ending in "b" are betas: titled so, and the
+          # older betas are marked pre-releases (GitHub gives "Latest" only to a regular release).
+          notes=$(grep -F "| \`$GITHUB_REF_NAME\` |" CHANGELOG.md | head -1 | cut -d'|' -f3 | sed 's/^ *//; s/ *$//')
+          [ -n "$notes" ] || notes="See CHANGELOG.md."
+          title="$GITHUB_REF_NAME"
+          case "$GITHUB_REF_NAME" in *b) title="$GITHUB_REF_NAME (beta)" ;; esac
+          gh release create "$GITHUB_REF_NAME" out/* --latest --title "$title" --notes "$notes"             || gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^v.*b$'); do
             [ "$tag" = "$GITHUB_REF_NAME" ] || gh release edit "$tag" --prerelease > /dev/null
           done

@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keycandle · RK71 firmware and app</title>
+<meta name="description" content="Open firmware and a desktop app for the Royal Kludge RK71 RGB: flicker-free lighting, settings over Bluetooth, macros on any key, and a battery you can see.">
+<meta property="og:title" content="Keycandle">
+<meta property="og:description" content="Open firmware and a desktop app for the Royal Kludge RK71 RGB.">
+<meta property="og:image" content="media/lighting.png">
+<link rel="icon" href="media/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0c10;
+  --bg-2: #111318;
+  --card: #15171d;
+  --line: #24272f;
+  --text: #eceef3;
+  --muted: #9aa1ae;
+  --accent: #7c6cff;
+  --accent-2: #39d0ff;
+  --glow: rgba(124, 108, 255, .35);
+  --radius: 18px;
+  --max: 1160px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f7f7fb; --bg-2: #ffffff; --card: #ffffff; --line: #e4e5ec;
+    --text: #14151a; --muted: #5c6270; --glow: rgba(124, 108, 255, .22);
+    color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+.muted { color: var(--muted); }
+
+/* nav */
+nav {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -.01em; }
+.brand img { width: 28px; height: 28px; border-radius: 7px; }
+nav .links { display: flex; gap: 22px; margin-left: auto; font-size: 15px; }
+nav .links a { text-decoration: none; color: var(--muted); }
+nav .links a:hover { color: var(--text); }
+@media (max-width: 720px) { nav .links a.optional { display: none; } }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 12px;
+  font-weight: 600; text-decoration: none; border: 1px solid var(--line); background: var(--card);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; border-color: transparent;
+  box-shadow: 0 8px 30px var(--glow);
+}
+.btn small { font-weight: 500; opacity: .8; }
+
+/* hero */
+.hero { position: relative; padding: 84px 0 40px; text-align: center; overflow: hidden; }
+.hero::before {
+  content: ""; position: absolute; inset: -20% -10% auto; height: 620px; z-index: -1;
+  background:
+    radial-gradient(40% 50% at 30% 40%, rgba(124,108,255,.30), transparent 70%),
+    radial-gradient(35% 45% at 70% 35%, rgba(57,208,255,.20), transparent 70%),
+    radial-gradient(30% 40% at 50% 70%, rgba(255,92,170,.16), transparent 70%);
+  filter: blur(10px);
+  animation: drift 14s ease-in-out infinite alternate;
+}
+@keyframes drift { to { transform: translate3d(0, 24px, 0) scale(1.06); } }
+.eyebrow {
+  display: inline-flex; gap: 8px; align-items: center; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card); font-size: 13px; color: var(--muted);
+}
+.eyebrow b { color: var(--text); font-weight: 600; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+h1 {
+  font-size: clamp(44px, 7vw, 84px); line-height: 1.02; letter-spacing: -.035em; margin: 22px 0 18px; font-weight: 800;
+}
+.gradient {
+  background: linear-gradient(90deg, #ff6bc1, #a78bfa 30%, #60a5fa 55%, #34d399 80%, #fbbf24);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 8s linear infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+.lede { font-size: clamp(17px, 2vw, 20px); color: var(--muted); max-width: 680px; margin: 0 auto 30px; }
+.ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.hero-shot {
+  margin: 56px auto 0; max-width: 900px; padding: 18px; border-radius: 26px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 90%, transparent), var(--bg-2));
+  border: 1px solid var(--line);
+  box-shadow: 0 40px 120px -30px var(--glow), 0 0 0 1px rgba(255,255,255,.02) inset;
+}
+.hero-shot img { width: 100%; border-radius: 14px; image-rendering: auto; }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin: 64px 0 0; }
+.stat { background: var(--bg-2); padding: 22px 18px; text-align: center; }
+.stat b { display: block; font-size: 28px; letter-spacing: -.02em; }
+.stat span { font-size: 13px; color: var(--muted); }
+@media (max-width: 820px) { .stats { grid-template-columns: repeat(2, 1fr); } .stat:last-child { grid-column: span 2; } }
+
+/* sections */
+section { padding: 96px 0 0; }
+.kicker { color: var(--accent); font-weight: 600; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+h2 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -.03em; line-height: 1.1; margin: 10px 0 14px; }
+.intro { color: var(--muted); max-width: 640px; font-size: 18px; margin: 0 0 40px; }
+
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); transform: translateY(-2px); }
+.card h3 { margin: 14px 0 8px; font-size: 19px; letter-spacing: -.01em; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.icon {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+}
+.icon svg { width: 22px; height: 22px; }
+
+/* tour */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.tab {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--text); background: var(--card); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.frame { border-radius: var(--radius); border: 1px solid var(--line); overflow: hidden; background: var(--bg-2);
+  box-shadow: 0 30px 80px -40px var(--glow); }
+.frame img { width: 100%; }
+.caption { color: var(--muted); font-size: 15px; margin-top: 14px; min-height: 1.6em; }
+
+/* how it works */
+.how { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 820px) { .how { grid-template-columns: 1fr; } }
+.flow { display: flex; align-items: center; gap: 10px; margin: 18px 0 6px; flex-wrap: wrap; }
+.node { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); font-size: 14px; font-weight: 600; }
+.arrow { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.arrow i { display: inline-block; width: 34px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); background-size: 200% 100%; animation: flowing 1.4s linear infinite; }
+@keyframes flowing { to { background-position: -200% 0; } }
+.leds { display: inline-flex; gap: 6px; vertical-align: middle; margin-left: 4px; }
+.leds span { width: 10px; height: 10px; border-radius: 50%; background: #2a2d36; }
+.leds span:nth-child(1) { animation: blink 1.2s steps(1) infinite; }
+.leds span:nth-child(2) { animation: blink 1.2s steps(1) .3s infinite; }
+.leds span:nth-child(3) { animation: blink .6s steps(1) infinite; }
+@keyframes blink { 50% { background: #4ade80; box-shadow: 0 0 8px #4ade80; } }
+ul.ticks { padding: 0; margin: 14px 0 0; list-style: none; }
+ul.ticks li { padding-left: 26px; position: relative; color: var(--muted); margin: 8px 0; font-size: 15px; }
+ul.ticks li::before { content: ""; position: absolute; left: 0; top: 7px; width: 14px; height: 14px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent); box-shadow: inset 0 0 0 4px var(--accent); }
+
+/* compare */
+.table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: 15px; }
+.table th, .table td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table tr:last-child td { border-bottom: 0; }
+.table thead th { background: var(--bg-2); font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.table td:first-child { color: var(--muted); width: 26%; }
+.table td:last-child { font-weight: 500; }
+.scroll { overflow-x: auto; }
+
+/* steps */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+@media (max-width: 820px) { .steps { grid-template-columns: 1fr; } }
+.step::before { counter-increment: step; content: counter(step); display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; font-weight: 700; }
+.downloads { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+
+/* faq */
+details { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 16px 20px; margin: 10px 0; }
+summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--muted); margin: 10px 0 0; }
+
+footer { margin-top: 110px; border-top: 1px solid var(--line); padding: 34px 0 50px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
+footer a { color: var(--muted); }
+
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="media/icon.png" alt="">Keycandle</a>
+    <div class="links">
+      <a class="optional" href="#features">Features</a>
+      <a class="optional" href="#tour">The app</a>
+      <a class="optional" href="#how">How it works</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/josemanuque/keycandle">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span><b>Version 1.0</b> · open source · Windows, macOS, Linux</span>
+    <h1>Your RK71,<br><span class="gradient">relit.</span></h1>
+    <p class="lede">Keycandle is new firmware and a desktop app for the Royal Kludge RK71 RGB. You get smoother
+      lighting, settings over Bluetooth, macros on any key, and a battery you can actually see.</p>
+    <div class="ctas">
+      <a class="btn primary" id="cta" href="https://github.com/josemanuque/keycandle/releases/latest">Download Keycandle</a>
+      <a class="btn" href="https://github.com/josemanuque/keycandle">View on GitHub</a>
+    </div>
+    <div class="hero-shot reveal">
+      <img src="media/hero.gif" width="686" height="252" alt="The Keycandle app's keyboard preview playing a rainbow pinwheel effect">
+    </div>
+
+    <div class="stats reveal">
+      <div class="stat"><b>~1,400 Hz</b><span>key light refresh</span></div>
+      <div class="stat"><b>~3,100 Hz</b><span>side light refresh</span></div>
+      <div class="stat"><b>16</b><span>macros on Fn + any key</span></div>
+      <div class="stat"><b>5 + cable</b><span>devices, each Win or Mac</span></div>
+      <div class="stat"><b>~1.5 s</b><span>full sync over Bluetooth</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="kicker">Features</div>
+    <h2>Everything the factory firmware wouldn't do.</h2>
+    <p class="intro">Built on QMK for this exact board. Every pin and the Bluetooth module's protocol were worked out
+      from the original firmware, not guessed.</p>
+    <div class="grid">
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div>
+        <h3>Lighting without flicker</h3>
+        <p>Keys refresh about 1,400 times a second and the side lights about 3,100, past the IEEE 1789 flicker
+          guidance. Choose from 20 effects in a gallery of live previews.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg></div>
+        <h3>Settings over Bluetooth</h3>
+        <p>Change settings with the cable unplugged, and see changes made with the Fn keys, the device in use and
+          the battery in the app.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m10 9 5 3-5 3z"/></svg></div>
+        <h3>Macros on Fn + any key</h3>
+        <p>Text, keys, shortcuts and pauses. Record them by typing and try them in the app. They're stored on the
+          keyboard, and Ctrl ↔ Cmd swaps by itself on a Mac.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Windows or Mac, per device</h3>
+        <p>Each of the 5 Bluetooth devices and the cable keeps its own layout, so a Mac and a PC can share one
+          keyboard.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 11v2M11 9l-2 3h3l-2 3"/></svg></div>
+        <h3>A battery you can see</h3>
+        <p>See the level, charging and the cable on the Power page. Deep sleep when idle, and the key that wakes
+          it is still typed.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Safe, reversible updates</h3>
+        <p>One-click installs, checked against the release, with your settings and macros put back afterwards. The
+          original firmware is always one click away.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H5a2 2 0 0 0-2 2v5M14 3h5a2 2 0 0 1 2 2v5M10 21H5a2 2 0 0 1-2-2v-5M14 21h5a2 2 0 0 0 2-2v-5"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg></div>
+        <h3>VIA compatible</h3>
+        <p>Configure it in VIA in the browser, with nothing to install. Load the provided JSON once to remap all
+          5 layers, edit macros and reach every Keycandle setting.</p>
+      </div>
+      <div class="card reveal">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8 11h6M11 8v6"/></svg></div>
+        <h3>Reverse-engineered</h3>
+        <p>The pins, LEDs and Bluetooth protocol came from disassembling the original firmware. Everything it did
+          is kept, and then improved.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tour">
+  <div class="wrap">
+    <div class="kicker">The app</div>
+    <h2>One window for the whole keyboard.</h2>
+    <p class="intro">Live previews, instant changes, saved on the keyboard. In English, Spanish and Portuguese, in light or
+      dark.</p>
+    <div class="tabs" role="tablist" aria-label="App pages">
+      <button class="tab" role="tab" aria-selected="true" data-img="overview" data-cap="Overview: the keyboard as it is now, and everything that's set.">Overview</button>
+      <button class="tab" role="tab" aria-selected="false" data-img="lighting" data-cap="Lighting: pick an effect from a gallery where every preview plays live.">Lighting</button>
+      <button class="tab" role="tab" aria-selected="false" data-img="keys" data-cap="Keys & indicators: Caps Lock, the F-row lock, the Win-key lock, and Windows or Mac per device.">Keys</button>
+      <button class="tab" role="tab" aria-selected="false" data-img="macros" data-cap="Macros: write or record, choose a key, try it, save it to the keyboard.">Macros</button>
+      <button class="tab" role="tab" aria-selected="false" data-img="power" data-cap="Power: battery and charging, the battery bar, and sleep times.">Power</button>
+      <button class="tab" role="tab" aria-selected="false" data-img="firmware" data-cap="Firmware: one-click updates, your own builds, or back to the original.">Firmware</button>
+    </div>
+    <div class="frame reveal"><img id="shot" src="media/overview.png" width="1584" height="992" alt="The Keycandle app"></div>
+    <p class="caption" id="cap">Overview: the keyboard as it is now, and everything that's set.</p>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="kicker">How it works</div>
+    <h2>Two ways to talk to the keyboard.</h2>
+    <p class="intro">Over the cable it's the standard VIA protocol. Over Bluetooth there's no data channel at all, so Keycandle
+      makes one out of things every keyboard already has.</p>
+    <div class="how">
+      <div class="card reveal">
+        <h3>Over the USB cable</h3>
+        <div class="flow"><span class="node">App</span><span class="arrow"><i></i>VIA<i></i></span><span class="node">Keyboard</span></div>
+        <ul class="ticks">
+          <li>Reads and writes every setting, macros and the keymap</li>
+          <li>Follows changes made with the Fn keys within half a second</li>
+          <li>Installs firmware: the chip's bootloader is USB-only</li>
+        </ul>
+      </div>
+      <div class="card reveal">
+        <h3>Over Bluetooth <span class="leds" aria-hidden="true"><span></span><span></span><span></span></span></h3>
+        <div class="flow"><span class="node">App</span><span class="arrow"><i></i>lock lights<i></i></span><span class="node">Keyboard</span></div>
+        <div class="flow" style="margin-top:8px"><span class="node">Keyboard</span><span class="arrow"><i></i>media codes<i></i></span><span class="node">App</span></div>
+        <ul class="ticks">
+          <li>Settings are spelled out by flipping the Num, Caps and Scroll lights (the lock states don't change)</li>
+          <li>The keyboard answers with media-key codes that no system acts on</li>
+          <li>Checked and confirmed, about 1.5 s for a full sync, and typing is never blocked</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap">
+    <div class="kicker">The firmware</div>
+    <h2>Factory vs. Keycandle.</h2>
+    <p class="intro">With no schematic or source to go on, the original V1.12 firmware was disassembled to learn the
+      pin map, the LED drivers, the Bluetooth module's protocol and every factory feature. Keycandle keeps all of
+      it, on the same keyboard and the same Bluetooth pairings, and does a lot more.</p>
+    <div class="scroll reveal">
+      <table class="table">
+        <thead><tr><th></th><th>Factory firmware</th><th>Keycandle</th></tr></thead>
+        <tbody>
+          <tr><td>Source code</td><td>Closed</td><td>Open, GPL-2.0</td></tr>
+          <tr><td>Configure from</td><td>A Windows app</td><td>The Keycandle app on Windows, macOS and Linux, or VIA in the browser with the provided JSON</td></tr>
+          <tr><td>Over Bluetooth</td><td>Nothing</td><td>Settings both ways, battery, device in use</td></tr>
+          <tr><td>Light refresh</td><td>Not published</td><td>Keys ~1,400 Hz, side lights ~3,100 Hz, measured</td></tr>
+          <tr><td>Side lights</td><td>Status only</td><td>Follow the keys or a fixed colour, 5 effects, lock indicators, calibration</td></tr>
+          <tr><td>Remapping</td><td>What the vendor app allows</td><td>Every key on all 5 layers</td></tr>
+          <tr><td>Macros</td><td>None</td><td>16, on Fn + any free key, with Ctrl and Cmd matched to the device</td></tr>
+          <tr><td>Windows / Mac</td><td>One switch</td><td>Per Bluetooth device and for the cable</td></tr>
+          <tr><td>Battery</td><td>None</td><td>High / medium / low and charging, in the app and on the side lights</td></tr>
+          <tr><td>Sleep</td><td>Deep sleep</td><td>Deep sleep, instant wake, the waking key is typed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <div class="kicker">Get started</div>
+    <h2>Up and running in a minute.</h2>
+    <p class="intro">For the RK71 RGB with Bluetooth (PCB 603-836/RGB-BT-HFD, chip SN32F248BF).</p>
+    <div class="steps">
+      <div class="card step reveal"><h3>Download the app</h3><p>For Windows, macOS (Apple Silicon and Intel) or Linux.
+        There's nothing to install on Windows.</p></div>
+      <div class="card step reveal"><h3>Plug in the cable</h3><p>The app finds the keyboard, even on its original
+        firmware.</p></div>
+      <div class="card step reveal"><h3>Click Install</h3><p>On the Firmware page. The keyboard restarts on its own,
+        and then you're set, over the cable or Bluetooth.</p></div>
+    </div>
+    <div class="downloads">
+      <a class="btn primary" data-os="windows" href="https://github.com/josemanuque/keycandle/releases/latest/download/keycandle-windows-x64.exe">Windows <small>.exe</small></a>
+      <a class="btn" data-os="mac" href="https://github.com/josemanuque/keycandle/releases/latest/download/keycandle-macos-universal.zip">macOS <small>universal .zip</small></a>
+      <a class="btn" data-os="linux" href="https://github.com/josemanuque/keycandle/releases/latest/download/keycandle-linux-x64.tar.gz">Linux <small>x64 .tar.gz</small></a>
+      <a class="btn" href="https://github.com/josemanuque/keycandle/releases/latest">All files &amp; firmware</a>
+    </div>
+
+    <div style="margin-top:56px">
+      <details><summary>Is it safe? Can I go back?</summary><p>Yes. The chip's bootloader is in ROM, so installing
+        can't erase it. The app restores the original firmware with one click, and there's a step-by-step
+        recovery guide for the worst case.</p></details>
+      <details><summary>Do my Bluetooth pairings survive?</summary><p>Yes. They live in the Bluetooth module, which no
+        firmware install touches.</p></details>
+      <details><summary>Why is there no battery percentage?</summary><p>The Bluetooth module only reports high, medium or
+        low, and the board has no wire to measure the battery. Keycandle shows exactly what the hardware knows.</p></details>
+      <details><summary>Does it work with VIA?</summary><p>Yes: load the VIA definition from the release once, and
+        VIA in Chrome or Edge configures everything over the cable, including macros.</p></details>
+      <details><summary>macOS says it can't check the app</summary><p>It's open source but not notarized by Apple. Open
+        System Settings ▸ Privacy &amp; Security and click Open Anyway. For Bluetooth settings, allow Input Monitoring
+        when asked.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Keycandle is an independent open-source project, not affiliated with Royal Kludge.</span>
+    <span><a href="https://github.com/josemanuque/keycandle/blob/main/docs/USER_GUIDE.md">User guide</a> ·
+      <a href="https://github.com/josemanuque/keycandle/blob/main/CHANGELOG.md">Changelog</a> ·
+      <a href="https://github.com/josemanuque/keycandle/blob/main/LICENSE">GPL-2.0-or-later</a></span>
+  </div>
+</footer>
+
+<script>
+// The download button for this visitor's system.
+(function () {
+  var ua = navigator.userAgent, os = /Mac/.test(ua) ? "mac" : /Linux|X11/.test(ua) && !/Android/.test(ua) ? "linux" : /Win/.test(ua) ? "windows" : null;
+  var names = { windows: "Windows", mac: "macOS", linux: "Linux" };
+  if (!os) return;
+  var link = document.querySelector('.downloads [data-os="' + os + '"]'), cta = document.getElementById("cta");
+  cta.href = link.href;
+  cta.textContent = "Download for " + names[os];
+  document.querySelectorAll(".downloads [data-os]").forEach(function (a) { a.classList.toggle("primary", a === link); });
+})();
+
+// The app tour.
+document.querySelectorAll(".tab").forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    document.querySelectorAll(".tab").forEach(function (t) { t.setAttribute("aria-selected", t === tab); });
+    document.getElementById("shot").src = "media/" + tab.dataset.img + ".png";
+    document.getElementById("cap").textContent = tab.dataset.cap;
+  });
+});
+
+// Fade sections in as they scroll into view.
+(function () {
+  var items = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)) { items.forEach(function (el) { el.classList.add("in"); }); return; }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -8% 0px" });
+  items.forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>

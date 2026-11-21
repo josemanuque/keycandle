@@ -183,7 +183,7 @@ const BATTERY_ANSWER_USB: Duration = Duration::from_millis(400);
 impl Model {
     /// Connected over USB (VIA: reads, writes and firmware updates).
     pub fn is_connected(&self) -> bool {
-        self.keyboard.is_some()
+        self.keyboard.is_some() || (preview() && matches!(self.connection, Connection::Usb { .. }))
     }
 
     /// There are settings to show and change: over USB, or over Bluetooth with values remembered
@@ -275,7 +275,7 @@ impl Model {
 
     /// The keyboard's macros (over USB).
     pub fn macros(&self) -> Option<&Macros> {
-        self.macros.as_ref().filter(|_| self.keyboard.is_some())
+        self.macros.as_ref().filter(|_| self.is_connected())
     }
 
     /// Over USB with firmware older than the macros (v0.10): they need an update first.
@@ -421,6 +421,7 @@ impl Model {
             self.firmware_version = Some(if preview_updates() { 0x0800 } else { keyboard::current().macros_since });
             // Wired, charging, battery high, lighting on.
             self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, if preview_battery("charging") { 2 } else { 3 }, 1 | 4]));
+            self.macros = Some(Macros::sample());
             return true;
         }
         match Keyboard::open() {

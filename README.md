@@ -1,169 +1,258 @@
-# Keycandle: open firmware and app for the Royal Kludge RK71 RGB
+<p align="center">
+  <img src="app/assets/icon/png/dark-256.png" width="112" alt="Keycandle icon">
+</p>
 
-Keycandle is an independent project, not affiliated with Royal Kludge.
+<h1 align="center">Keycandle</h1>
 
-Royal Kludge RK71 RGB: PCB `603-836/RGB-BT-HFD REV:01`, MCU SONiX SN32F248BF ([hardware and USB IDs](#hardware-and-usb-ids)).
-This repository has two parts:
+<p align="center">
+  <b>New firmware and a desktop app for the Royal Kludge RK71 RGB.</b><br>
+  Smoother lighting, settings over Bluetooth, macros on any key, and a battery you can see.
+</p>
 
-* **a QMK port** (`keyboard/rk71_rgb`). Its pins come from disassembling the stock firmware, not from guesswork. It
-  works with VIA on Windows, macOS and Linux, and supports per-key RGB, Bluetooth and the side lights.
-* **the original vendor firmware**, preserved together with notes on how it works, so the keyboard can always go
-  back to stock
+<p align="center">
+  <a href="../../releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/josemanuque/keycandle?label=release&color=6d5dfc"></a>
+  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/app-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-30363d">
+  <a href="LICENSE"><img alt="GPL-2.0-or-later" src="https://img.shields.io/badge/license-GPL--2.0--or--later-30363d"></a>
+  <a href="../../actions/workflows/build.yml"><img alt="Build" src="https://github.com/josemanuque/keycandle/actions/workflows/build.yml/badge.svg"></a>
+</p>
 
-**Using the QMK firmware (keys, Bluetooth, lighting, side lights, VIA): [docs/QMK_FIRMWARE.md](docs/QMK_FIRMWARE.md).**
+<p align="center">
+  <img src="docs/media/hero.gif" width="686" alt="The keyboard preview in the Keycandle app, playing the Cycle pinwheel effect">
+</p>
 
-## Download
+<p align="center">
+  <a href="../../releases/latest"><b>Download</b></a> ·
+  <a href="https://josemanuque.github.io/keycandle/"><b>Website</b></a> ·
+  <a href="docs/USER_GUIDE.md"><b>User guide</b></a> ·
+  <a href="CHANGELOG.md"><b>What's new</b></a>
+</p>
 
-Ready-to-flash images are on the [**Releases**](../../releases) page:
+---
 
-* `rk71_rgb_<version>.bin`: the firmware (VIA keymap). This is the one you want.
-* `rk71_rgb_<version>_default-keymap.bin`: the same, with the plain QMK keymap
-* `rk71_rgb_via.json`: the VIA definition (see the [user guide](docs/QMK_FIRMWARE.md#configuring-with-via))
+The RK71 is a great little 70% keyboard held back by its factory firmware. It's closed, it only
+configures from a Windows app, and over Bluetooth you can't change anything. **Keycandle replaces the
+firmware with an open one built on [QMK](https://qmk.fm)** and fully compatible with [VIA](https://usevia.app).
+It also comes with a desktop app that shows the keyboard live and changes every setting, over the cable or
+over Bluetooth.
 
-The [**stock-v1.12**](../../releases/tag/stock-v1.12) release mirrors Royal Kludge's original software for this
-board variant, which has become hard to find: the V1.12 updater, the PC configuration app, and the raw firmware
-image (also in [stock/](stock)).
+Installing takes a minute from the app. The original firmware is always one click away.
 
-Every push also builds the firmware on GitHub Actions. Open a run under **Actions** and download it from
-**Artifacts** to try unreleased changes.
+## Highlights
 
-### Versions
+<table>
+<tr>
+<td width="50%" valign="top">
 
-| Version | Changes |
-|---|---|
-| `v0.10.1b` | **Bluetooth is faster:** the app sends a checksum of the values it already has, and a keyboard with the same values answers with just its battery and device, so reconnecting usually takes about 1.5 s instead of 4 to 5; when something did change, every value still comes, now with 3 Bluetooth reports each instead of 4. The battery and device always come first. **Power:** the page checks the battery when you open it, with an animation while it asks, and on the cable shows Charging or Charged and the USB-C plug. The keyboard asks the Bluetooth module every 3 s until it knows the level after starting or waking (it could stay unknown until Fn+Space before). **Tests** check the app against the firmware and the VIA definition. Release builds can no longer hang for hours, and the Linux app retries its upload. Needs this release's firmware for the faster Bluetooth |
-| `v0.10b` | **Macros:** up to 16 on Fn + any free key, made of text, keys, shortcuts and pauses, in 2 KB of their own flash. Write or record them on the new Macros page, try them in a test box or with Play, and Ctrl and Cmd swap by themselves on devices set to Mac. Edited over the cable, played over Bluetooth too; macros made in VIA show up in the app. **Fn shortcuts:** every Fn combination, your macros included, in a dialog from Keys & indicators and the Help menu. **F-row lock** can put media first: the number row gives media keys and Fn + it gives F1-F12. **VIA:** Caps key options, Win-key lock, Windows or Mac per device, macro Ctrl/Cmd and the F-row order in its menus. **Fixes:** key brightness no longer creeps down by one each time it is read and written back; card titles centred, dialogs dim the page behind. Needs this release's firmware for macros and the F-row order |
-| `v0.9.1b` | **macOS fix:** Bluetooth settings failed with "allow Keycandle in … Input Monitoring" even with the switch on. The app bundle is now signed as a whole, so macOS matches it to its switch (see [macOS: Input Monitoring](docs/BLUETOOTH.md#macos-input-monitoring)). Coming from v0.9b: in Input Monitoring, remove Keycandle with **−**, open the app and allow it again. Firmware unchanged apart from reporting 0.9.1 |
-| `v0.9b` | **Bluetooth, both ways** (Windows, macOS, Linux): change lighting and Win/Mac per device with the cable unplugged, and see changes made with the Fn keys, the device in use and the battery level. The app keeps asking quietly while the keyboard sleeps. **Keys & indicators:** Caps key options Auto / Custom colour (white by default) / Dark (its light goes off) / Off; Win-key lock switch; a card per device for Windows or Mac. **Power:** battery card with the battery-bar switch; dim level next to its switch. **Firmware:** up to date or newer version at the top, install steps, file / original firmware and recovery guide; installs only over the USB cable. **Update notices:** new app or firmware versions show as a toast, sidebar dots and an Updates card (Settings can turn the check off). **Settings:** slider values as percent or the keyboard's own numbers. Sidebar status shows sending, receiving and saved, over the cable too; macOS accent selection and keyboard navigation, Windows accent bar. **Keyboard fixes:** side-light brightness is now saved across restarts; battery level is read every minute; no red flash while saving. Defaults live in one file (rk71_defaults.h). Needs this release's firmware for the Bluetooth features |
-| `v0.8.3b` | App on macOS feels native: translucent sidebar (Liquid Glass on macOS 26) with the window buttons in it, a full menu bar (About, Settings, pages, Appearance, Reconnect, Check for Firmware Updates, Help) and Cmd shortcuts; closing keeps the app in the Dock. On every OS: quitting or closing waits while firmware is being written, Ctrl/Cmd+1–5 open the pages, Reconnect no longer crashes |
-| `v0.8.2b` | The project is now **Keycandle** (app, repo and icon with a "K" legend). App: fits narrow and short windows (collapsing sidebar, previews sized to the window), full-width pages, What's new as a link under each version, blue Install, no console window on Windows; built for Windows, macOS (universal) and Linux on every release |
-| `v0.8.1b` | Side lights: colours accurate at low brightness (all colour pins switch together; green and blue used to stay on longer than red, turning colours light blue), frames timed from the time really used (measured ~3.1 kHz, above IEEE 1789's 3 kHz "no observable effect"); key lights ~1.4 kHz with margin; "Same brightness as the keys" uses the keys' brightness and hides the side-light slider. App: verified settings restore after updates (answers matched to requests), "Show fewer" and per-version notes in the release list |
-| `v0.8b` | The keyboard reports its state (wired/Bluetooth, device, link, battery level, cable) and a change counter: the app follows changes made with Fn keys within half a second. VIA and the app keep working in Bluetooth mode with the cable plugged in. App: battery and connection on the Power page, Settings page (language, appearance), dropdowns past 4 options |
-| `v0.7b` | Key LEDs refresh at ~1430 Hz instead of 165 Hz (IEEE 1789 low-risk, no colour split, brighter); side-light effects and own brightness; Caps Lock / F-row lock indicators and status colours with colour pickers; power times, battery bar and dimming on battery in VIA; Win/Mac per device (Fn+A / Fn+S), Win key lock (Fn+Win), Fn highlight; side-light calibration; no flashing while VIA saves; no charge-LED glow; firmware version and app-driven updates |
-| `v0.6b` | Deep sleep on battery (any key or the cable wakes it, the key is still typed; the Bluetooth module can wake it too), side lights cycle at ~3 kHz (no flicker or rainbow fringe), side-light defaults tuned on a real board, 416 bytes of RAM freed |
-| `v0.5.5b` | No keyboard blinking while dragging VIA side-light sliders (saves once settled) |
-| `v0.5.4b` | Side lights: Red/Green/Blue balance and Brightness sliders in VIA (0–31); follow keyboard brightness |
-| `v0.5.3b` | Side-light white balance in VIA (Neutral / Warm / Warmer / Warmest), default Warm |
-| `v0.5.2b` | Side lights: 3× faster colour cycling (less visible colour split), blue toned down for the bluish diffuser |
-| `v0.5.1b` | Side lights show mixed colours (white etc.) by cycling red/green/blue quickly |
-| `v0.5b` | Side lights (follow keyboard / fixed / off, set in VIA) with status: pairing, mode, battery bar on Fn+Space; automatic wired/Bluetooth from cable detection |
-| `v0.4.6b` | No Caps Lock blink when switching to Bluetooth (fresh lock state, 200 ms stability filter) |
-| `v0.4.5b` | Caps Lock: stock cool white, or a dark key when the lighting is white |
-| `v0.4.4b` | Quieter status lights (only after Fn+Q–T/Fn+P, none on automatic reconnect), Caps Lock shown red |
-| `v0.4.3b` | Stronger switch debounce (10 ms, per key) against double letters |
-| `v0.4.2b` | Fixed keys skipped when typing fast on Bluetooth (whole packet preloaded into the SPI FIFO, top-priority SPI interrupt) |
-| `v0.4.1b` | First attempt at the skipped keys on Bluetooth (reports queued instead of dropped) |
-| `v0.4b` | Bluetooth: Fn+Q/W/E/R/T device 1–5 (hold 3 s to pair), Fn+P wired/BT (hold 3 s to pair), Fn+Bksp hold to forget all |
-| `v0.3b` | Solid white lighting by default |
-| `v0.2b` | F-row lock: Fn+Ctrl turns 1…= into F1…F12 (remembered, Fn key glows orange); with the lock on, Fn+F-keys = media |
-| `v0.1b` | First working QMK: all 71 keys, RGB matrix, VIA, Win/Mac modes, Fn layer |
-| `stock-v1.12` | Original Royal Kludge firmware V1.12, unmodified, plus research notes |
+### ✨ Lighting without flicker
+Keys refresh about **1,400 times a second** and the side lights about **3,100**, measured on the board (QMK's
+own driver for this chip managed 165). That's above the IEEE 1789 levels where flicker stops being visible, so colours no longer split
+apart when your eyes move. You get 20 effects and live previews in the app.
 
-Each version is a git tag. Check one out with `git checkout v0.4b`.
+</td>
+<td width="50%" valign="top">
 
-## Flashing
+### 📶 Settings over Bluetooth, both ways
+Change lighting, Windows/Mac and more with the cable unplugged. Changes you make with the Fn keys show up
+in the app, along with the device in use and the battery. Bluetooth keyboards normally have no channel
+for any of this; the [protocol](docs/BLUETOOTH.md#settings-over-bluetooth) explains the trick.
 
-Works from Windows (Git Bash), macOS and Linux.
+</td>
+</tr>
+<tr>
+<td valign="top">
 
-From v0.7b on, the Keycandle app (`app/`) installs releases for you (Firmware page). By hand:
+### ⌨️ Macros on Fn + any key
+Up to 16 macros: text, keys, shortcuts and pauses. Record them by typing, test them in the app, and they run
+from the keyboard itself, so they work on any computer. **Ctrl ↔ Cmd** swaps by itself on devices set to Mac.
 
-1. Get [SonixFlasher](https://github.com/SonixQMK/SonixFlasherC/releases) for your OS. Put it in `sonixflasher/`
-   in this repo, or anywhere on your PATH. On Linux, first allow access without root:
-   `sudo cp tools/udev/50-rk71.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger`
-2. Start the flasher: `bash tools/flash_rk71.sh rk71_rgb_<version>.bin`. It waits for the bootloader.
-3. Put the keyboard in the SN32 ROM bootloader (USB `0C45:7040`), with the cable plugged in:
-   * from this QMK firmware: **Fn + Pause**
-   * from stock firmware: `python3 tools/stock_enter_isp.py`, which is what the vendor updater does. Linux/macOS
-     need `pip install hidapi`.
-   * if nothing works: short the BOOT pad while plugging in. Step by step:
-     [stock/README.md](stock/README.md#if-it-is-bricked-no-keys-no-lights-fnpause-does-nothing)
-4. The script flashes, verifies the checksum, and the keyboard restarts.
+</td>
+<td valign="top">
 
-## Building
+### 🖥️ Windows or Mac, per device
+Each of the 5 Bluetooth devices and the cable remembers its own layout. A Mac and a PC can share the
+keyboard and each gets the right modifier keys, with no switching by hand.
 
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔋 Battery you can see
+The Power page shows the battery level, whether it's charging, and the cable. The keyboard deep-sleeps
+when idle, and **the key that wakes it is still typed**.
+
+</td>
+<td valign="top">
+
+### 🛟 Safe updates
+The app installs new versions over the cable. It checks the file and puts your settings and macros back
+afterwards. Going back to the original firmware is a button, and recovery is documented step by step.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🧩 VIA compatible
+Works with [VIA](https://usevia.app) in Chrome or Edge, with nothing to install. Remap any key on all 5 layers,
+edit macros, and reach every Keycandle setting in VIA's menus. The VIA definition,
+[`rk71_rgb_via.json`](via/rk71_rgb_via.json), comes with every release.
+
+</td>
+<td valign="top">
+
+### 🔬 Reverse-engineered, then improved
+Every pin, the key matrix, the LEDs and the Bluetooth module's protocol were worked out by disassembling the
+original firmware. Keycandle keeps everything the factory firmware did, then does it better.
+[How](#built-from-the-original-firmware).
+
+</td>
+</tr>
+</table>
+
+## A look at the app
+
+| | |
+|:---:|:---:|
+| <img src="docs/media/overview.png" alt="Overview page"><br>**Overview:** the keyboard as it is now, and what's set | <img src="docs/media/lighting.png" alt="Lighting page"><br>**Lighting:** pick an effect from a gallery of live previews |
+| <img src="docs/media/keys.png" alt="Keys and indicators page"><br>**Keys & indicators:** Caps Lock, F-row lock, Win/Mac per device | <img src="docs/media/macros.png" alt="Macros page"><br>**Macros:** write, record and try them |
+| <img src="docs/media/power.png" alt="Power page"><br>**Power:** battery, charging, sleep times | <img src="docs/media/firmware.png" alt="Firmware page"><br>**Firmware:** one-click updates, or back to the original |
+
+The app is in English, Spanish and Portuguese, follows the system's light or dark theme, and on macOS has the
+translucent sidebar and a full menu bar.
+
+## Get started
+
+1. **Download the app** for your computer from the [latest release](../../releases/latest):
+   * Windows: `keycandle-windows-x64.exe` (nothing to install, just run it)
+   * macOS (Apple Silicon and Intel): `keycandle-macos-universal.zip`
+   * Linux: `keycandle-linux-x64.tar.gz` (see its README.txt for USB access)
+2. **Plug the keyboard in with the USB cable.** The app finds it, even on the original firmware.
+3. Open **Firmware** and click **Install**. The keyboard restarts on its own; about a minute later you're set.
+
+After that, use the app over the cable or Bluetooth, or [VIA](#via) in the browser with the provided JSON.
+
+> [!NOTE]
+> **macOS, the first time:** the app isn't notarized by Apple. If macOS says it can't check it, open
+> **System Settings ▸ Privacy & Security** and click **Open Anyway**. For settings over Bluetooth, allow it under
+> **Input Monitoring** when asked.
+
+## How it works
+
+```mermaid
+flowchart LR
+    App["Keycandle app"]
+    subgraph RK71["RK71 keyboard"]
+        Chip["Keyboard chip<br/>Keycandle firmware"]
+        BT["Bluetooth module"]
+    end
+    App <-- "USB cable: VIA commands<br/>(settings, macros, updates)" --> Chip
+    App -- "Bluetooth: settings sent as<br/>lock-light patterns" --> BT
+    BT -- "values sent back as<br/>media codes the OS ignores" --> App
+    BT <-- "SPI" --> Chip
 ```
-git clone https://github.com/SonixQMK/qmk_firmware.git qmk_firmware
-git -C qmk_firmware checkout c9f3803f && git -C qmk_firmware submodule update --init --recursive
-bash tools/build.sh                # output: build/rk71_rgb_via.bin
-```
 
-Needed on PATH: `arm-none-eabi-gcc` (Arm GNU Toolchain **12.2.mpacbti-rel1**, which releases are built with; other
-versions work too but give a slightly different image), `make`, and the qmk CLI
-(`pip install qmk` or `uv tool install qmk`).
+* **Over the cable**, the app talks to the firmware the way [VIA](https://usevia.app) does. It reads and
+  writes settings, macros and keys, and installs updates.
+* **Over Bluetooth**, the module gives the computer only a keyboard and media keys, with no data channel. So
+  the app spells each setting out by flipping the keyboard's Num, Caps and Scroll lock lights in a pattern
+  (the real lock states don't change). The keyboard decodes the pattern, confirms it, and sends its own
+  values back as media-key codes that no operating system acts on. A full sync takes about 1.5 seconds, and
+  typing is never blocked. [Details](docs/BLUETOOTH.md#settings-over-bluetooth).
+* **The firmware** is a QMK port written for this exact board. Every pin and the Bluetooth module's protocol
+  were worked out by disassembling the factory firmware, not guessed. It has its own key-LED driver (for the
+  refresh rate), a Bluetooth driver, a side-light driver, deep sleep, and macros stored in their own flash.
 
-* **Linux / macOS:** install the toolchain from [Arm](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)
-  or your package manager. `.github/workflows/build.yml` shows a full Ubuntu setup.
-* **Windows:** `winget install Arm.ArmGnuToolchain`, and MSYS2 `make` 4.4 copied to `tools/make.exe` (the
-  ezwinports make breaks QMK's quoting). `build.sh` adds these to PATH by itself. Use `qmk compile` (as
-  `build.sh` does), not `make kb:km`: the `make` command line is too long for Windows.
+## Built from the original firmware
 
-`keyboard.json` and `via/rk71_rgb_via.json` are generated by `tools/gen_rk71.py`. Edit the generator, not the
-outputs.
+There was no documentation, schematic or source for this board, so Keycandle started from the factory firmware
+itself. The V1.12 image was disassembled to learn:
 
-## Development workflow
+* **The hardware map:**
+  * which chip pins scan the key matrix and drive the per-key and side LEDs;
+  * where the cable is sensed;
+  * how the board enters its bootloader.
+* **The Bluetooth module:**
+  * its SPI link and packet format (it turned out to speak the same protocol as QMK's ITON driver);
+  * the commands for devices, pairing and battery;
+  * the events it sends back ([details](docs/BLUETOOTH.md)).
+* **The factory behaviour:** the Fn shortcuts, device switching and pairing holds, status lights, battery
+  warnings and sleep. Keycandle reproduces all of it, so nothing you relied on is lost.
 
-* `main` is always the latest working firmware.
-* Work happens on short-lived branches (`feature/side-light-calibration`, `fix/caps-blink`, …). They're merged into
-  `main` once tested on the keyboard, then deleted.
-* A release is a tag on `main`. Pushing it makes GitHub Actions build the images and publish the release:
+Then it improved on what it found:
+* a key-LED driver about 9 times faster than QMK's own for this chip;
+* side lights that mix real colours;
+* deep sleep that doesn't swallow the waking key;
+* per-device Windows/Mac;
+* macros;
+* settings over Bluetooth.
 
-  ```
-  git tag v0.5.6b && git push origin v0.5.6b
-  ```
+The original firmware and Royal Kludge's tools are preserved in [`stock/`](stock/README.md), with the notes from
+the disassembly ([FIRMWARE_NOTES.md](stock/FIRMWARE_NOTES.md)), so the keyboard can always go back.
 
-  Tags ending in `b` are marked as pre-releases.
-* If an old release ever needs a fix, branch `release/0.5.x` from its tag only then.
+## VIA
 
-## Layout
+Keycandle speaks VIA's protocol, so [usevia.app](https://usevia.app) configures it directly. VIA doesn't know this
+board on its own, so load its definition once:
 
-```
-keyboard/      QMK keyboard source: rk71_rgb (copied into qmk_firmware/ at build time)
-via/           VIA definition: load it in usevia.app > Settings > Design tab
-docs/          QMK_FIRMWARE.md (user guide), BLUETOOTH.md (Bluetooth module protocol)
-app/           Keycandle: desktop settings and firmware updater (Rust + GPUI)
-stock/         original firmware image, recovery guide, stock internals and key map
-tools/         build.sh, flash_rk71.sh, stock_enter_isp.py, gen_rk71.py, udev rule for Linux
-archive/       an earlier failed attempt, kept for history only
-```
+1. Download `rk71_rgb_via.json` from the [latest release](../../releases/latest) (also in [`via/`](via/rk71_rgb_via.json)).
+2. In VIA, turn on **Settings ▸ Show Design tab**, then load the file under **Design**.
+3. **Authorize device** and pick the RK71, with the cable plugged in.
 
-## Hardware and USB IDs
+VIA's menus have every Keycandle setting:
+* side lights, effects and calibration;
+* Caps Lock and F-row lock indicators;
+* Windows or Mac per device;
+* power and sleep times.
 
-| Name | What it is |
-|---|---|
-| SN32F248BF | The chip on the board (marking). |
-| SN32F240B | Its family, as in Sonix's datasheet and SonixQMK (`MCU = SN32F240B`). Same chip. |
-| SN32F24xB | SonixFlasher's name for that family. Same chip. |
-| `603-836/RGB-BT-HFD REV:01` | The PCB. HFD is the board maker; other Royal Kludge boards share the design. |
+On top of that you get VIA's own keymap editor for all 5 layers and its macro editor, which shares macros with the
+app. The Bluetooth keys are under *Special ▸ Custom*.
 
-| USB ID | Who uses it |
-|---|---|
-| `0C45:8071` | **This firmware** (wired). VIA and the configurator talk to it. |
-| `05AC:024F` | **The stock firmware** (an Apple keyboard's ID), and the Bluetooth module's ID when paired. |
-| `0C45:7040` | The chip's ROM bootloader (flash mode), entered with Fn+Pause or the BOOT pad. |
-| `05AC:0256`, `0C45:8006` | Other stock firmware variants the vendor updater also accepts; not this board. |
+## The firmware
 
-From the stock firmware, the vendor command puts the chip in its bootloader **without** a new USB device: it keeps
-answering as `05AC:024F` (tested on the board). Fn+Pause and the BOOT pad give `0C45:7040`.
+| | Factory firmware | Keycandle |
+|---|---|---|
+| Source code | Closed | Open, GPL-2.0 ([`keyboard/rk71_rgb`](keyboard/rk71_rgb)) |
+| Configure from | Royal Kludge's Windows app | The Keycandle app (Windows, macOS, Linux), or [VIA](#via) with the provided JSON |
+| …over Bluetooth | No | Yes, both ways |
+| Light refresh | Not published | Keys ~1,400 Hz, side lights ~3,100 Hz, measured on the board |
+| Side lights | Status only | Follow the keys or a fixed colour, 5 effects, Caps Lock and F-row lock indicators, calibration |
+| Remapping | What the vendor app allows | Every key on all 5 layers, any QMK keycode |
+| Macros | – | 16, on Fn + any free key, Ctrl/Cmd matched to the device |
+| Windows/Mac | One switch | Remembered per Bluetooth device and for the cable |
+| Battery | – | High / medium / low, charging, in the app and on the side lights (Fn+Space) |
+| Sleep | Deep sleep | Deep sleep, instant wake, the waking key is typed; times are adjustable |
+| Switch chatter | Vendor default | 10 ms debounce per key |
 
-## Roadmap
+Everything about the keys, Fn shortcuts, lights and status colours is in the **[user guide](docs/USER_GUIDE.md)**.
 
-* **v0.10 (done):** macros on Fn + any key, edited in the app or VIA.
-* **v0.9 (done):** settings over Bluetooth, both ways. The app sends short messages through the keyboard's lock-LED
-  state, which the Bluetooth module passes on (Windows: the keyboard's own interface, no admin or driver; macOS: Input
-  Monitoring permission; Linux: the udev rule). The keyboard confirms each one, and reports its own values
-  (lighting, Win/Mac per device, the device in use) as reserved media-key codes that systems ignore.
-* Settings other than lighting and Win/Mac still show their last USB values while on Bluetooth.
-* Firmware updates stay USB-only: the bootloader is USB-only and Bluetooth carries a few bits per message.
+## Compatibility
 
-## Known limitations
+* **Keyboard:** Royal Kludge **RK71 RGB**, the tri-mode version with Bluetooth. PCB `603-836/RGB-BT-HFD REV:01`,
+  chip SONiX SN32F248BF. [How to check yours](docs/USER_GUIDE.md#is-my-keyboard-supported).
+* **App:** Windows 10 and 11, macOS 11 or later (universal), Linux x64. Settings over Bluetooth work on all three.
+* **Firmware updates** need the USB cable: the chip's bootloader is USB-only.
 
-* VIA settings, keymaps and lighting are stored in flash. Flashing a new build resets them to defaults (the
-  configurator saves and restores its settings around an update; not the keymap).
-* Side-light colours aren't exact, see the [user guide](docs/QMK_FIRMWARE.md#side-light-colour-limitations).
-* No battery percentage: the Bluetooth module reports only high / medium / low, and the chip has no battery sensing.
+## Good to know
+
+* The Bluetooth module reports the battery only as high, medium or low, and the board has no wire to measure
+  it, so there's no percentage.
+* The side lights' mixed colours are approximate. Each light mixes red, green and blue very quickly, and the
+  diffuser is bluish. They can be calibrated per light.
+* Installing new firmware resets the keyboard's stored settings. The app puts back your settings and macros
+  afterwards; VIA keymap changes aren't restored.
+
+## More
+
+* [User guide](docs/USER_GUIDE.md): keys, Fn shortcuts, Bluetooth, lighting, status lights, VIA, troubleshooting
+* [Changelog](CHANGELOG.md): every version
+* [Bluetooth](docs/BLUETOOTH.md): the module's protocol and how settings travel over Bluetooth
+* [Development](docs/DEVELOPMENT.md): building the firmware and app, project layout, releases, hardware IDs
+* [Original firmware](stock/README.md): the factory firmware, preserved, plus going back and unbricking
 
 ## License
 
-The QMK port and tools are GPL-2.0-or-later ([LICENSE](LICENSE)), like QMK itself. Royal Kludge's firmware and
-programs (in `stock/` and on the `stock-v1.12` release) are their property. They're mirrored only to preserve
-them for owners of this keyboard and aren't covered by this license.
+The firmware, app and tools are GPL-2.0-or-later ([LICENSE](LICENSE)), like QMK. Keycandle is an independent
+project, not affiliated with or endorsed by Royal Kludge. Royal Kludge's firmware and programs (in `stock/` and
+on the [`stock-v1.12`](../../releases/tag/stock-v1.12) release) are their property. They're mirrored only so
+owners of this keyboard can always go back, and they aren't covered by this license.
