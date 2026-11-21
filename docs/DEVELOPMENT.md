@@ -93,7 +93,7 @@ Useful command-line options (`keycandle --…`):
 | `--get <ch> <id> <len>`, `--set <ch> <id> <bytes…>` | Read or write a VIA value |
 | `--install <file.bin>` | Install firmware, putting the settings back afterwards |
 | `--bt-set <ch> <id> <byte>` | Send one value over Bluetooth and wait for the confirmation |
-| `--bt-listen [seconds]` | Ask the keyboard for its values over Bluetooth and print what arrives, with timings |
+| `--bt-listen [seconds] [cached]` | Ask the keyboard for its values over Bluetooth and print what arrives, with timings. With `cached`, ask as the app does (with the checksum of the remembered values) |
 | `--macros`, `--macros set <n> "text"`, `--macros key <n> J`, `--macros play <n>` | List, write, assign and play macros |
 | `--page <name>` | Open on a page (overview, lighting, keys, macros, power, firmware, settings) |
 

@@ -90,8 +90,8 @@ Macros and firmware updates need the cable. See [how it works](BLUETOOTH.md#sett
   ([why](BLUETOOTH.md#macos-input-monitoring)).
 * **Linux:** install the udev rule from the release's README.txt.
 
-When the app finds the keyboard over Bluetooth, the status line shows *Receiving* for about a second and a half
-while the keyboard sends its settings. Settings it doesn't report back (side lights, power) show their last
+When the app finds the keyboard over Bluetooth, the status line shows *Receiving* for about a second while the
+keyboard sends its battery, its device and any settings that changed since the cable. Settings it doesn't report back (side lights, power) show their last
 values from the cable.
 
 ## Keys

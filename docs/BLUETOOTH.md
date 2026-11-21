@@ -151,7 +151,8 @@ puts off saving to flash for 1.5 s, because a flash write stalls the chip long e
 ### Keyboard → computer: media codes nobody uses
 
 Values go back as consumer (media-key) usages in a reserved range that operating systems ignore. Each value is
-two usages, each followed by a release:
+two usages, then a release (before v0.10.1, a release after each). The module sends about one report every 90 ms,
+so every report saved counts:
 
 ```
 0x300 | slot << 4 | high 4 bits,   then   0x380 + (slot << 4) | low 4 bits        (slot 0..6)
@@ -169,16 +170,28 @@ The app reads them from the keyboard's media collection (report 8) and pairs up 
 
 ```
 App                                     Keyboard                         BT module
- |-- "send everything" (lock lights) --->|  ~0.72 s                         |
+ |-- "send what changed" + CRC --------->|  ~0.72 s (lock lights)           |
  |<-- confirmation 0x3F0 + CRC ----------|-- "battery level?" ------------->|
  |                                       |<-- high / medium / low ----------|
  |                                       |   0.25 s after the last symbol:
  |<-- slot 6: battery, device -----------|   the state first
- |<-- 2 values every 100 ms -------------|   brightness, effect, … Win/Mac
+ |<-- the other values, if they differ --|   brightness, effect, … Win/Mac
 ```
 
-* **When the app finds the keyboard:** it sends the request above on channel `0xF0`. The answer is complete about
-  1.5 s later (about 4.7 s before v1.0, which waited 1.5 s and sent one value a round, the state last).
+* **When the app finds the keyboard:** it sends the request above on channel `0xF0`, id 0. Its value bytes are
+  `1` and a CRC-8 of the values the app remembers from the cable (slots 0–5). The keyboard computes the same CRC
+  over its own values: if they match, it sends only its state; otherwise it sends everything. Firmware before
+  v0.10.1 ignores the CRC and always sends everything.
+
+  | Measured (v0.10.1), from the start of the request | |
+  |---|---|
+  | Request confirmed | 0.75–0.9 s |
+  | State (battery, device) arrives | 1.2 s |
+  | Done, nothing changed | **1.3 s** |
+  | Done, full sync | 3.0 s |
+
+  v0.9 took about 4.7 s: it waited 1.5 s, sent one value a round with the state last, and 4 reports per value.
+  `keycandle --bt-listen 6 cached` asks the way the app does and prints the timings.
 * **When the Power page opens:** a request for the state only (`0xF0`, id 1), at most every 5 s. The keyboard
   checks the battery first.
 * **If a request goes unanswered** (the keyboard was asleep or out of range): the app asks again every few seconds,
@@ -190,7 +203,7 @@ App                                     Keyboard                         BT modu
 
 ### Cost
 
-Reports share the module's 16-place queue with typing. The keyboard sends at most 2 values (8 packets) per 100 ms
+Reports share the module's 16-place queue with typing. The keyboard sends at most 2 values (6 packets) per 100 ms
 and leaves the rest for keystrokes, so typing during a sync waits a few milliseconds at most. In normal use it
 sends a value when an Fn key changes a setting and when the battery level changes. The battery check every minute
 stays between the chip and the module, and reaches the radio only when the level changed.

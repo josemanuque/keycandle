@@ -159,8 +159,9 @@ flowchart LR
 * **Over Bluetooth**, the module gives the computer only a keyboard and media keys, with no data channel. So
   the app spells each setting out by flipping the keyboard's Num, Caps and Scroll lock lights in a pattern
   (the real lock states don't change). The keyboard decodes the pattern, confirms it, and sends its own
-  values back as media-key codes that no operating system acts on. A full sync takes about 1.5 seconds, and
-  typing is never blocked. [Details](docs/BLUETOOTH.md#settings-over-bluetooth).
+  values back as media-key codes that no operating system acts on. Reconnecting takes about 1.3 seconds
+  (the app sends a checksum of what it already knows, so unchanged values aren't sent again), and typing is
+  never blocked. [Details](docs/BLUETOOTH.md#settings-over-bluetooth).
 * **The app** is written in Rust with [GPUI](https://www.gpui.rs) and
   [gpui-component](https://github.com/longbridge/gpui-component): one native binary per system, rendered on the
   GPU, with no browser engine inside. It talks to the keyboard through hidapi, and its live previews run the same
