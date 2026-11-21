@@ -859,22 +859,34 @@ static uint32_t fnv1a(uint32_t h, const void *data, uint8_t len) {
 
 /* Ask the module for the battery level now and then, so the app can show it (over USB and
  * Bluetooth) without anyone pressing Fn+Space. The answer only updates battery_level; the bar on the
- * side lights stays for Fn+Space and unplugging. Not while settings arrive over Bluetooth: sending to
- * the module then could cost an LED report. Called every 100 ms; asks in one of those windows each
- * minute (and 3 s after start), going by the clock so it needs no RAM (there's none to spare). */
+ * side lights stays for Fn+Space and unplugging. Every few seconds until it's known (after start-up
+ * or waking), then every minute. Not while settings arrive over Bluetooth: sending to the module then
+ * could cost an LED report. Called every 100 ms with the time of the previous call; asks when a
+ * period boundary passed in between, so it needs no RAM of its own (there's none to spare). */
 #define BATTERY_POLL_MS 60000
-static void poll_battery(uint32_t now) {
-    uint32_t phase = (now - 3000) % BATTERY_POLL_MS;
-    if (now < 3000 || phase >= 100 || battery_bar.active || btcfg_active(now)) return;
-    bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
+#define BATTERY_UNKNOWN_POLL_MS 3000
+
+static void check_battery(void) {
+    if (!battery_bar.active) bt_command(BT_CMD_BT, BT_QUERY_BATTERY);
+}
+
+static void poll_battery(uint32_t now, uint32_t before) {
+    uint32_t every = battery_level ? BATTERY_POLL_MS : BATTERY_UNKNOWN_POLL_MS;
+    if (now / every == before / every || btcfg_active(now)) return;
+    check_battery();
+}
+
+/* The app asked for the keyboard's values over Bluetooth: have the battery fresh for the answer. */
+void rk71_btcfg_synced(void) {
+    check_battery();
 }
 
 static void watch_state(uint32_t now) {
     static uint32_t checked, last;
     if (TIMER_DIFF_32(now, checked) < 100) return;
+    poll_battery(now, checked);
     checked = now;
     btcfg_task(now, on_bluetooth() && link_connected);
-    poll_battery(now);
     uint8_t live[] = {on_bluetooth(), kb_config.host, link_state, battery_level, state_flags()};
     uint32_t h = fnv1a(2166136261u, &rgb_matrix_config, sizeof(rgb_matrix_config));
     h = fnv1a(h, &kb_config, sizeof(kb_config));
@@ -1162,6 +1174,7 @@ enum {
     ID_MAC_DEVICE_LAST  = 63,
     ID_MACRO_PLAY       = 64, /* set: play macro n now, as its key would (the app's Play / Try it) */
     ID_FROW_MEDIA_FIRST = 65, /* with the F-row lock: 0 F1-F12 (Fn: media), 1 media (Fn: F1-F12) */
+    ID_CHECK_BATTERY    = 66, /* set: ask the Bluetooth module for the battery level now (the app's Power page) */
 };
 
 static hs_t hs_store(uint8_t h, uint8_t s, hs_t def) {
@@ -1268,6 +1281,7 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length) {
                     break;
                 case ID_MACRO_MATCH_OS: set_flag(&kb_extra.key_flags, KEY_FLAG_MACRO_KEEP_CTRL, !value[0]); break;
                 case ID_MACRO_PLAY: play_macro(value[0]); break;
+                case ID_CHECK_BATTERY: check_battery(); break;
                 case ID_FROW_MEDIA_FIRST:
                     set_flag(&kb_extra.key_flags, KEY_FLAG_FROW_MEDIA_FIRST, value[0]);
                     layer_state_set(layer_state); /* the number row changes right away */

@@ -70,5 +70,6 @@ pub static PROFILE: Profile = Profile {
         ("other", &[("Fn + Pause", "boot")]),
     ],
     macro_play_value: 64,
+    check_battery_value: 66,
     keys: &layout::KEYS,
 };

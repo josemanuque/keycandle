@@ -131,6 +131,10 @@ pub struct Model {
     /// Over USB: show "saved" / "receiving" until then.
     saved_until: Option<Instant>,
     received_until: Option<Instant>,
+    /// When the app last asked the keyboard to check its battery (the Power page).
+    battery_asked: Option<Instant>,
+    /// Over USB: when the keyboard's state was last read.
+    state_read_at: Option<Instant>,
 }
 
 
@@ -145,8 +149,19 @@ pub fn preview_updates() -> bool {
     std::env::var("KEYCANDLE_PREVIEW").is_ok_and(|v| v == "updates")
 }
 
+/// KEYCANDLE_PREVIEW=charging or =checking: the battery medium and charging, or being checked.
+fn preview_battery(what: &str) -> bool {
+    std::env::var("KEYCANDLE_PREVIEW").is_ok_and(|v| v == what)
+}
+
 /// How long a finished change stays on show over USB, where changes take no time to send.
 const ACTIVITY_SHOWN: Duration = Duration::from_millis(1200);
+/// Asking for the battery again sooner than this just repeats the last answer.
+const BATTERY_ASK_EVERY: Duration = Duration::from_secs(5);
+/// The battery shows as being checked for at most this long (Bluetooth needs a message each way).
+const BATTERY_CHECK_TIMEOUT: Duration = Duration::from_secs(8);
+/// Over USB the module answers within a few milliseconds; a state read this long after asking has it.
+const BATTERY_ANSWER_USB: Duration = Duration::from_millis(400);
 
 impl Model {
     /// Connected over USB (VIA: reads, writes and firmware updates).
@@ -186,6 +201,43 @@ impl Model {
             battery_low: packed & 0x20 != 0,
             ..Default::default()
         })
+    }
+
+    /// Have the keyboard check its battery now, and say when it has (the Power page): over USB a value
+    /// write, over Bluetooth a quiet request for its state. Not again within a few seconds.
+    pub fn check_battery(&mut self) {
+        if self.battery_asked.is_some_and(|at| at.elapsed() < BATTERY_ASK_EVERY) {
+            return;
+        }
+        if let Some(kb) = &self.keyboard {
+            if self.state.is_none() {
+                return; // older than v0.8: no battery to show
+            }
+            let _ = kb.set(CHANNEL_KEYBOARD, keyboard::current().check_battery_value, &[1]); // v0.10+
+        } else if let Some(queue) = &self.bluetooth {
+            queue.ask_state();
+        } else {
+            return;
+        }
+        self.battery_asked = Some(Instant::now());
+    }
+
+    /// The battery is being checked: asked for (or the keyboard just found over Bluetooth), and no
+    /// answer with a level yet.
+    pub fn battery_checking(&self) -> bool {
+        if preview() {
+            return preview_battery("checking");
+        }
+        if self.keyboard.is_none() && self.bluetooth.is_none() {
+            return false;
+        }
+        let Some(asked) = self.battery_asked.filter(|at| at.elapsed() < BATTERY_CHECK_TIMEOUT) else { return false };
+        let known = self.state().copied().or(self.bluetooth_state()).is_some_and(|s| s.battery != Battery::Unknown);
+        let answered = match &self.bluetooth {
+            Some(queue) => queue.state_at().is_some_and(|at| at > asked),
+            None => self.state_read_at.is_some_and(|at| at >= asked + BATTERY_ANSWER_USB),
+        };
+        !(known && answered)
     }
 
     /// Only on Bluetooth: the keyboard's firmware turned out not to report its values (older than
@@ -347,7 +399,7 @@ impl Model {
             // KEYCANDLE_PREVIEW=updates: an older version, so the update notices show.
             self.firmware_version = Some(if preview_updates() { 0x0800 } else { keyboard::current().macros_since });
             // Wired, charging, battery high, lighting on.
-            self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, 3, 1 | 4]));
+            self.state = Some(KeyboardState::from_bytes(&[0, 0, 0, 3, if preview_battery("charging") { 2 } else { 3 }, 1 | 4]));
             return true;
         }
         match Keyboard::open() {
@@ -356,6 +408,8 @@ impl Model {
                 self.connection = Connection::Usb { protocol: kb.protocol_version };
                 self.write_error = None;
                 self.state = kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).ok().map(|v| KeyboardState::from_bytes(&v));
+                self.state_read_at = Some(Instant::now());
+                self.battery_asked = None;
                 self.values = read_all(&kb);
                 // Older firmware keeps macros in a tiny space and can't play or match them: no editor.
                 let since = keyboard::current().macros_since;
@@ -382,7 +436,11 @@ impl Model {
             }
         }
         if self.on_bluetooth() {
-            self.bluetooth.get_or_insert_with(btlink::Queue::new);
+            if self.bluetooth.is_none() {
+                // Its first request for the keyboard's values has the battery checked too.
+                self.bluetooth = Some(btlink::Queue::new());
+                self.battery_asked = Some(Instant::now());
+            }
         } else {
             self.bluetooth = None;
         }
@@ -450,6 +508,9 @@ impl Model {
             Some(_) => kb.get(CHANNEL_KEYBOARD, keyboard::current().state_value.0, keyboard::current().state_value.1).map(|v| Some(KeyboardState::from_bytes(&v))),
             None => kb.ping().map(|_| None),
         };
+        if fresh.is_ok() {
+            self.state_read_at = Some(Instant::now());
+        }
         let Ok(fresh) = fresh else {
             self.keyboard = None;
             self.macros = None;

@@ -37,17 +37,20 @@ const ATTEMPTS: usize = 4;
 /// Time per symbol: the LED report has to cross Bluetooth and the module.
 const SYMBOL: Duration = Duration::from_millis(30);
 const ACK_WAIT: Duration = Duration::from_millis(700);
-/// A message on this channel asks the keyboard to report its values (firmware: BTCFG_SYNC_CHANNEL).
+/// A message on this channel asks the keyboard to report its values (firmware: BTCFG_SYNC_CHANNEL);
+/// with id SYNC_STATE only its state (battery, device), after checking the battery.
 const SYNC_CHANNEL: u8 = 0xF0;
+const SYNC_STATE: u8 = 1;
 /// The report the keyboard's confirmations and values arrive in. Other reports (typing, on macOS,
 /// where they share a device with it) are dropped unread.
 const REPORT_ID: u8 = 8;
 /// How long "receiving" stays up after a value arrives, and after asking for all of them (the
 /// keyboard waits until messages stop, then sends one value every 100 ms).
-const RECEIVE_SHOWN: Duration = Duration::from_millis(1200);
-const SYNC_ANSWER: Duration = Duration::from_millis(2600);
-/// The first value comes about 2 s after the request is confirmed (the keyboard waits for messages to
-/// stop), the last about 4 s after: firmware that has sent nothing by then doesn't report.
+const RECEIVE_SHOWN: Duration = Duration::from_millis(700);
+const SYNC_ANSWER: Duration = Duration::from_millis(1500);
+/// The first value comes 0.3 s (v0.10) to 2 s (v0.9) after the request is confirmed (the keyboard
+/// waits for messages to stop), the last up to 4 s after: firmware that has sent nothing by then
+/// doesn't report.
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(6);
 /// How long "received" stays up once the keyboard has finished.
 const RECEIVED_SHOWN: Duration = Duration::from_millis(1200);
@@ -178,6 +181,8 @@ struct Shared {
     sending: bool,
     /// What's on its way is the request for the keyboard's values, not a change of ours.
     asking: bool,
+    /// What's on its way is a quiet request for its state (ask_state).
+    checking: bool,
     /// Show "receiving" until then.
     receiving_until: Option<Instant>,
     /// Values did arrive during this "receiving".
@@ -188,8 +193,10 @@ struct Shared {
     closed: bool,
     /// Reported by the keyboard, not yet picked up by the app.
     updates: Vec<Update>,
-    /// The keyboard's packed state (see `keyboard::Profile::bluetooth_slots`), once it has said.
+    /// The keyboard's packed state (see `keyboard::Profile::bluetooth_slots`), once it has said, and
+    /// when it last did.
     keyboard_state: Option<u8>,
+    state_at: Option<Instant>,
     /// The keyboard has reported something since the queue started.
     heard: bool,
     /// Our request for the keyboard's values couldn't be delivered.
@@ -220,6 +227,7 @@ fn listen(link: Link) {
                     s.heard = true;
                     if update.0 == KEYBOARD_STATE {
                         s.keyboard_state = Some(update.2);
+                        s.state_at = Some(Instant::now());
                         continue;
                     }
                     s.updates.push(update);
@@ -280,12 +288,16 @@ impl Queue {
                     }
                     s.sending = true;
                     let next = s.pending.remove(0);
-                    s.asking = next.0 .0 == SYNC_CHANNEL;
+                    s.asking = next.0 == (SYNC_CHANNEL, 0);
+                    s.checking = next.0 == (SYNC_CHANNEL, SYNC_STATE);
                     next
                 };
                 let result = send(channel, id, &value);
                 let mut s = lock.lock().unwrap();
                 s.sending = false;
+                if std::mem::take(&mut s.checking) {
+                    continue; // a quiet check: its answer is the state, nothing on show
+                }
                 if result.is_ok() {
                     if s.asking {
                         if !s.retrying {
@@ -335,6 +347,24 @@ impl Queue {
         self.0 .0.lock().unwrap().keyboard_state
     }
 
+    /// When the keyboard last reported its state.
+    pub fn state_at(&self) -> Option<Instant> {
+        self.0 .0.lock().unwrap().state_at
+    }
+
+    /// Ask the keyboard to check its battery and report its state, quietly (the Power page). Not
+    /// while the first request for all its values is still out: that answer has the state too.
+    pub fn ask_state(&self) {
+        let busy = {
+            let s = self.0 .0.lock().unwrap();
+            let first_answer_due = !s.heard && s.answer_due.is_none_or(|due| Instant::now() < due);
+            s.pending.iter().any(|(key, _)| key.0 == SYNC_CHANNEL) || s.asking || first_answer_due
+        };
+        if !busy {
+            self.push(SYNC_CHANNEL, SYNC_STATE, &[0]);
+        }
+    }
+
     /// Whether the keyboard reports its values: None until it's known, false for firmware that
     /// confirmed the request but sent nothing back (older than v0.9).
     pub fn keyboard_reports(&self) -> Option<bool> {
@@ -360,8 +390,9 @@ impl Queue {
         let mut s = self.0 .0.lock().unwrap();
         let now = Instant::now();
         let ours = s.pending.iter().filter(|((channel, _), _)| *channel != SYNC_CHANNEL).count();
-        let busy = ours + (s.sending && !s.asking) as usize;
-        let asking = (s.asking || ours < s.pending.len()) && !s.retrying;
+        let asks_all = s.pending.iter().any(|(key, _)| *key == (SYNC_CHANNEL, 0));
+        let busy = ours + (s.sending && !s.asking && !s.checking) as usize;
+        let asking = (s.asking || asks_all) && !s.retrying;
         if busy > 0 {
             Status::Sending(busy)
         } else if asking || s.receiving_until.is_some_and(|until| now < until) {

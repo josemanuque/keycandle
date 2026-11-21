@@ -30,8 +30,10 @@
  *
  *   0x300 | slot << 4 | high 4 bits,  then  0x380 + (slot << 4) | low 4 bits      (slot 0..6)
  *
- * A message on BTCFG_SYNC_CHANNEL asks for all of them (the app does when it finds the keyboard).
- * Nothing is reported while messages are arriving: sending could cost an LED report.
+ * A message on BTCFG_SYNC_CHANNEL asks for all of them (the app does when it finds the keyboard), or
+ * with id BTCFG_SYNC_STATE only the keyboard's state; either also checks the battery. The state goes
+ * first, so the battery shows at once. Nothing is reported while a message is arriving (sending could
+ * cost an LED report): reports start BTCFG_REPORT_GAP_MS after the last symbol, two values a round.
  */
 #include "rk71_btcfg.h"
 #include <string.h>
@@ -104,7 +106,8 @@ void btcfg_leds(uint8_t leds, uint32_t now) {
     }
     btcfg_stats.ok++;
     if (bytes[0] == BTCFG_SYNC_CHANNEL) {
-        requested |= (1 << BTCFG_SLOTS) - 1;
+        requested |= bytes[1] == BTCFG_SYNC_STATE ? 1 << (BTCFG_SLOTS - 1) : (1 << BTCFG_SLOTS) - 1;
+        rk71_btcfg_synced();
     } else {
         rk71_btcfg_apply(bytes[0], bytes[1], bytes[2], bytes[3]);
         rk71_btcfg_read(sent); /* the computer chose these: no need to tell it */
@@ -130,13 +133,15 @@ void btcfg_task(uint32_t now, bool connected) {
         memcpy(sent, values, BTCFG_SLOTS);
         requested |= SENT_KNOWN;
     }
-    if (!connected || btcfg_active(now)) return;
-    for (uint8_t slot = 0; slot < BTCFG_SLOTS; slot++) {
+    /* Not in the middle of a message, nor right after a symbol (the next may be on its way). */
+    if (!connected || symbols || (btcfg_stats.symbols && TIMER_DIFF_32(now, prev_at) < BTCFG_REPORT_GAP_MS)) return;
+    uint8_t budget = 2; /* values per round: 8 of the module's 16 queue places, typing keeps the rest */
+    for (uint8_t i = 0; i < BTCFG_SLOTS && budget; i++) {
+        uint8_t slot = (i + BTCFG_SLOTS - 1) % BTCFG_SLOTS; /* the state (last slot) first */
         if (values[slot] == sent[slot] && !(requested >> slot & 1)) continue;
-        if (report(slot, values[slot])) {
-            sent[slot] = values[slot];
-            requested &= ~(1 << slot);
-        }
-        return; /* one per round */
+        if (!report(slot, values[slot])) return; /* queue full: try next round */
+        sent[slot] = values[slot];
+        requested &= ~(1 << slot);
+        budget--;
     }
 }

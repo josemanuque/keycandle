@@ -321,7 +321,15 @@ settings:
   slider_values_help: "Keyboard values are the numbers the keyboard stores, such as 0-31 for the side-light calibration."
 
 power:
-  charging: Charging over USB
+  charging: Charging
+  charged: Charged
+  on_cable: "Battery %{level}, on the USB-C cable"
+  level_high: high
+  level_medium: medium
+  level_low: low
+  level_unknown: not reported yet
+  checking: Checking the battery…
+  checking_detail: Asking the keyboard
   battery_high: Battery high
   battery_medium: Battery medium
   battery_low: Battery low, charge soon

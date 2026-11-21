@@ -104,7 +104,11 @@ impl Configurator {
     }
 
     fn connect(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.model.connect() {
+        let connected = self.model.connect();
+        if self.page == Page::Power {
+            self.model.check_battery();
+        }
+        if !connected {
             self.controls = Controls::default();
             if self.model.has_settings() {
                 // Only on Bluetooth: the remembered values, sent one way.
@@ -182,7 +186,8 @@ impl Configurator {
             let open = this.update(cx, |this, cx| {
                 let preview = this.page.is_animated() && this.model.has_settings();
                 let working = this.updater.step().is_busy() || matches!(this.updater.releases(), Releases::Checking);
-                if preview || (this.page == Page::Firmware && working) {
+                let battery = this.page == Page::Power && this.model.battery_checking();
+                if preview || battery || (this.page == Page::Firmware && working) {
                     cx.notify();
                 }
             });
@@ -202,6 +207,9 @@ impl Configurator {
         self.page = page;
         if page == Page::Firmware && matches!(self.updater.releases(), Releases::NotChecked) {
             self.updater.check();
+        }
+        if page == Page::Power {
+            self.model.check_battery();
         }
         cx.notify();
     }

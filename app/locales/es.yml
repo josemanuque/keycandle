@@ -320,7 +320,15 @@ settings:
   slider_values_help: "Los valores del teclado son los números que guarda, como 0-31 en la calibración de las luces laterales."
 
 power:
-  charging: Cargando por USB
+  charging: Cargando
+  charged: Cargado
+  on_cable: "Batería %{level}, con el cable USB-C"
+  level_high: alta
+  level_medium: media
+  level_low: baja
+  level_unknown: aún sin informar
+  checking: Comprobando la batería…
+  checking_detail: Preguntando al teclado
   battery_high: Batería alta
   battery_medium: Batería media
   battery_low: Batería baja, cárgalo pronto

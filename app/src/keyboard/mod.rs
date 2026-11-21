@@ -62,6 +62,8 @@ pub struct Profile {
     pub macros_since: u32,
     /// VIA value (channel 0) that plays macro n when set to n.
     pub macro_play_value: u8,
+    /// VIA value (channel 0) that has the keyboard check its battery now, when set.
+    pub check_battery_value: u8,
     /// What Fn + a key does, by group: (group key, [(keys, description key)]). Translation keys:
     /// `shortcuts.group.<group>` and `shortcuts.<description>`.
     pub fn_shortcuts: &'static [(&'static str, &'static [(&'static str, &'static str)])],
