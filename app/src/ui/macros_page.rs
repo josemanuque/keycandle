@@ -201,6 +201,23 @@ fn templates() -> Vec<(String, String, Vec<Step>)> {
     ]
 }
 
+/// Gap between keys in the picker, in px (gap_1).
+const PICKER_GAP: f32 = 4.;
+/// A key's width per unit at most, in px.
+const PICKER_UNIT_MAX: f32 = 34.;
+
+/// The px per key unit that fits every row of the picker (keys and gaps) into `room` px.
+fn picker_unit(keys: &[keyboard::rk71::layout::Key], room: f32) -> f32 {
+    (0..5)
+        .filter_map(|row| {
+            let (units, count) = keys.iter().filter(|k| k.row == row).fold((0f32, 0usize), |(u, c), k| (u + k.w, c + 1));
+            (count > 0).then(|| (room - (count - 1) as f32 * PICKER_GAP) / units)
+        })
+        .fold(PICKER_UNIT_MAX, f32::min)
+        .max(16.)
+        .floor()
+}
+
 pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Configurator>) -> AnyElement {
     let theme = cx.theme().clone();
     let width = app.layout.width;
@@ -423,6 +440,9 @@ pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Conf
                 })),
         );
 
+    // The editor's width, less its padding and the picker's: the keys shrink to fit it.
+    let editor_width = (width - 280. - 16.).max(420.);
+    let key_unit = picker_unit(&profile.keys, editor_width - 2. * 20. - 2. * 16. - 4.);
     let key_picker = ui.choosing_key.then(|| {
         let rows = (0..5).map(|row| {
             h_flex().gap_1().children(profile.keys.iter().enumerate().filter(|(_, k)| k.row == row).map(|(i, k)| {
@@ -431,8 +451,10 @@ pub fn render(app: &mut Configurator, window: &mut Window, cx: &mut Context<Conf
                 let view = view.clone();
                 div()
                     .id(("pick", i))
-                    .h(px(30.))
-                    .w(px(k.w * 34.))
+                    .h(px((key_unit * 0.88).round()))
+                    .w(px(k.w * key_unit))
+                    .flex_none()
+                    .overflow_hidden()
                     .flex()
                     .items_center()
                     .justify_center()
